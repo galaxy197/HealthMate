@@ -1,0 +1,260 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owns(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function validProfile() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'displayName', 'email', 'heightCm', 'createdAt', 'updatedAt',
+          'schemaVersion'
+        ])
+        && data.keys().hasOnly([
+          'displayName', 'email', 'heightCm', 'createdAt', 'updatedAt',
+          'schemaVersion'
+        ])
+        && data.displayName is string
+        && data.displayName.size() <= 50
+        && data.email is string
+        && data.email == request.auth.token.email
+        && (data.heightCm == null
+          || (data.heightCm is number
+            && data.heightCm >= 80
+            && data.heightCm <= 250))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.schemaVersion is int
+        && data.schemaVersion == 1;
+    }
+
+    function validMetric() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'weightKg', 'measuredAt', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'weightKg', 'measuredAt', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.weightKg is number
+        && data.weightKg >= 20
+        && data.weightKg <= 500
+        && data.measuredAt is timestamp
+        && data.measuredAt <= request.time
+        && data.note is string
+        && data.note.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validMealItem(item) {
+      return item is map
+        && item.keys().hasAll([
+          'foodId', 'name', 'grams', 'kcal', 'proteinG', 'carbsG', 'fatG',
+          'sourceLabel', 'isEstimated'
+        ])
+        && item.keys().hasOnly([
+          'foodId', 'name', 'grams', 'kcal', 'proteinG', 'carbsG', 'fatG',
+          'sourceLabel', 'isEstimated'
+        ])
+        && item.foodId is string && item.foodId.size() > 0 && item.foodId.size() <= 100
+        && item.name is string && item.name.size() > 0 && item.name.size() <= 100
+        && item.grams is number && item.grams > 0 && item.grams <= 2000
+        && item.kcal is number && item.kcal >= 0 && item.kcal <= 10000
+        && item.proteinG is number && item.proteinG >= 0 && item.proteinG <= 1000
+        && item.carbsG is number && item.carbsG >= 0 && item.carbsG <= 1000
+        && item.fatG is number && item.fatG >= 0 && item.fatG <= 1000
+        && item.sourceLabel is string && item.sourceLabel.size() <= 160
+        && item.isEstimated is bool;
+    }
+
+    function validMealItems(items) {
+      return items is list && items.size() > 0 && items.size() <= 5
+        && validMealItem(items[0]);
+    }
+
+    function validMeal() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
+          'totalCarbsG', 'totalFatG', 'source', 'createdAt', 'updatedAt',
+          'schemaVersion'
+        ])
+        && data.keys().hasOnly([
+          'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
+          'totalCarbsG', 'totalFatG', 'source', 'createdAt', 'updatedAt',
+          'schemaVersion'
+        ])
+        && data.mealType in ['breakfast', 'lunch', 'dinner', 'snack']
+        && data.consumedAt is timestamp
+        && data.consumedAt <= request.time + duration.value(5, 'm')
+        && validMealItems(data.items)
+        && data.totalKcal is number && data.totalKcal >= 0 && data.totalKcal <= 20000
+        && data.totalProteinG is number && data.totalProteinG >= 0 && data.totalProteinG <= 2000
+        && data.totalCarbsG is number && data.totalCarbsG >= 0 && data.totalCarbsG <= 2000
+        && data.totalFatG is number && data.totalFatG >= 0 && data.totalFatG <= 2000
+        && data.source in ['manual', 'ai_assisted']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.schemaVersion == 1;
+    }
+
+    function validDateKeyAndTimezone(data) {
+      return data.dateKey is string
+        && data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.timezoneOffsetMinutes is int
+        && data.timezoneOffsetMinutes >= -720
+        && data.timezoneOffsetMinutes <= 840;
+    }
+
+    function validWaterLog() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'amountMl', 'consumedAt', 'dateKey', 'timezoneOffsetMinutes',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'amountMl', 'consumedAt', 'dateKey', 'timezoneOffsetMinutes',
+          'createdAt', 'updatedAt'
+        ])
+        && data.amountMl is int
+        && data.amountMl >= 50
+        && data.amountMl <= 5000
+        && data.consumedAt is timestamp
+        && data.consumedAt <= request.time + duration.value(5, 'm')
+        && validDateKeyAndTimezone(data)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validActivityLog() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'activityType', 'durationMinutes', 'performedAt', 'dateKey',
+          'timezoneOffsetMinutes', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'activityType', 'durationMinutes', 'performedAt', 'dateKey',
+          'timezoneOffsetMinutes', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.activityType in [
+          'walking', 'running', 'cycling', 'strength', 'yoga', 'other'
+        ]
+        && data.durationMinutes is int
+        && data.durationMinutes >= 1
+        && data.durationMinutes <= 1440
+        && data.performedAt is timestamp
+        && data.performedAt <= request.time + duration.value(5, 'm')
+        && validDateKeyAndTimezone(data)
+        && data.note is string
+        && data.note.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /food_catalog/{foodId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if owns(uid);
+
+      allow create: if owns(uid)
+        && validProfile()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if owns(uid)
+        && validProfile()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'email', 'heightCm', 'updatedAt', 'schemaVersion'
+        ]);
+
+      allow delete: if false;
+
+      match /body_metrics/{metricId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && validMetric()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if owns(uid)
+          && validMetric()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'weightKg', 'measuredAt', 'note', 'updatedAt'
+          ]);
+
+        allow delete: if owns(uid);
+      }
+
+      match /meal_logs/{mealId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && validMeal()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if owns(uid)
+          && validMeal()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
+            'totalCarbsG', 'totalFatG', 'source', 'updatedAt', 'schemaVersion'
+          ]);
+
+        allow delete: if owns(uid);
+      }
+
+      match /water_logs/{logId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && validWaterLog()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if owns(uid)
+          && validWaterLog()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'amountMl', 'consumedAt', 'dateKey', 'timezoneOffsetMinutes',
+            'updatedAt'
+          ]);
+
+        allow delete: if owns(uid);
+      }
+
+      match /activity_logs/{logId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && validActivityLog()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if owns(uid)
+          && validActivityLog()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'activityType', 'durationMinutes', 'performedAt', 'dateKey',
+            'timezoneOffsetMinutes', 'note', 'updatedAt'
+          ]);
+
+        allow delete: if owns(uid);
+      }
+    }
+  }
+}

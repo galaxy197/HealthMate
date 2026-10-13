@@ -1,0 +1,9 @@
+abstract final class AppRoutes {
+  static const dashboard = '/dashboard';
+  static const journal = '/journal';
+  static const quest = '/quest';
+  static const chat = '/chat';
+  static const profile = '/profile';
+  static const auth = '/auth';
+  static const session = '/session';
+}

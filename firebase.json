@@ -1,0 +1,34 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": false
+    }
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "healthmate-app-20261013",
+          "appId": "1:471712188542:android:9aa12bdbac4605511eb02f",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "healthmate-app-20261013",
+          "configurations": {
+            "android": "1:471712188542:android:9aa12bdbac4605511eb02f",
+            "web": "1:471712188542:web:55c79778766d3cf71eb02f"
+          }
+        }
+      }
+    }
+  }
+}

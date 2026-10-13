@@ -1,0 +1,87 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../auth/models/auth_user.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../data/firebase_nutrition_repository.dart';
+import '../data/nutrition_repository.dart';
+import '../models/nutrition_failure.dart';
+import '../models/nutrition_models.dart';
+
+final nutritionRepositoryProvider = Provider<NutritionRepository>(
+  (ref) => FirebaseNutritionRepository(FirebaseFirestore.instance),
+);
+
+final foodCatalogProvider = StreamProvider<List<FoodCatalogItem>>((ref) {
+  return ref.watch(nutritionRepositoryProvider).watchFoodCatalog();
+});
+
+final mealLogsProvider = StreamProvider<List<MealLog>>((ref) async* {
+  final user = ref.watch(authSessionProvider).value;
+  if (user == null) {
+    yield const [];
+    return;
+  }
+  yield* ref.watch(nutritionRepositoryProvider).watchMealLogs(user.uid);
+});
+
+final nutritionControllerProvider =
+    NotifierProvider<NutritionController, AsyncValue<void>>(
+      NutritionController.new,
+    );
+
+class NutritionController extends Notifier<AsyncValue<void>> {
+  @override
+  AsyncValue<void> build() => const AsyncData(null);
+
+  void clearError() {
+    if (!state.isLoading) state = const AsyncData(null);
+  }
+
+  Future<bool> addMeal(MealDraft draft) => _perform((user) async {
+    await ref
+        .read(nutritionRepositoryProvider)
+        .addMeal(uid: user.uid, draft: draft);
+  });
+
+  Future<bool> updateMeal({required String mealId, required MealDraft draft}) =>
+      _perform((user) {
+        return ref
+            .read(nutritionRepositoryProvider)
+            .updateMeal(uid: user.uid, mealId: mealId, draft: draft);
+      });
+
+  Future<bool> deleteMeal(String mealId) => _perform((user) {
+    return ref
+        .read(nutritionRepositoryProvider)
+        .deleteMeal(uid: user.uid, mealId: mealId);
+  });
+
+  Future<bool> _perform(Future<void> Function(AuthUser user) operation) async {
+    if (state.isLoading) return false;
+    final user = ref.read(authSessionProvider).value;
+    if (user == null) {
+      state = AsyncError(
+        const NutritionFailure('Phiên đăng nhập đã hết hạn.'),
+        StackTrace.current,
+      );
+      return false;
+    }
+    state = const AsyncLoading();
+    try {
+      await operation(user);
+      if (ref.mounted) state = const AsyncData(null);
+      return true;
+    } catch (error, stack) {
+      if (ref.mounted) {
+        state = AsyncError(
+          error is NutritionFailure
+              ? error
+              : NutritionFailure.fromCode('unknown'),
+          stack,
+        );
+      }
+      return false;
+    }
+  }
+}
