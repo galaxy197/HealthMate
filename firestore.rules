@@ -9,11 +9,13 @@ service cloud.firestore {
     function validProfile() {
       let data = request.resource.data;
       return data.keys().hasAll([
-          'displayName', 'email', 'heightCm', 'createdAt', 'updatedAt',
+          'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
+          'targetWeightKg', 'onboardingCompletedAt', 'createdAt', 'updatedAt',
           'schemaVersion'
         ])
         && data.keys().hasOnly([
-          'displayName', 'email', 'heightCm', 'createdAt', 'updatedAt',
+          'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
+          'targetWeightKg', 'onboardingCompletedAt', 'createdAt', 'updatedAt',
           'schemaVersion'
         ])
         && data.displayName is string
@@ -24,10 +26,30 @@ service cloud.firestore {
           || (data.heightCm is number
             && data.heightCm >= 80
             && data.heightCm <= 250))
+        && (data.birthDate == null
+          || (data.birthDate is timestamp && data.birthDate <= request.time))
+        && (data.healthGoal == null || data.healthGoal in [
+          'lose_weight', 'maintain_weight', 'gain_weight_or_muscle',
+          'healthier_habits'
+        ])
+        && (data.targetWeightKg == null
+          || (data.targetWeightKg is number
+            && data.targetWeightKg >= 20
+            && data.targetWeightKg <= 500))
+        && (data.onboardingCompletedAt == null
+          || data.onboardingCompletedAt is timestamp)
+        && (data.onboardingCompletedAt == null || (
+          data.displayName.size() >= 2
+          && data.heightCm != null
+          && data.birthDate != null
+          && data.healthGoal != null
+          && ((!(data.healthGoal in ['lose_weight', 'gain_weight_or_muscle']))
+            || data.targetWeightKg != null)
+        ))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.schemaVersion is int
-        && data.schemaVersion == 1;
+        && data.schemaVersion == 2;
     }
 
     function validMetric() {
@@ -50,46 +72,46 @@ service cloud.firestore {
     }
 
     function validMealItem(item) {
-      return item is map
-        && item.keys().hasAll([
-          'foodId', 'name', 'grams', 'kcal', 'proteinG', 'carbsG', 'fatG',
-          'sourceLabel', 'isEstimated'
-        ])
-        && item.keys().hasOnly([
+      // Direct field reads make missing keys fail. Numeric range comparisons
+      // also reject non-number operands; the emulator test covers that case.
+      // Avoiding duplicate type expressions keeps five-item meals below the
+      // Firestore Rules limit of 1,000 evaluated expressions.
+      return item.keys().hasOnly([
           'foodId', 'name', 'grams', 'kcal', 'proteinG', 'carbsG', 'fatG',
           'sourceLabel', 'isEstimated'
         ])
         && item.foodId is string && item.foodId.size() > 0 && item.foodId.size() <= 100
         && item.name is string && item.name.size() > 0 && item.name.size() <= 100
-        && item.grams is number && item.grams > 0 && item.grams <= 2000
-        && item.kcal is number && item.kcal >= 0 && item.kcal <= 10000
-        && item.proteinG is number && item.proteinG >= 0 && item.proteinG <= 1000
-        && item.carbsG is number && item.carbsG >= 0 && item.carbsG <= 1000
-        && item.fatG is number && item.fatG >= 0 && item.fatG <= 1000
+        && item.grams > 0 && item.grams <= 2000
+        && item.kcal >= 0 && item.kcal <= 10000
+        && item.proteinG >= 0 && item.proteinG <= 1000
+        && item.carbsG >= 0 && item.carbsG <= 1000
+        && item.fatG >= 0 && item.fatG <= 1000
         && item.sourceLabel is string && item.sourceLabel.size() <= 160
         && item.isEstimated is bool;
     }
 
     function validMealItems(items) {
       return items is list && items.size() > 0 && items.size() <= 5
-        && validMealItem(items[0]);
+        && validMealItem(items[0])
+        && (items.size() < 2 || validMealItem(items[1]))
+        && (items.size() < 3 || validMealItem(items[2]))
+        && (items.size() < 4 || validMealItem(items[3]))
+        && (items.size() < 5 || validMealItem(items[4]));
     }
 
     function validMeal() {
       let data = request.resource.data;
-      return data.keys().hasAll([
+      // Every allowed key is read below, so a missing required key fails.
+      return data.keys().hasOnly([
           'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
           'totalCarbsG', 'totalFatG', 'source', 'createdAt', 'updatedAt',
-          'schemaVersion'
-        ])
-        && data.keys().hasOnly([
-          'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
-          'totalCarbsG', 'totalFatG', 'source', 'createdAt', 'updatedAt',
-          'schemaVersion'
+          'dateKey', 'timezoneOffsetMinutes', 'schemaVersion'
         ])
         && data.mealType in ['breakfast', 'lunch', 'dinner', 'snack']
         && data.consumedAt is timestamp
         && data.consumedAt <= request.time + duration.value(5, 'm')
+        && validDateKeyAndTimezone(data)
         && validMealItems(data.items)
         && data.totalKcal is number && data.totalKcal >= 0 && data.totalKcal <= 20000
         && data.totalProteinG is number && data.totalProteinG >= 0 && data.totalProteinG <= 2000
@@ -98,12 +120,14 @@ service cloud.firestore {
         && data.source in ['manual', 'ai_assisted']
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
-        && data.schemaVersion == 1;
+        && data.schemaVersion == 2;
     }
 
     function validDateKeyAndTimezone(data) {
       return data.dateKey is string
-        && data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.dateKey.matches(
+          '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        )
         && data.timezoneOffsetMinutes is int
         && data.timezoneOffsetMinutes >= -720
         && data.timezoneOffsetMinutes <= 840;
@@ -165,17 +189,33 @@ service cloud.firestore {
       allow create: if owns(uid)
         && validProfile()
         && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (request.resource.data.onboardingCompletedAt == null
+          || request.resource.data.onboardingCompletedAt == request.time);
 
       allow update: if owns(uid)
         && validProfile()
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
+        && (
+          (!resource.data.keys().hasAny(['onboardingCompletedAt'])
+            && (request.resource.data.onboardingCompletedAt == null
+              || request.resource.data.onboardingCompletedAt == request.time))
+          || (resource.data.keys().hasAny(['onboardingCompletedAt'])
+            && resource.data.onboardingCompletedAt == null
+            && (request.resource.data.onboardingCompletedAt == null
+              || request.resource.data.onboardingCompletedAt == request.time))
+          || (resource.data.keys().hasAny(['onboardingCompletedAt'])
+            && request.resource.data.onboardingCompletedAt
+              == resource.data.onboardingCompletedAt)
+        )
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName', 'email', 'heightCm', 'updatedAt', 'schemaVersion'
+          'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
+          'targetWeightKg', 'onboardingCompletedAt', 'updatedAt',
+          'schemaVersion'
         ]);
 
-      allow delete: if false;
+      allow delete: if owns(uid);
 
       match /body_metrics/{metricId} {
         allow read: if owns(uid);
@@ -210,7 +250,8 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
-            'totalCarbsG', 'totalFatG', 'source', 'updatedAt', 'schemaVersion'
+            'totalCarbsG', 'totalFatG', 'source', 'dateKey',
+            'timezoneOffsetMinutes', 'updatedAt', 'schemaVersion'
           ]);
 
         allow delete: if owns(uid);
@@ -254,6 +295,13 @@ service cloud.firestore {
           ]);
 
         allow delete: if owns(uid);
+      }
+
+      // Account deletion may remove present and future private subcollections.
+      // Owners may enumerate their own private data for cleanup; this grants no
+      // create/update access to otherwise undefined paths.
+      match /{privateDocument=**} {
+        allow read, delete: if owns(uid);
       }
     }
   }

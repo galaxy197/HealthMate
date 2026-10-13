@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/body_metric.dart';
+import '../models/health_goal.dart';
+import '../models/onboarding_draft.dart';
 import '../models/profile_failure.dart';
 import '../models/user_profile.dart';
 import 'health_profile_repository.dart';
@@ -27,19 +29,31 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
               'displayName': '',
               'email': email,
               'heightCm': null,
+              'birthDate': null,
+              'healthGoal': null,
+              'targetWeightKg': null,
+              'onboardingCompletedAt': null,
               'createdAt': FieldValue.serverTimestamp(),
               'updatedAt': FieldValue.serverTimestamp(),
-              'schemaVersion': 1,
+              'schemaVersion': 2,
             });
             return;
           }
           final data = snapshot.data();
-          if (data?['email'] != email || data?['schemaVersion'] != 1) {
-            transaction.update(reference, {
-              'email': email,
-              'updatedAt': FieldValue.serverTimestamp(),
-              'schemaVersion': 1,
-            });
+          final updates = <String, Object?>{};
+          if (data?['email'] != email) updates['email'] = email;
+          if (data?['schemaVersion'] != 2) updates['schemaVersion'] = 2;
+          for (final field in const [
+            'birthDate',
+            'healthGoal',
+            'targetWeightKg',
+            'onboardingCompletedAt',
+          ]) {
+            if (data?.containsKey(field) != true) updates[field] = null;
+          }
+          if (updates.isNotEmpty) {
+            updates['updatedAt'] = FieldValue.serverTimestamp();
+            transaction.update(reference, updates);
           }
         });
       });
@@ -62,15 +76,63 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
   Future<void> updateProfile({
     required String uid,
     required String displayName,
-    required double? heightCm,
+    required double heightCm,
+    required DateTime birthDate,
+    required String healthGoal,
+    required double? targetWeightKg,
   }) => _guard(
     () => _profile(uid).update({
       'displayName': displayName.trim(),
       'heightCm': heightCm,
+      'birthDate': Timestamp.fromDate(birthDate),
+      'healthGoal': healthGoal,
+      'targetWeightKg': targetWeightKg,
       'updatedAt': FieldValue.serverTimestamp(),
-      'schemaVersion': 1,
+      'schemaVersion': 2,
     }),
   );
+
+  @override
+  Future<void> completeOnboarding({
+    required String uid,
+    required OnboardingDraft draft,
+  }) => _guard(() async {
+    final profileReference = _profile(uid);
+    final metricReference = _metrics(uid).doc('onboarding-current');
+    await _firestore.runTransaction((transaction) async {
+      final profileSnapshot = await transaction.get(profileReference);
+      if (!profileSnapshot.exists) {
+        throw const ProfileFailure('Không tìm thấy hồ sơ để thiết lập.');
+      }
+      final metricSnapshot = await transaction.get(metricReference);
+      transaction.update(profileReference, {
+        'displayName': draft.displayName.trim(),
+        'heightCm': draft.heightCm,
+        'birthDate': Timestamp.fromDate(draft.birthDate),
+        'healthGoal': draft.healthGoal.value,
+        'targetWeightKg': draft.healthGoal.needsTargetWeight
+            ? draft.targetWeightKg
+            : null,
+        'onboardingCompletedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'schemaVersion': 2,
+      });
+      final metricData = <String, Object?>{
+        'weightKg': draft.currentWeightKg,
+        'measuredAt': FieldValue.serverTimestamp(),
+        'note': 'Cân nặng khi hoàn tất thiết lập ban đầu',
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (metricSnapshot.exists) {
+        transaction.update(metricReference, metricData);
+      } else {
+        transaction.set(metricReference, {
+          ...metricData,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  });
 
   @override
   Stream<List<BodyMetric>> watchBodyMetrics(String uid) async* {
@@ -132,6 +194,10 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
       displayName: data['displayName'] as String? ?? '',
       email: data['email'] as String? ?? '',
       heightCm: _double(data['heightCm']),
+      birthDate: _date(data['birthDate']),
+      healthGoal: HealthGoal.fromValue(data['healthGoal']),
+      targetWeightKg: _double(data['targetWeightKg']),
+      onboardingCompletedAt: _date(data['onboardingCompletedAt']),
       createdAt: _date(data['createdAt']),
       updatedAt: _date(data['updatedAt']),
       schemaVersion: data['schemaVersion'] as int? ?? 1,
@@ -165,6 +231,8 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {
       return await action();
+    } on ProfileFailure {
+      rethrow;
     } on FirebaseException catch (error) {
       throw ProfileFailure.fromCode(error.code);
     } catch (_) {

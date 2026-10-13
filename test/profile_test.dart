@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/core/router/app_router.dart';
 import 'package:healthmate/core/router/app_routes.dart';
 import 'package:healthmate/features/profile/models/profile_validation.dart';
+import 'package:healthmate/features/profile/providers/profile_providers.dart';
 
 import 'support/fake_auth_repository.dart';
 import 'support/fake_health_profile_repository.dart';
@@ -56,15 +60,26 @@ void main() {
       find.byKey(const ValueKey('profile-height')),
       '175,5',
     );
+    await tester.tap(find.byKey(const ValueKey('profile-health-goal')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Giảm cân').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('profile-target-weight')),
+      '65',
+    );
     await tester.tap(find.byKey(const ValueKey('save-profile')));
     await tester.pumpAndSettle();
     expect(repository.updateProfileCalls, 1);
     expect(find.text('Nguyễn An'), findsOneWidget);
     expect(find.text('Chiều cao: 175.5 cm'), findsOneWidget);
+    expect(find.text('Mục tiêu: Giảm cân'), findsOneWidget);
+    expect(find.text('Cân nặng mục tiêu: 65.0 kg'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byKey(const ValueKey('add-metric')));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -350));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add-metric')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('metric-weight')), '70,2');
@@ -81,7 +96,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final editButton = find.byKey(const ValueKey('edit-metric-metric-1'));
-    await tester.ensureVisible(editButton);
+    await tester.scrollUntilVisible(editButton, 250);
+    await tester.pumpAndSettle();
     await tester.tap(editButton);
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('metric-weight')), '71.5');
@@ -93,7 +109,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final deleteButton = find.byKey(const ValueKey('delete-metric-metric-1'));
-    await tester.ensureVisible(deleteButton);
+    await tester.scrollUntilVisible(deleteButton, 250);
+    await tester.pumpAndSettle();
     await tester.tap(deleteButton);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('confirm-delete-metric')));
@@ -111,7 +128,7 @@ void main() {
     final container = await pumpApp(tester, profileRepository: repository);
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
-    expect(find.text('Chưa đặt tên hiển thị'), findsOneWidget);
+    expect(find.text('Thiết lập sức khỏe ban đầu'), findsOneWidget);
     expect(repository.ensureCalls, 1);
   });
 
@@ -128,4 +145,29 @@ void main() {
       expect(repository.ensureCalls, 1);
     },
   );
+
+  testWidgets('profile bootstrap timeout replaces the endless loading state', (
+    tester,
+  ) async {
+    final repository = FakeHealthProfileRepository()
+      ..pending = Completer<void>();
+    final container = await pumpApp(
+      tester,
+      profileRepository: repository,
+      settle: false,
+    );
+    await tester.pump();
+    expect(
+      find.text('HealthMate đang tải hồ sơ sức khỏe của bạn.'),
+      findsOneWidget,
+    );
+
+    await tester.pump(profileBootstrapTimeout + const Duration(seconds: 1));
+    await tester.pump();
+
+    expect(container.read(profileBootstrapProvider), isA<AsyncError<void>>());
+    expect(find.text('Chưa thể mở dữ liệu tài khoản'), findsOneWidget);
+    expect(find.text('Thử lại'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
 }

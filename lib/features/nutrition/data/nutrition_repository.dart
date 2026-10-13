@@ -3,7 +3,9 @@ import '../models/nutrition_models.dart';
 abstract interface class NutritionRepository {
   Stream<List<FoodCatalogItem>> watchFoodCatalog();
 
-  Stream<List<MealLog>> watchMealLogs(String uid);
+  Stream<List<MealLog>> watchMealLogs(String uid, DateTime localDate);
+
+  Stream<List<MealLog>> watchRecentMeals(String uid, {int limit = 20});
 
   Future<String> addMeal({required String uid, required MealDraft draft});
 

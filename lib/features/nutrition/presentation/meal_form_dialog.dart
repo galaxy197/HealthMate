@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../models/nutrition_models.dart';
 import '../models/nutrition_validation.dart';
+import 'custom_food_dialog.dart';
 
 class MealFormDialog extends StatefulWidget {
   const MealFormDialog({
     required this.catalog,
+    this.recentItems = const [],
     this.meal,
+    this.initialConsumedAt,
+    this.initialType,
+    this.initialItems = const [],
     this.suggestedFood,
     this.initialSearch = '',
     this.aiAssisted = false,
@@ -14,7 +19,11 @@ class MealFormDialog extends StatefulWidget {
   });
 
   final List<FoodCatalogItem> catalog;
+  final List<MealItemSnapshot> recentItems;
   final MealLog? meal;
+  final DateTime? initialConsumedAt;
+  final MealType? initialType;
+  final List<MealItemSnapshot> initialItems;
   final FoodCatalogItem? suggestedFood;
   final String initialSearch;
   final bool aiAssisted;
@@ -33,9 +42,10 @@ class _MealFormDialogState extends State<MealFormDialog> {
   @override
   void initState() {
     super.initState();
-    _type = widget.meal?.type ?? _typeFor(DateTime.now());
-    _consumedAt = widget.meal?.consumedAt ?? DateTime.now();
-    _items = [...?widget.meal?.items];
+    _consumedAt =
+        widget.meal?.consumedAt ?? widget.initialConsumedAt ?? DateTime.now();
+    _type = widget.meal?.type ?? widget.initialType ?? _typeFor(_consumedAt);
+    _items = [...?widget.meal?.items, ...widget.initialItems];
     _searchController = TextEditingController(text: widget.initialSearch);
     if (widget.suggestedFood case final food?) {
       _items.add(MealItemSnapshot.fromCatalog(food, 100));
@@ -128,6 +138,44 @@ class _MealFormDialogState extends State<MealFormDialog> {
     if (grams == null || !mounted) return;
     setState(() {
       _items.add(MealItemSnapshot.fromCatalog(food, grams));
+      _error = null;
+    });
+  }
+
+  Future<void> _addRecent(MealItemSnapshot item) async {
+    if (_items.length >= NutritionValidation.maxItemsPerMeal) {
+      setState(() => _error = 'Mỗi bữa tối đa 5 mục.');
+      return;
+    }
+    final grams = await _askGrams(initial: item.grams);
+    if (grams == null || !mounted) return;
+    setState(() {
+      _items.add(
+        MealItemSnapshot(
+          foodId: item.foodId,
+          name: item.name,
+          grams: grams,
+          nutrition: item.nutrition.scale(grams / item.grams),
+          sourceLabel: item.sourceLabel,
+          isEstimated: item.isEstimated,
+        ),
+      );
+      _error = null;
+    });
+  }
+
+  Future<void> _addCustomFood() async {
+    if (_items.length >= NutritionValidation.maxItemsPerMeal) {
+      setState(() => _error = 'Mỗi bữa tối đa 5 mục.');
+      return;
+    }
+    final item = await showDialog<MealItemSnapshot>(
+      context: context,
+      builder: (_) => const CustomFoodDialog(),
+    );
+    if (item == null || !mounted) return;
+    setState(() {
+      _items.add(item);
       _error = null;
     });
   }
@@ -274,6 +322,24 @@ class _MealFormDialogState extends State<MealFormDialog> {
                   ],
                 ),
                 const SizedBox(height: 24),
+                if (widget.recentItems.isNotEmpty) ...[
+                  Text('Món gần đây', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final item in widget.recentItems)
+                        ActionChip(
+                          key: ValueKey('recent-food-${item.foodId}'),
+                          avatar: const Icon(Icons.history_rounded, size: 18),
+                          label: Text(item.name),
+                          onPressed: () => _addRecent(item),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 Text(
                   'Tìm món trong danh mục',
                   style: theme.textTheme.titleMedium,
@@ -287,6 +353,13 @@ class _MealFormDialogState extends State<MealFormDialog> {
                     hintText: 'Ví dụ: cơm, trứng, chuối…',
                     prefixIcon: Icon(Icons.search_rounded),
                   ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  key: const ValueKey('add-custom-food'),
+                  onPressed: _addCustomFood,
+                  icon: const Icon(Icons.edit_note_rounded),
+                  label: const Text('Nhập món ngoài danh mục'),
                 ),
                 const SizedBox(height: 8),
                 if (_results.isEmpty)

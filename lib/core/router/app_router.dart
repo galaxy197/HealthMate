@@ -10,6 +10,9 @@ import '../../features/daily_quest/presentation/quest_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/journal/presentation/journal_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/profile/presentation/account_information_screen.dart';
+import '../../features/profile/presentation/onboarding_screen.dart';
+import '../../features/profile/providers/profile_providers.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/route_error_screen.dart';
 import 'app_routes.dart';
@@ -18,11 +21,20 @@ import 'auth_redirect.dart';
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = _AuthRouterRefresh();
   ref.listen(authSessionProvider, (previous, next) => refresh.refresh());
+  ref.listen(userProfileProvider, (previous, next) => refresh.refresh());
+  ref.listen(
+    accountSecurityControllerProvider,
+    (previous, next) => refresh.refresh(),
+  );
   final router = GoRouter(
     initialLocation: AppRoutes.dashboard,
     refreshListenable: refresh,
-    redirect: (context, state) =>
-        authRedirect(ref.read(authSessionProvider), state.uri),
+    redirect: (context, state) => authRedirect(
+      ref.read(authSessionProvider),
+      state.uri,
+      ref.read(userProfileProvider),
+      ref.read(accountSecurityControllerProvider),
+    ),
     routes: [
       GoRoute(
         path: AppRoutes.session,
@@ -32,6 +44,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.auth,
         builder: (context, state) => const AuthScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        builder: (context, state) => const OnboardingScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -74,6 +90,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.profile,
                 builder: (context, state) => const ProfileScreen(),
+              ),
+              GoRoute(
+                path: AppRoutes.about,
+                builder: (context, state) => const AccountInformationScreen(
+                  page: AccountInformationPage.about,
+                ),
+              ),
+              GoRoute(
+                path: AppRoutes.privacy,
+                builder: (context, state) => const AccountInformationScreen(
+                  page: AccountInformationPage.privacy,
+                ),
+              ),
+              GoRoute(
+                path: AppRoutes.disclaimer,
+                builder: (context, state) => const AccountInformationScreen(
+                  page: AccountInformationPage.disclaimer,
+                ),
               ),
             ],
           ),

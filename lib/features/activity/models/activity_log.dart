@@ -25,8 +25,9 @@ class ActivityLogDraft {
   final DateTime performedAt;
   final String note;
 
-  String get dateKey => localDateKey(performedAt);
   int get timezoneOffsetMinutes => performedAt.timeZoneOffset.inMinutes;
+  String get dateKey =>
+      dateKeyFromTimestampAndOffset(performedAt, timezoneOffsetMinutes);
 }
 
 class ActivityLog {

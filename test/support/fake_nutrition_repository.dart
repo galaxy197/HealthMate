@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:healthmate/core/utils/local_date_key.dart';
 import 'package:healthmate/features/nutrition/data/nutrition_repository.dart';
 import 'package:healthmate/features/nutrition/models/nutrition_models.dart';
 
 class FakeNutritionRepository implements NutritionRepository {
-  FakeNutritionRepository({List<MealLog>? meals}) : _meals = [...?meals];
+  FakeNutritionRepository({List<MealLog>? meals, this.emitImmediately = true})
+    : _meals = [...?meals];
 
   static const rice = FoodCatalogItem(
     id: 'rice-cooked',
@@ -41,21 +43,44 @@ class FakeNutritionRepository implements NutritionRepository {
   );
 
   final List<MealLog> _meals;
-  final _changes = StreamController<List<MealLog>>.broadcast();
+  final bool emitImmediately;
+  final _changes = StreamController<void>.broadcast();
+  final List<String> watchedDateKeys = [];
   int addCalls = 0;
   int updateCalls = 0;
   int deleteCalls = 0;
+
+  List<MealLog> get meals => List.unmodifiable(_meals);
 
   @override
   Stream<List<FoodCatalogItem>> watchFoodCatalog() =>
       Stream.value(const [rice, egg]);
 
   @override
-  Stream<List<MealLog>> watchMealLogs(String uid) => Stream.multi((controller) {
-    controller.add(List.unmodifiable(_meals));
-    final subscription = _changes.stream.listen(controller.add);
-    controller.onCancel = subscription.cancel;
-  });
+  Stream<List<MealLog>> watchMealLogs(String uid, DateTime localDate) {
+    final dateKey = localDateKey(localDate);
+    watchedDateKeys.add(dateKey);
+    return Stream.multi((controller) {
+      void emit() => controller.add(_forDate(localDate));
+      if (emitImmediately) emit();
+      final subscription = _changes.stream.listen((_) => emit());
+      controller.onCancel = subscription.cancel;
+    });
+  }
+
+  @override
+  Stream<List<MealLog>> watchRecentMeals(String uid, {int limit = 20}) =>
+      Stream.multi((controller) {
+        void emit() {
+          final meals = [..._meals]
+            ..sort((a, b) => b.consumedAt.compareTo(a.consumedAt));
+          controller.add(meals.take(limit).toList(growable: false));
+        }
+
+        if (emitImmediately) emit();
+        final subscription = _changes.stream.listen((_) => emit());
+        controller.onCancel = subscription.cancel;
+      });
 
   @override
   Future<String> addMeal({
@@ -95,13 +120,23 @@ class FakeNutritionRepository implements NutritionRepository {
     items: draft.items,
     totals: draft.totals,
     source: draft.source,
+    dateKey: draft.dateKey,
+    timezoneOffsetMinutes: draft.timezoneOffsetMinutes,
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
 
   void _emit() {
     _meals.sort((a, b) => b.consumedAt.compareTo(a.consumedAt));
-    _changes.add(List.unmodifiable(_meals));
+    _changes.add(null);
+  }
+
+  void emitPending() => _changes.add(null);
+
+  List<MealLog> _forDate(DateTime localDate) {
+    final range = localDayRange(localDate);
+    return _meals.where((meal) => range.contains(meal.consumedAt)).toList()
+      ..sort((a, b) => b.consumedAt.compareTo(a.consumedAt));
   }
 
   Future<void> dispose() => _changes.close();

@@ -6,8 +6,9 @@ class WaterLogDraft {
   final int amountMl;
   final DateTime consumedAt;
 
-  String get dateKey => localDateKey(consumedAt);
   int get timezoneOffsetMinutes => consumedAt.timeZoneOffset.inMinutes;
+  String get dateKey =>
+      dateKeyFromTimestampAndOffset(consumedAt, timezoneOffsetMinutes);
 }
 
 class WaterLog {

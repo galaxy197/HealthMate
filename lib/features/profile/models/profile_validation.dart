@@ -1,3 +1,5 @@
+import 'health_goal.dart';
+
 abstract final class ProfileValidation {
   static String? displayName(String? value) {
     final name = value?.trim() ?? '';
@@ -17,6 +19,11 @@ abstract final class ProfileValidation {
     return null;
   }
 
+  static String? requiredHeight(String? value) {
+    if ((value ?? '').trim().isEmpty) return 'Vui lòng nhập chiều cao.';
+    return height(value);
+  }
+
   static String? weight(String? value) {
     final weight = parseDecimal(value?.trim() ?? '');
     if (weight == null) return 'Cân nặng phải là một số hợp lệ.';
@@ -24,6 +31,31 @@ abstract final class ProfileValidation {
       return 'Cân nặng cần nằm trong khoảng 20–500 kg.';
     }
     return null;
+  }
+
+  static String? birthDate(DateTime? value, {DateTime? today}) {
+    if (value == null) return 'Vui lòng chọn ngày sinh.';
+    final current = today ?? DateTime.now();
+    final date = DateTime(value.year, value.month, value.day);
+    final currentDate = DateTime(current.year, current.month, current.day);
+    if (date.isAfter(currentDate)) return 'Ngày sinh không thể ở tương lai.';
+    var age = currentDate.year - date.year;
+    if (currentDate.month < date.month ||
+        (currentDate.month == date.month && currentDate.day < date.day)) {
+      age--;
+    }
+    if (age < 13 || age > 120) {
+      return 'HealthMate hỗ trợ độ tuổi từ 13 đến 120.';
+    }
+    return null;
+  }
+
+  static String? targetWeight(String? value, HealthGoal? goal) {
+    if (goal == null || !goal.needsTargetWeight) return null;
+    if ((value ?? '').trim().isEmpty) {
+      return 'Vui lòng nhập cân nặng mục tiêu.';
+    }
+    return weight(value);
   }
 
   static String? note(String? value) {

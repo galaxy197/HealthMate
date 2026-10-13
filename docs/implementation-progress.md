@@ -433,3 +433,409 @@ liệu thật cho nước uống/vận động; tổng trong ngày cập nhật 
 ### Giai đoạn kế tiếp đề xuất
 
 Giai đoạn 7 — Goals và Daily Health Quest. Chưa triển khai trong lượt này.
+
+## 2026-10-13 — Đợt 6.1: Củng cố tính toàn vẹn dữ liệu
+
+Trạng thái: **hoàn thành Đợt 6.1**. Chỉ củng cố các chức năng của Giai đoạn 1–6;
+không triển khai Đợt 6.2, Goals, Daily Health Quest, Dashboard nâng cao hoặc
+Chatbot. Không deploy Rules/indexes, không dùng dữ liệu production và không
+commit/push trong đợt này.
+
+### Hiện trạng Git trước khi sửa
+
+- Working tree sạch, nhánh `main`, remote `origin` trỏ tới
+  `https://github.com/galaxy197/HealthMate.git`.
+- Sau `git fetch origin`, local `HEAD` và `origin/main` cùng commit
+  `900bee809d4dd508e5239d4ba6c1a8aee7bcf0e2`; ahead/behind là `0/0`.
+- Không có thay đổi cục bộ hoặc file untracked cần bảo toàn. Các ghi chú cũ ở
+  phần Giai đoạn 3–6 rằng repository chưa có commit chỉ là lịch sử tại thời điểm
+  viết và không còn phản ánh hiện trạng Git.
+
+### Đã thực hiện
+
+- `validMealItems` kiểm tra có điều kiện mọi item đang tồn tại ở vị trí 0–4,
+  giữ giới hạn 1–5 món, whitelist field và toàn bộ giới hạn giá trị hiện có.
+- Rút gọn các phép kiểm tra kiểu số dư thừa: phép so sánh range trong Rules tự
+  từ chối kiểu không tương thích và đã có test riêng cho kiểu chuỗi. Việc này giữ
+  bảo vệ schema nhưng giúp bữa 5 món nằm dưới giới hạn 1.000 biểu thức Rules.
+- Thêm test bữa 1/5 món hợp lệ; list rỗng/quá 5; sai item riêng ở từng vị trí;
+  sai kiểu/field thừa; CRUD, chéo UID và `createdAt` bất biến.
+- Rules của `dateKey` nay loại tháng ngoài 01–12 và ngày ngoài 01–31. Client có
+  kiểm tra ngày lịch thực sự tồn tại, hàm suy ra ngày bằng timestamp + offset,
+  kiểm tra quan hệ ba field và test ranh giới nửa đêm.
+- `WaterLogDraft` và `ActivityLogDraft` suy ra `dateKey` bằng chính timestamp và
+  offset sẽ ghi; repository tiếp tục tính lại các field này khi thêm/sửa.
+- Cập nhật `docs/database-design.md` để tách rõ bảo đảm ở client và Rules, cùng
+  các giới hạn còn lại.
+
+### File chính đã sửa
+
+`firestore.rules`, `rules-tests/firestore.rules.test.cjs`,
+`lib/core/utils/local_date_key.dart`,
+`lib/features/water/models/water_log.dart`,
+`lib/features/activity/models/activity_log.dart`, `test/daily_logs_test.dart`,
+`docs/database-design.md` và tài liệu này.
+
+### Kiểm tra thực tế
+
+- `dart format --output=none --set-exit-if-changed lib test integration_test`:
+  74 file, 0 thay đổi ở lần kiểm tra cuối.
+- `flutter analyze --no-pub`: không có vấn đề.
+- `flutter test --no-pub --exclude-tags=integration`: **38/38 pass**.
+- Firestore Emulator với Java 21 và demo project `demo-healthmate-rules`:
+  **18/18 rules tests pass**. Có test riêng cho từng vị trí item 0–4 và toàn bộ
+  regression profile/body metrics/water/activity.
+- Lần thử rules đầu tiên với kiểm tra lặp nguyên trạng vượt giới hạn 1.000 biểu
+  thức cho bữa 5 món. Rules được rút gọn mà không bỏ schema/range; lần chạy cuối
+  chấp nhận 5 món hợp lệ và từ chối kiểu số sai.
+
+### Rủi ro còn lại và việc người dùng cần làm
+
+- Rules chưa cộng lại tổng dinh dưỡng từ 1–5 item. Làm vậy vừa tăng biểu thức khi
+  rules đã gần giới hạn, vừa cần dung sai số thực nên không cho phép đối chiếu
+  tuyệt đối. Client và test vẫn tính tổng từ snapshot, nhưng client tùy biến có
+  thể gửi tổng khác chi tiết nếu tổng vẫn trong khoảng được phép.
+- Rules chưa thể xác minh đầy đủ `dateKey` dạng chuỗi với timestamp + offset khi
+  giữ schema hiện tại. Client chặn ngày không tồn tại và luôn tạo lại bộ field,
+  nhưng client tùy biến vẫn có thể gửi bộ ba không nhất quán. Phương án chặt hơn
+  cần schema ngày dạng số hoặc backend tin cậy và migration tương thích.
+- Không có thao tác Firebase Console bắt buộc. Vì chưa deploy, production vẫn
+  dùng phiên bản Rules trước Đợt 6.1; người dùng cần review diff và chủ động cho
+  phép deploy trong một lượt riêng nếu muốn áp dụng bảo vệ mới.
+
+### Bước kế tiếp đề xuất
+
+Review và deploy riêng thay đổi Rules của Đợt 6.1 khi người dùng chấp thuận;
+Đợt 6.2 chỉ thực hiện khi được yêu cầu rõ ràng.
+
+## 2026-10-13 — Nhiệm vụ 6.2A: Nhật ký theo ngày đã chọn
+
+Trạng thái: **hoàn thành 6.2A**. Chỉ sửa bộ chọn ngày và nguồn dữ liệu của Nhật
+ký; không triển khai 6.2B–6.2H, Giai đoạn 7–9, không deploy Firebase và không
+commit/push.
+
+### Đã thực hiện
+
+- `NutritionRepository.watchMealLogs` nhận ngày địa phương được chọn. Firebase
+  query trực tiếp `consumedAt >= startOfDay` và `consumedAt < startOfNextDay`,
+  sắp xếp giảm dần; bỏ truy vấn 100 meal mới nhất của toàn lịch sử.
+- Khoảng ngày dùng hai mốc local calendar độc lập, không cộng cố định 24 giờ;
+  bản ghi đúng đầu ngày được nhận và đúng đầu ngày kế tiếp bị loại.
+- `mealLogsProvider` trở thành family theo ngày và tự hủy listener khi không còn
+  được dùng. Đổi ngày tạo trạng thái tải riêng, nên kết quả stream ngày cũ không
+  thể thay thế kết quả của ngày mới.
+- `JournalScreen` đặt bộ chọn ngày trước các card và truyền cùng ngày cho meal;
+  water/activity tiếp tục dùng cùng `dateKey`. Tổng kcal, protein, carbohydrate,
+  chất béo, ml nước và phút vận động đều tính từ danh sách của ngày đang chọn.
+- Empty state của meal nói rõ chưa có dữ liệu trong ngày; loading, error và retry
+  hiện có được giữ lại, trong đó retry meal nhắm đúng provider của ngày hiện tại.
+- Không sửa `firestore.indexes.json`: query meal chỉ range/order trên một field
+  `consumedAt`, được phục vụ bởi single-field index mặc định.
+
+### File chính đã sửa
+
+`lib/core/utils/local_date_key.dart`,
+`lib/features/nutrition/data/nutrition_repository.dart`,
+`lib/features/nutrition/data/firebase_nutrition_repository.dart`,
+`lib/features/nutrition/providers/nutrition_providers.dart`,
+`lib/features/nutrition/models/nutrition_models.dart`,
+`lib/features/journal/presentation/journal_screen.dart`,
+`test/support/fake_nutrition_repository.dart`, `test/nutrition_test.dart`,
+`docs/database-design.md` và tài liệu này.
+
+### Kiểm tra thực tế
+
+- `flutter test test/nutrition_test.dart --no-pub`: **6/6 pass**. Test mới bao
+  phủ nhiều ngày, ngày trống, hai biên nửa đêm, tổng của meal/water/activity và
+  đổi ngày khi meal stream vẫn đang tải.
+- `dart format --output=none --set-exit-if-changed lib test integration_test`:
+  74 file, 0 thay đổi ở lần kiểm tra cuối.
+- `flutter analyze --no-pub`: không có vấn đề.
+- `flutter test --no-pub --exclude-tags=integration`: **41/41 pass**.
+
+### Việc người dùng cần làm và giới hạn
+
+- Không có thao tác Firebase Console bắt buộc và không có index mới cần deploy.
+- Chưa chạy smoke test với dữ liệu production vì nhiệm vụ cấm thao tác production;
+  hành vi truy vấn và chuyển ngày được xác minh bằng unit/widget test.
+- Các thay đổi Đợt 6.1 vẫn còn nguyên trong working tree và chưa deploy. Nhiệm vụ
+  6.2A cũng chưa commit hoặc push.
+
+### Bước tiếp theo
+
+Dừng tại 6.2A và chờ yêu cầu tiếp theo của người dùng.
+
+## 2026-10-13 — Nhiệm vụ 6.2B: Tái cấu trúc JournalScreen
+
+Trạng thái: **hoàn thành 6.2B**. Đây chỉ là tái cấu trúc presentation; không đổi
+nghiệp vụ, repository, provider, schema, Security Rules, indexes hoặc cấu hình
+Firebase. Không triển khai 6.2C trở đi, không deploy, commit hoặc push.
+
+### Cấu trúc sau tái cấu trúc
+
+- `JournalScreen` giảm từ 802 xuống 292 dòng, tiếp tục đọc ngày/provider, mở các
+  dialog, điều phối CRUD, xác nhận xóa và truyền state/callback xuống section.
+- `MealLogSection` hiển thị tổng dinh dưỡng, danh sách meal, loading/error/empty,
+  nút thêm thủ công, Food Scanner và callback sửa/xóa.
+- `WaterLogSection` hiển thị tổng ml, danh sách water log và callback CRUD.
+- `ActivityLogSection` hiển thị tổng phút, danh sách activity log và callback
+  CRUD.
+- `JournalDateSelector` chỉ hiển thị ngày cùng callback trước/sau/chọn ngày;
+  `journalDateProvider` vẫn là nguồn trạng thái duy nhất.
+- `DailyLogSectionCard` và `DailyLogEntryMenu` chứa UI dùng chung của water và
+  activity, không đọc provider và không truy vấn dữ liệu.
+
+Toàn bộ `ValueKey` đang được test (`add-meal`, `scan-food`, `add-water`,
+`add-activity`, các nút chọn ngày, item water/activity và tổng dinh dưỡng) được
+giữ nguyên.
+
+### Hành vi được bảo toàn
+
+- Meal vẫn lọc bằng khoảng nửa mở của ngày đã chọn; water/activity vẫn dùng
+  `dateKey`, tổng của ba nhóm vẫn đổi đồng bộ theo ngày.
+- Loading, error, retry, empty và đổi ngày trong lúc stream tải vẫn hoạt động.
+- Thêm/sửa/xóa meal, water và activity vẫn đi qua controller hiện có.
+- Food Scanner vẫn trả `FoodScanChoice` về `JournalScreen`, sau đó mở
+  `MealFormDialog` với món gợi ý để người dùng xác nhận.
+- Section widgets không chứa Firestore query, provider hoặc controller mới.
+
+### File đã tạo
+
+`lib/features/nutrition/presentation/meal_log_section.dart`,
+`lib/features/water/presentation/water_log_section.dart`,
+`lib/features/activity/presentation/activity_log_section.dart`,
+`lib/features/journal/presentation/journal_date_selector.dart`,
+`lib/features/journal/presentation/daily_log_section_card.dart` và
+`test/journal_sections_test.dart`.
+
+### File đã sửa
+
+`lib/features/journal/presentation/journal_screen.dart`,
+`test/nutrition_test.dart` và tài liệu này.
+
+### Kiểm tra thực tế
+
+- Test tập trung cho journal/nutrition/daily logs: **18/18 pass**.
+- `dart format lib test`: 79 file, 0 thay đổi ở lần kiểm tra cuối.
+- `flutter analyze --no-pub`: không có vấn đề.
+- `flutter test --no-pub`: **45/45 pass**.
+- Test mới kiểm tra callback thêm/sửa/xóa của từng section, loading/error/empty,
+  callback bộ chọn ngày và đường đi từ kết quả Food Scanner tới form xác nhận.
+
+### Việc người dùng cần làm và vấn đề còn lại
+
+- Không có cấu hình thủ công bắt buộc. Chưa chạy trên thiết bị thật vì thay đổi
+  chỉ tách widget và toàn bộ widget/regression test đã đạt.
+- Working tree vẫn chứa nguyên thay đổi 6.1 và 6.2A; toàn bộ thay đổi chưa được
+  commit, push hoặc deploy.
+
+### Bước tiếp theo
+
+Dừng tại 6.2B và chờ yêu cầu tiếp theo của người dùng.
+
+## 2026-10-13 — Đợt 6.3: Onboarding và thiết lập mục tiêu sức khỏe
+
+Trạng thái: **hoàn thành code và kiểm thử cục bộ**. Chỉ triển khai onboarding,
+mở rộng hồ sơ và tích hợp điều hướng liên quan; không triển khai Dashboard,
+Chatbot, Quest hoặc bất kỳ giai đoạn tiếp theo nào.
+
+### Hành vi đã hoàn thành
+
+- Tài khoản mới và tài khoản cũ chưa đủ thông tin được điều hướng tới onboarding
+  sau khi Auth và hồ sơ tải xong. Tài khoản đã hoàn tất tiếp tục tới route đã yêu
+  cầu và không phải thiết lập lại.
+- Onboarding gồm bốn bước: thể trạng cơ bản, chọn mục tiêu, nhập cân nặng mục tiêu
+  khi mục tiêu cần, rồi xem lại và xác nhận. Người dùng có thể quay lại mà không
+  mất dữ liệu đã nhập.
+- Validation kiểm tra tên, tuổi 13–120, chiều cao 80–250 cm, cân nặng hiện tại và
+  cân nặng mục tiêu 20–500 kg. Ứng dụng không thu thập giới tính hoặc mức vận động
+  vì chưa có nghiệp vụ sử dụng.
+- Hoàn tất onboarding dùng Firestore transaction để cập nhật `users/{uid}` và
+  upsert `body_metrics/onboarding-current`; ID ổn định ngăn retry tạo bản ghi cân
+  nặng trùng.
+- Trang Cá nhân cho phép sửa tên, ngày sinh, chiều cao, mục tiêu và cân nặng mục
+  tiêu; cân nặng hiện tại tiếp tục được quản lý qua lịch sử Body Metrics.
+- Lỗi tải/lưu có nội dung thân thiện, retry được; thao tác bị khóa trong lúc lưu.
+
+### Schema và quyền truy cập
+
+- Hồ sơ schema 2 thêm `birthDate`, `healthGoal`, `targetWeightKg` và
+  `onboardingCompletedAt`. `ensureProfile` bổ sung field nullable cho hồ sơ cũ.
+- Rules chỉ cho UID sở hữu đọc/ghi, kiểm tra whitelist mục tiêu, khoảng giá trị,
+  dữ liệu bắt buộc khi hoàn tất và giữ `onboardingCompletedAt` bất biến sau lần
+  ghi đầu tiên.
+- Không cần Firestore index mới. Rules chỉ được sửa trong repository và **chưa
+  deploy** lên Firebase production.
+
+### File chính đã tạo/sửa
+
+- Tạo `lib/features/profile/models/health_goal.dart`,
+  `lib/features/profile/models/onboarding_draft.dart`,
+  `lib/features/profile/presentation/onboarding_screen.dart` và
+  `test/onboarding_test.dart`.
+- Sửa router, session gate, profile model/repository/provider, form/trang hồ sơ,
+  `firestore.rules`, rules test, Auth/Profile test và tài liệu database.
+- Bảo toàn mọi thay đổi chưa commit của 6.1, 6.2A và 6.2B.
+
+### Kiểm tra thực tế
+
+- `dart format lib test`: **83 file, 0 thay đổi** ở lần chạy cuối.
+- `flutter analyze --no-pub`: **No issues found**.
+- `flutter test --no-pub`: **55/55 pass**.
+- Firestore Emulator với JDK 21 đi kèm Android Studio:
+  `firebase emulators:exec --only firestore "npm test --prefix rules-tests"`:
+  **19/19 pass**.
+- `git diff --check`: không có lỗi whitespace; Git chỉ cảnh báo quy đổi LF/CRLF
+  trên Windows.
+
+### Việc người dùng cần làm và vấn đề còn lại
+
+- Trước khi dùng onboarding với Firebase production, cần review rồi deploy bản
+  `firestore.rules` mới. Việc deploy cố ý chưa được thực hiện trong Đợt 6.3.
+- Chưa chạy luồng onboarding thủ công trên thiết bị Android thật. Widget test,
+  unit test và Rules emulator đều đạt.
+- `java` mặc định của máy là Java 8; Firebase CLI cần Java 21. Lần kiểm thử này
+  dùng `C:\Program Files\Android\Android Studio\jbr` cho riêng tiến trình, không
+  thay đổi cấu hình hệ thống.
+- Không commit, push hoặc deploy Firebase.
+
+### Bước tiếp theo
+
+Dừng tại Đợt 6.3 và chờ yêu cầu tiếp theo của người dùng.
+
+## 2026-10-13 — Giai đoạn 6A: Hoàn thiện tài khoản và quyền riêng tư
+
+Trạng thái: **hoàn thành code và kiểm thử cục bộ**. Chỉ triển khai quản lý tài
+khoản, lưu theme và nội dung quyền riêng tư; không triển khai Giai đoạn 7 trở
+đi.
+
+### Hành vi đã hoàn thành
+
+- Màn đăng nhập có luồng quên mật khẩu, kiểm tra email và dùng thông báo trung
+  tính để không tiết lộ email đã đăng ký hay chưa.
+- Trang Cá nhân cho đổi mật khẩu sau khi xác thực lại bằng mật khẩu hiện tại.
+  Mật khẩu mới được kiểm tra độ dài, xác nhận trùng khớp và phải khác mật khẩu
+  cũ.
+- Xóa tài khoản yêu cầu nhập lại mật khẩu và xác nhận hậu quả. Trình tự là xác
+  thực lại, xóa dữ liệu Firestore theo lô, xóa hồ sơ, rồi mới xóa Firebase Auth.
+  Nếu xóa dữ liệu hoặc Auth lỗi giữa chừng, tài khoản còn lại có thông báo rõ và
+  thao tác có thể chạy lại an toàn. Người chưa hoàn tất onboarding cũng có nút
+  xóa tài khoản.
+- Theme sáng/tối/theo thiết bị được lưu bằng `shared_preferences` và nạp trước
+  khi dựng `MaterialApp`.
+- Ba route thật cho Giới thiệu, Quyền riêng tư và Lưu ý sức khỏe đã được nối từ
+  trang Cá nhân.
+
+### Dữ liệu và Security Rules
+
+- Repository xóa toàn bộ collection riêng tư đang triển khai hoặc đã thiết kế:
+  `body_metrics`, `meal_logs`, `water_logs`, `activity_logs`, `goals`,
+  `daily_quests`, `chat_sessions/messages`, sau đó xóa `users/{uid}`.
+- Rules cho phép chủ UID đọc để liệt kê và xóa dữ liệu con của chính mình, đồng
+  thời tiếp tục chặn UID khác và không mở quyền create/update cho đường dẫn chưa
+  có nghiệp vụ.
+- Không dùng Cloud Functions, backend mới hoặc dịch vụ trả phí.
+
+### File chính đã tạo/sửa
+
+- Tạo account data repository, controller lỗi theo giai đoạn, ba dialog bảo mật,
+  màn thông tin tài khoản, theme preference store và test tương ứng.
+- Sửa Auth repository/provider/screen, Profile/Onboarding, router, `main.dart`,
+  `firestore.rules`, rules tests, `pubspec.yaml` và tài liệu database.
+
+### Kiểm tra thực tế
+
+- `dart format lib test`: không còn thay đổi định dạng ở lần chạy cuối.
+- `flutter analyze --no-pub`: **No issues found**.
+- Test tập trung Auth/Profile/Onboarding/Theme: **47/47 pass**.
+- Firestore Emulator với Java 21: **20/20 pass**, gồm xóa hồ sơ, dữ liệu lồng
+  nhau và chặn xóa chéo UID.
+- `flutter test --no-pub`: **65/65 pass**.
+- `flutter build apk --debug --no-pub`: build thành công tại
+  `build/app/outputs/flutter-apk/app-debug.apk`; Flutter cảnh báo các plugin
+  Firebase hiện vẫn áp dụng Kotlin Gradle Plugin cũ, chưa phải lỗi build.
+- Lần chạy `dart format lib test rules-tests` ban đầu đi vào `node_modules` bị
+  thiếu một thư mục package trung gian; formatter sau đó được chạy đúng trên
+  `lib test`. Đây không phải lỗi mã nguồn hay rules test.
+
+### Deploy và việc còn lại
+
+- Đã deploy **chỉ** `firestore.rules` lên project
+  `healthmate-app-20261013`; Firebase xác nhận compile và release thành công.
+  Không deploy indexes hoặc dịch vụ khác.
+- Chưa cài/smoke test APK mới trên Android vì điện thoại ngắt khỏi ADB ở bước
+  cài đặt cuối. Build APK và toàn bộ test tự động đều đạt.
+- Không commit hoặc push. Mọi thay đổi chưa commit của 6.1–6.3 được bảo toàn.
+
+### Bước tiếp theo
+
+Dừng tại Giai đoạn 6A sau khi hoàn tất kiểm thử; không tự triển khai Giai đoạn 7.
+
+## 2026-10-13 — Giai đoạn 6B: Hoàn thiện nhật ký
+
+Trạng thái: **hoàn thành code và kiểm thử cục bộ**. Chỉ hoàn thiện meal/water/
+activity journal và biểu đồ cân nặng; không triển khai Goals, Quest hoặc Chatbot.
+
+### Hành vi đã hoàn thành
+
+- Meal schema 2 lưu `dateKey` và `timezoneOffsetMinutes`, dùng cùng quy ước ngày
+  với nước/vận động. Danh sách chính truy vấn equality theo ngày đang chọn và
+  được sắp theo `consumedAt` tại client.
+- Bữa schema 1 thiếu `dateKey` vẫn xuất hiện bằng truy vấn khoảng thời gian nửa
+  mở giới hạn trong ngày. Hai nguồn được gộp theo document ID; sửa bữa cũ sẽ tự
+  nâng document lên schema 2. Không chạy migration hàng loạt.
+- Thẻ tóm tắt ngày hiển thị kcal, protein/carb/chất béo, ml nước và phút vận động
+  từ đúng các log đã tải của ngày đang chọn. Trạng thái chưa tải/lỗi dùng dấu `—`
+  thay vì coi là số 0.
+- Form bữa ăn có món gần đây, món ngoài catalog có nhãn `Ước tính`, giữ bước xác
+  nhận khẩu phần và validation. Menu bữa cho phép nhân bản sang ngày đang xem.
+- Nước có nút ghi nhanh 250/350/500 ml và vẫn đi qua repository/controller thật.
+- Trang Cá nhân có biểu đồ tối đa 12 lần đo cân nặng gần nhất bằng `fl_chart`.
+- Ngày và số ở phần UI mới dùng `intl`, theo định dạng Việt Nam phù hợp.
+
+### Schema, migration và indexes
+
+- `meal_logs` schema 2 thêm `dateKey`, `timezoneOffsetMinutes`; Rules bắt buộc hai
+  field này cho create/update mới và cho phép nâng cấp document schema 1 khi sửa.
+- Chưa migration dữ liệu production. Kế hoạch backfill có kiểm soát được ghi tại
+  `docs/database-design.md`; phải xin xác nhận trước khi chạy.
+- Không cần index mới: equality một field cho meal và range/order trên cùng
+  `consumedAt` đều dùng single-field index mặc định. `firestore.indexes.json`
+  không thay đổi bởi Giai đoạn 6B.
+- Firestore Rules chỉ được sửa trong repository và **không deploy** trong lượt
+  này.
+
+### File chính đã tạo/sửa
+
+- Tạo `lib/features/journal/presentation/daily_summary_card.dart`,
+  `lib/features/nutrition/presentation/custom_food_dialog.dart`,
+  `lib/features/profile/presentation/weight_chart.dart` và
+  `test/stage_6b_test.dart`.
+- Sửa model/repository/provider/presentation của nutrition, `JournalScreen`,
+  water/activity presentation, `ProfileScreen`, Rules/test Rules, dependency và
+  tài liệu. Mọi thay đổi chưa commit từ các đợt trước được giữ nguyên.
+
+### Kiểm tra thực tế
+
+- `dart format lib test`: **97 file, không còn thay đổi định dạng**.
+- `flutter analyze --no-pub`: **No issues found**.
+- `flutter test --no-pub`: **71/71 pass**.
+- Firestore Emulator với JDK 21: **21/21 pass**, gồm quyền UID, schema meal v2,
+  chặn date metadata sai và nâng cấp bữa schema 1.
+- `flutter build apk --debug --no-pub`: thành công tại
+  `build/app/outputs/flutter-apk/app-debug.apk`.
+- Build còn cảnh báo từ các Firebase plugin về cách áp dụng Kotlin Gradle Plugin
+  cũ; đây chưa phải lỗi build.
+
+### Việc người dùng cần làm và vấn đề còn lại
+
+- Trước khi chạy code 6B với Firebase production, cần review và deploy
+  `firestore.rules`; lượt này không deploy Firebase, không commit và không push.
+- Truy vấn tương thích bữa cũ tạo thêm một listener giới hạn trong ngày. Chỉ bỏ
+  listener này sau một migration đã được người dùng duyệt và xác minh đầy đủ.
+- Chưa smoke test thủ công trên điện thoại thật trong lượt này; unit/widget/rules
+  test và APK debug đều đạt.
+
+### Bước tiếp theo
+
+Dừng tại Giai đoạn 6B và chờ yêu cầu tiếp theo của người dùng.

@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/feature_page.dart';
+import '../models/account_action_failure.dart';
 import '../models/auth_failure.dart';
 import '../models/auth_validation.dart';
 import '../providers/auth_providers.dart';
+import 'account_security_dialogs.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -33,6 +35,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   Future<void> _submit() async {
     if (ref.read(authControllerProvider).isLoading ||
+        ref.read(accountSecurityControllerProvider).isLoading ||
         !_formKey.currentState!.validate()) {
       return;
     }
@@ -50,6 +53,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   void _toggleMode() {
     ref.read(authControllerProvider.notifier).clearError();
+    ref.read(accountSecurityControllerProvider.notifier).clearError();
     _formKey.currentState?.reset();
     _password.clear();
     _confirmation.clear();
@@ -59,12 +63,36 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     });
   }
 
+  Future<void> _forgotPassword() async {
+    ref.read(accountSecurityControllerProvider.notifier).clearError();
+    final email = await showResetPasswordDialog(
+      context,
+      initialEmail: _email.text,
+    );
+    if (email == null || !mounted) return;
+    final sent = await ref
+        .read(accountSecurityControllerProvider.notifier)
+        .sendPasswordResetEmail(email);
+    if (sent && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Nếu email thuộc một tài khoản, Firebase sẽ gửi hướng dẫn đặt lại mật khẩu.',
+            ),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final action = ref.watch(authControllerProvider);
-    final busy = action.isLoading;
-    final error = action.error;
+    final accountAction = ref.watch(accountSecurityControllerProvider);
+    final busy = action.isLoading || accountAction.isLoading;
+    final error = accountAction.error ?? action.error;
     return Scaffold(
       body: SafeArea(
         child: FeaturePage(
@@ -151,6 +179,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             registering: _registering,
                           ),
                         ),
+                        if (!_registering)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              key: const ValueKey('forgot-password'),
+                              onPressed: busy ? null : _forgotPassword,
+                              child: const Text('Quên mật khẩu?'),
+                            ),
+                          ),
                         if (_registering) ...[
                           const SizedBox(height: AppSpacing.md),
                           TextFormField(
@@ -178,9 +215,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           Semantics(
                             liveRegion: true,
                             child: Text(
-                              error is AuthFailure
-                                  ? error.message
-                                  : 'Chưa thể hoàn tất thao tác. Vui lòng thử lại.',
+                              switch (error) {
+                                AuthFailure failure => failure.message,
+                                AccountActionFailure failure => failure.message,
+                                _ =>
+                                  'Chưa thể hoàn tất thao tác. Vui lòng thử lại.',
+                              },
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.error,
                               ),

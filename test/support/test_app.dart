@@ -7,12 +7,15 @@ import 'package:healthmate/features/activity/providers/activity_providers.dart';
 import 'package:healthmate/features/nutrition/providers/nutrition_providers.dart';
 import 'package:healthmate/features/profile/providers/profile_providers.dart';
 import 'package:healthmate/features/water/providers/water_providers.dart';
+import 'package:healthmate/shared/providers/theme_mode_provider.dart';
 
+import 'fake_account_data_repository.dart';
 import 'fake_activity_repository.dart';
 import 'fake_auth_repository.dart';
 import 'fake_health_profile_repository.dart';
 import 'fake_nutrition_repository.dart';
 import 'fake_water_repository.dart';
+import 'fake_theme_preference_store.dart';
 
 Future<ProviderContainer> pumpApp(
   WidgetTester tester, {
@@ -23,6 +26,9 @@ Future<ProviderContainer> pumpApp(
   FakeNutritionRepository? nutritionRepository,
   FakeWaterRepository? waterRepository,
   FakeActivityRepository? activityRepository,
+  FakeAccountDataRepository? accountDataRepository,
+  FakeThemePreferenceStore? themePreferenceStore,
+  ThemeMode initialThemeMode = ThemeMode.system,
   bool settle = true,
 }) async {
   tester.view.physicalSize = size;
@@ -41,6 +47,8 @@ Future<ProviderContainer> pumpApp(
   final nutrition = nutritionRepository ?? FakeNutritionRepository();
   final water = waterRepository ?? FakeWaterRepository();
   final activity = activityRepository ?? FakeActivityRepository();
+  final accountData = accountDataRepository ?? FakeAccountDataRepository();
+  final themeStore = themePreferenceStore ?? FakeThemePreferenceStore();
   final container = ProviderContainer(
     overrides: [
       authRepositoryProvider.overrideWithValue(auth),
@@ -48,6 +56,9 @@ Future<ProviderContainer> pumpApp(
       nutritionRepositoryProvider.overrideWithValue(nutrition),
       waterRepositoryProvider.overrideWithValue(water),
       activityRepositoryProvider.overrideWithValue(activity),
+      accountDataRepositoryProvider.overrideWithValue(accountData),
+      themePreferenceStoreProvider.overrideWithValue(themeStore),
+      initialThemeModeProvider.overrideWithValue(initialThemeMode),
     ],
   );
   addTearDown(() async {

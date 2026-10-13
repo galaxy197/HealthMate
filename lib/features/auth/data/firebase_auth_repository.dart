@@ -33,13 +33,55 @@ class FirebaseAuthRepository implements AuthRepository {
       });
 
   @override
+  Future<void> sendPasswordResetEmail(String email) =>
+      _run(() => _auth.sendPasswordResetEmail(email: email.trim()));
+
+  @override
+  Future<void> reauthenticateWithPassword(String password) => _run(() async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null || email.isEmpty) {
+      throw const AuthFailure(
+        'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.',
+        code: 'no-current-user',
+      );
+    }
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: password,
+    );
+    await user.reauthenticateWithCredential(credential);
+  });
+
+  @override
+  Future<void> updatePassword(String newPassword) =>
+      _run(() async => _requireCurrentUser().updatePassword(newPassword));
+
+  @override
+  Future<void> deleteCurrentUser() =>
+      _run(() async => _requireCurrentUser().delete());
+
+  @override
   Future<void> signOut() => _run(_auth.signOut);
+
+  User _requireCurrentUser() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw const AuthFailure(
+        'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.',
+        code: 'no-current-user',
+      );
+    }
+    return user;
+  }
 
   Future<void> _run(Future<void> Function() operation) async {
     try {
       await operation();
     } on FirebaseAuthException catch (error) {
       throw AuthFailure.fromCode(error.code);
+    } on AuthFailure {
+      rethrow;
     } catch (_) {
       throw AuthFailure.fromCode('unknown');
     }

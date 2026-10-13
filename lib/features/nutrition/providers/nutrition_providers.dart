@@ -16,13 +16,30 @@ final foodCatalogProvider = StreamProvider<List<FoodCatalogItem>>((ref) {
   return ref.watch(nutritionRepositoryProvider).watchFoodCatalog();
 });
 
-final mealLogsProvider = StreamProvider<List<MealLog>>((ref) async* {
+final mealLogsProvider = StreamProvider.autoDispose
+    .family<List<MealLog>, DateTime>((ref, localDate) async* {
+      final user = ref.watch(authSessionProvider).value;
+      if (user == null) {
+        yield const [];
+        return;
+      }
+      yield* ref
+          .watch(nutritionRepositoryProvider)
+          .watchMealLogs(user.uid, localDate);
+    });
+
+final recentMealItemsProvider = StreamProvider<List<MealItemSnapshot>>((
+  ref,
+) async* {
   final user = ref.watch(authSessionProvider).value;
   if (user == null) {
     yield const [];
     return;
   }
-  yield* ref.watch(nutritionRepositoryProvider).watchMealLogs(user.uid);
+  yield* ref
+      .watch(nutritionRepositoryProvider)
+      .watchRecentMeals(user.uid)
+      .map(recentMealItems);
 });
 
 final nutritionControllerProvider =

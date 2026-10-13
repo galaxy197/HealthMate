@@ -12,6 +12,8 @@ class FakeWaterRepository implements WaterRepository {
   int updateCalls = 0;
   int deleteCalls = 0;
 
+  List<WaterLog> get logs => List.unmodifiable(_logs);
+
   @override
   Stream<List<WaterLog>> watchLogs(String uid, String dateKey) =>
       Stream.multi((controller) {

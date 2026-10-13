@@ -8,11 +8,14 @@ import 'package:healthmate/core/router/app_routes.dart';
 import 'package:healthmate/core/router/auth_redirect.dart';
 import 'package:healthmate/core/widgets/startup_error_app.dart';
 import 'package:healthmate/features/auth/models/auth_failure.dart';
+import 'package:healthmate/features/auth/models/account_action_failure.dart';
 import 'package:healthmate/features/auth/models/auth_user.dart';
 import 'package:healthmate/features/auth/models/auth_validation.dart';
 import 'package:healthmate/features/auth/providers/auth_providers.dart';
+import 'package:healthmate/features/profile/models/user_profile.dart';
 
 import 'support/fake_auth_repository.dart';
+import 'support/fake_health_profile_repository.dart';
 import 'support/test_app.dart';
 
 Future<void> fillLogin(
@@ -115,6 +118,58 @@ void main() {
     },
   );
 
+  test(
+    'redirect waits for profile and requires onboarding only when incomplete',
+    () {
+      const session = AsyncData(FakeAuthRepository.testUser);
+      expect(
+        Uri.parse(
+          authRedirect(
+            session,
+            Uri.parse('/journal'),
+            const AsyncLoading<UserProfile?>(),
+          )!,
+        ).path,
+        AppRoutes.session,
+      );
+      expect(
+        Uri.parse(
+          authRedirect(
+            session,
+            Uri.parse('/journal'),
+            AsyncData(FakeHealthProfileRepository.incompleteProfile),
+          )!,
+        ).path,
+        AppRoutes.onboarding,
+      );
+      expect(
+        authRedirect(
+          session,
+          Uri.parse('/journal'),
+          AsyncData(FakeHealthProfileRepository.testProfile),
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test('redirect keeps account controls reachable after partial deletion', () {
+    const session = AsyncData(FakeAuthRepository.testUser);
+    final deletionError = AsyncError<void>(
+      const AccountActionFailure('retry', dataMayBeDeleted: true),
+      StackTrace.current,
+    );
+    expect(
+      authRedirect(
+        session,
+        Uri.parse(AppRoutes.profile),
+        const AsyncData<UserProfile?>(null),
+        deletionError,
+      ),
+      isNull,
+    );
+  });
+
   testWidgets('signed-out user cannot open a private route', (tester) async {
     final container = await pumpApp(tester, repository: FakeAuthRepository());
     expect(find.text('Chào mừng bạn trở lại'), findsOneWidget);
@@ -153,10 +208,14 @@ void main() {
   );
 
   testWidgets(
-    'registration checks confirmation then creates account and opens dashboard',
+    'registration checks confirmation then opens onboarding for a new account',
     (tester) async {
       final auth = FakeAuthRepository();
-      await pumpApp(tester, repository: auth);
+      await pumpApp(
+        tester,
+        repository: auth,
+        profileRepository: FakeHealthProfileRepository(),
+      );
       await tester.tap(find.byKey(const ValueKey('auth-toggle')));
       await tester.pumpAndSettle();
       await fillLogin(tester);
@@ -175,7 +234,7 @@ void main() {
       await submit(tester);
       await tester.pumpAndSettle();
       expect(auth.registerCalls, 1);
-      expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+      expect(find.text('Thiết lập sức khỏe ban đầu'), findsOneWidget);
     },
   );
 

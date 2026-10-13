@@ -6,8 +6,11 @@ import '../../auth/providers/auth_providers.dart';
 import '../data/firebase_health_profile_repository.dart';
 import '../data/health_profile_repository.dart';
 import '../models/body_metric.dart';
+import '../models/onboarding_draft.dart';
 import '../models/profile_failure.dart';
 import '../models/user_profile.dart';
+
+const profileBootstrapTimeout = Duration(seconds: 12);
 
 final healthProfileRepositoryProvider = Provider<HealthProfileRepository>(
   (ref) => FirebaseHealthProfileRepository(FirebaseFirestore.instance),
@@ -18,8 +21,14 @@ final profileBootstrapProvider = FutureProvider<void>((ref) async {
   if (user == null) return;
   await ref
       .watch(healthProfileRepositoryProvider)
-      .ensureProfile(uid: user.uid, email: user.email ?? '');
-});
+      .ensureProfile(uid: user.uid, email: user.email ?? '')
+      .timeout(
+        profileBootstrapTimeout,
+        onTimeout: () => throw const ProfileFailure(
+          'Không thể tải hồ sơ trong thời gian chờ. Hãy kiểm tra kết nối rồi thử lại.',
+        ),
+      );
+}, retry: (retryCount, error) => null);
 
 final userProfileProvider = StreamProvider<UserProfile?>((ref) async* {
   final user = ref.watch(authSessionProvider).value;
@@ -29,7 +38,7 @@ final userProfileProvider = StreamProvider<UserProfile?>((ref) async* {
   }
   await ref.watch(profileBootstrapProvider.future);
   yield* ref.watch(healthProfileRepositoryProvider).watchProfile(user.uid);
-});
+}, retry: (retryCount, error) => null);
 
 final bodyMetricsProvider = StreamProvider<List<BodyMetric>>((ref) async* {
   final user = ref.watch(authSessionProvider).value;
@@ -39,7 +48,7 @@ final bodyMetricsProvider = StreamProvider<List<BodyMetric>>((ref) async* {
   }
   await ref.watch(profileBootstrapProvider.future);
   yield* ref.watch(healthProfileRepositoryProvider).watchBodyMetrics(user.uid);
-});
+}, retry: (retryCount, error) => null);
 
 final profileControllerProvider =
     NotifierProvider<ProfileController, AsyncValue<void>>(
@@ -61,7 +70,18 @@ class ProfileController extends Notifier<AsyncValue<void>> {
           uid: user.uid,
           displayName: draft.displayName,
           heightCm: draft.heightCm,
+          birthDate: draft.birthDate,
+          healthGoal: draft.healthGoal.value,
+          targetWeightKg: draft.healthGoal.needsTargetWeight
+              ? draft.targetWeightKg
+              : null,
         );
+  });
+
+  Future<bool> completeOnboarding(OnboardingDraft draft) => _perform((user) {
+    return ref
+        .read(healthProfileRepositoryProvider)
+        .completeOnboarding(uid: user.uid, draft: draft);
   });
 
   Future<bool> addBodyMetric(BodyMetricDraft draft) => _perform((user) async {

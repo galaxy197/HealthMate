@@ -16,6 +16,88 @@ void main() {
       expect(localDateKey(DateTime(2026, 2, 3, 23, 30)), '2026-02-03');
     });
 
+    test('validates real calendar dates instead of only their shape', () {
+      expect(isValidDateKey('2026-10-13'), isTrue);
+      expect(isValidDateKey('2028-02-29'), isTrue);
+      expect(isValidDateKey('2026-02-29'), isFalse);
+      expect(isValidDateKey('2026-02-30'), isFalse);
+      expect(isValidDateKey('2026-13-01'), isFalse);
+      expect(isValidDateKey('2026-2-03'), isFalse);
+    });
+
+    test('uses the recorded offset across a local-midnight boundary', () {
+      const offset = 420;
+      expect(
+        dateKeyFromTimestampAndOffset(
+          DateTime.utc(2026, 10, 13, 16, 59),
+          offset,
+        ),
+        '2026-10-13',
+      );
+      expect(
+        dateKeyFromTimestampAndOffset(DateTime.utc(2026, 10, 13, 17), offset),
+        '2026-10-14',
+      );
+    });
+
+    test('detects mismatched timestamp, date key and timezone offset', () {
+      final timestamp = DateTime.utc(2026, 10, 13, 17, 30);
+      expect(
+        dateKeyMatchesTimestamp(
+          dateKey: '2026-10-14',
+          timestamp: timestamp,
+          timezoneOffsetMinutes: 420,
+        ),
+        isTrue,
+      );
+      expect(
+        dateKeyMatchesTimestamp(
+          dateKey: '2026-10-13',
+          timestamp: timestamp,
+          timezoneOffsetMinutes: 420,
+        ),
+        isFalse,
+      );
+      expect(
+        dateKeyMatchesTimestamp(
+          dateKey: '2026-10-14',
+          timestamp: timestamp,
+          timezoneOffsetMinutes: 0,
+        ),
+        isFalse,
+      );
+    });
+
+    test('drafts recalculate dependent date fields after timestamp edits', () {
+      final beforeMidnight = DateTime(2026, 10, 13, 23, 59);
+      final afterMidnight = DateTime(2026, 10, 14);
+      final originalWater = WaterLogDraft(
+        amountMl: 250,
+        consumedAt: beforeMidnight,
+      );
+      final editedWater = WaterLogDraft(
+        amountMl: 250,
+        consumedAt: afterMidnight,
+      );
+      final editedActivity = ActivityLogDraft(
+        type: ActivityType.walking,
+        durationMinutes: 30,
+        performedAt: afterMidnight,
+      );
+
+      expect(originalWater.dateKey, '2026-10-13');
+      expect(editedWater.dateKey, '2026-10-14');
+      expect(editedActivity.dateKey, '2026-10-14');
+      expect(
+        editedWater.timezoneOffsetMinutes,
+        afterMidnight.timeZoneOffset.inMinutes,
+      );
+      expect(
+        editedActivity.timezoneOffsetMinutes,
+        afterMidnight.timeZoneOffset.inMinutes,
+      );
+    });
+
     test('validates water amount and activity duration', () {
       expect(WaterValidation.amount('49'), isNotNull);
       expect(WaterValidation.amount('250'), isNull);
@@ -117,10 +199,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Xóa'));
     await tester.pumpAndSettle();
     expect(water.deleteCalls, 1);
-    expect(
-      find.text('Chưa có lần uống nước nào trong ngày này.'),
-      findsOneWidget,
-    );
+    expect(water.logs, isEmpty);
 
     final addActivity = find.byKey(const ValueKey('add-activity'));
     tester.widget<FilledButton>(addActivity).onPressed!();

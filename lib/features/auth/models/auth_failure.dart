@@ -1,7 +1,8 @@
 class AuthFailure implements Exception {
-  const AuthFailure(this.message);
+  const AuthFailure(this.message, {this.code = 'unknown'});
 
   final String message;
+  final String code;
 
   factory AuthFailure.fromCode(String code) => AuthFailure(switch (code) {
     'invalid-email' => 'Email chưa đúng định dạng. Vui lòng kiểm tra lại.',
@@ -24,7 +25,7 @@ class AuthFailure implements Exception {
     'requires-recent-login' || 'user-token-expired' =>
       'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
     _ => 'Chưa thể hoàn tất thao tác. Vui lòng thử lại.',
-  });
+  }, code: code);
 
   @override
   String toString() => message;

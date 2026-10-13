@@ -6,25 +6,36 @@ import 'package:healthmate/features/auth/models/auth_user.dart';
 
 /// Test-only implementation. Production always uses FirebaseAuthRepository.
 class FakeAuthRepository implements AuthRepository {
-  factory FakeAuthRepository({AuthUser? user}) => FakeAuthRepository._(user);
+  factory FakeAuthRepository({AuthUser? user, List<String>? events}) =>
+      FakeAuthRepository._(user, events);
 
-  FakeAuthRepository._(this._user);
+  FakeAuthRepository._(this._user, this.events);
 
   static const testUser = AuthUser(
     uid: 'test-uid',
     email: 'member@example.com',
   );
   AuthUser? _user;
+  final List<String>? events;
   final _changes = StreamController<AuthUser?>.broadcast();
   bool emitInitial = true;
   AuthFailure? failure;
+  AuthFailure? resetFailure;
+  AuthFailure? reauthenticateFailure;
+  AuthFailure? updatePasswordFailure;
+  AuthFailure? deleteUserFailure;
   Object? sessionError;
   Completer<void>? pending;
   int signInCalls = 0;
   int registerCalls = 0;
   int signOutCalls = 0;
+  int resetPasswordCalls = 0;
+  int reauthenticateCalls = 0;
+  int updatePasswordCalls = 0;
+  int deleteUserCalls = 0;
   String? lastEmail;
   String? lastPassword;
+  String? lastNewPassword;
 
   @override
   Stream<AuthUser?> authStateChanges() => Stream.multi((controller) {
@@ -70,6 +81,41 @@ class FakeAuthRepository implements AuthRepository {
     lastPassword = password;
     await _operation();
     emitUser(AuthUser(uid: 'new-test-uid', email: email));
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail(String email) async {
+    resetPasswordCalls++;
+    lastEmail = email;
+    await _operation();
+    if (resetFailure != null) throw resetFailure!;
+  }
+
+  @override
+  Future<void> reauthenticateWithPassword(String password) async {
+    events?.add('reauthenticate');
+    reauthenticateCalls++;
+    lastPassword = password;
+    await _operation();
+    if (reauthenticateFailure != null) throw reauthenticateFailure!;
+  }
+
+  @override
+  Future<void> updatePassword(String newPassword) async {
+    events?.add('update-password');
+    updatePasswordCalls++;
+    lastNewPassword = newPassword;
+    await _operation();
+    if (updatePasswordFailure != null) throw updatePasswordFailure!;
+  }
+
+  @override
+  Future<void> deleteCurrentUser() async {
+    events?.add('delete-auth');
+    deleteUserCalls++;
+    await _operation();
+    if (deleteUserFailure != null) throw deleteUserFailure!;
+    emitUser(null);
   }
 
   @override

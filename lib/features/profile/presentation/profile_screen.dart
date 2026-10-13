@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/feature_page.dart';
 import '../../../shared/providers/theme_mode_provider.dart';
 import '../../auth/models/auth_failure.dart';
+import '../../auth/models/account_action_failure.dart';
+import '../../auth/presentation/account_security_dialogs.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../models/body_metric.dart';
 import '../models/profile_failure.dart';
@@ -13,6 +17,7 @@ import '../models/user_profile.dart';
 import '../providers/profile_providers.dart';
 import 'body_metric_form_dialog.dart';
 import 'profile_form_dialog.dart';
+import 'weight_chart.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -23,6 +28,7 @@ class ProfileScreen extends ConsumerWidget {
     final selectedMode = ref.watch(themeModeProvider);
     final user = ref.watch(authSessionProvider).value;
     final authAction = ref.watch(authControllerProvider);
+    final accountAction = ref.watch(accountSecurityControllerProvider);
     final profileAction = ref.watch(profileControllerProvider);
     final profileState = ref.watch(userProfileProvider);
     final metricState = ref.watch(bodyMetricsProvider);
@@ -44,8 +50,11 @@ class ProfileScreen extends ConsumerWidget {
         ],
         _AccountCard(
           email: user?.email,
-          action: authAction,
+          authAction: authAction,
+          accountAction: accountAction,
           onSignOut: () => ref.read(authControllerProvider.notifier).signOut(),
+          onChangePassword: () => _changePassword(context, ref),
+          onDeleteAccount: () => _deleteAccount(context, ref),
         ),
         const SizedBox(height: AppSpacing.md),
         _ProfileCard(
@@ -78,7 +87,7 @@ class ProfileScreen extends ConsumerWidget {
               children: [
                 Text('Giao diện', style: theme.textTheme.titleLarge),
                 const SizedBox(height: AppSpacing.sm),
-                const Text('Chọn cách hiển thị cho lần mở ứng dụng này.'),
+                const Text('Lựa chọn này được giữ lại trên thiết bị.'),
                 const SizedBox(height: AppSpacing.md),
                 Wrap(
                   spacing: AppSpacing.sm,
@@ -105,9 +114,20 @@ class ProfileScreen extends ConsumerWidget {
                         avatar: Icon(option.icon, size: 18),
                         label: Text(option.label),
                         selected: selectedMode == option.mode,
-                        onSelected: (_) => ref
-                            .read(themeModeProvider.notifier)
-                            .setMode(option.mode),
+                        onSelected: (_) async {
+                          try {
+                            await ref
+                                .read(themeModeProvider.notifier)
+                                .setMode(option.mode);
+                          } catch (_) {
+                            if (context.mounted) {
+                              _showSaved(
+                                context,
+                                'Chưa thể lưu lựa chọn giao diện.',
+                              );
+                            }
+                          }
+                        },
                         materialTapTargetSize: MaterialTapTargetSize.padded,
                       ),
                   ],
@@ -116,8 +136,62 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
         ),
+        const SizedBox(height: AppSpacing.md),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                key: const ValueKey('open-about'),
+                leading: const Icon(Icons.info_outline_rounded),
+                title: const Text('Giới thiệu'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.go(AppRoutes.about),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                key: const ValueKey('open-privacy'),
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Quyền riêng tư'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.go(AppRoutes.privacy),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                key: const ValueKey('open-disclaimer'),
+                leading: const Icon(Icons.health_and_safety_outlined),
+                title: const Text('Lưu ý sức khỏe'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.go(AppRoutes.disclaimer),
+              ),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _changePassword(BuildContext context, WidgetRef ref) async {
+    ref.read(accountSecurityControllerProvider.notifier).clearError();
+    final request = await showChangePasswordDialog(context);
+    if (request == null || !context.mounted) return;
+    final changed = await ref
+        .read(accountSecurityControllerProvider.notifier)
+        .changePassword(
+          currentPassword: request.currentPassword,
+          newPassword: request.newPassword,
+        );
+    if (changed && context.mounted) {
+      _showSaved(context, 'Đã đổi mật khẩu.');
+    }
+  }
+
+  Future<void> _deleteAccount(BuildContext context, WidgetRef ref) async {
+    ref.read(accountSecurityControllerProvider.notifier).clearError();
+    final password = await showDeleteAccountDialog(context);
+    if (password == null || !context.mounted) return;
+    await ref
+        .read(accountSecurityControllerProvider.notifier)
+        .deleteAccount(password);
   }
 
   Future<void> _editProfile(
@@ -205,17 +279,25 @@ class ProfileScreen extends ConsumerWidget {
 class _AccountCard extends StatelessWidget {
   const _AccountCard({
     required this.email,
-    required this.action,
+    required this.authAction,
+    required this.accountAction,
     required this.onSignOut,
+    required this.onChangePassword,
+    required this.onDeleteAccount,
   });
 
   final String? email;
-  final AsyncValue<void> action;
+  final AsyncValue<void> authAction;
+  final AsyncValue<void> accountAction;
   final VoidCallback onSignOut;
+  final VoidCallback onChangePassword;
+  final VoidCallback onDeleteAccount;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final busy = authAction.isLoading || accountAction.isLoading;
+    final error = accountAction.error ?? authAction.error;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -227,19 +309,43 @@ class _AccountCard extends StatelessWidget {
             Text(email ?? 'Tài khoản đã đăng nhập'),
             const SizedBox(height: AppSpacing.md),
             OutlinedButton.icon(
-              key: const ValueKey('sign-out'),
-              onPressed: action.isLoading ? null : onSignOut,
-              icon: const Icon(Icons.logout_rounded),
-              label: Text(action.isLoading ? 'Đang đăng xuất…' : 'Đăng xuất'),
+              key: const ValueKey('change-password'),
+              onPressed: busy ? null : onChangePassword,
+              icon: const Icon(Icons.password_rounded),
+              label: const Text('Đổi mật khẩu'),
             ),
-            if (action.error case final AuthFailure error) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              key: const ValueKey('sign-out'),
+              onPressed: busy ? null : onSignOut,
+              icon: const Icon(Icons.logout_rounded),
+              label: Text(
+                authAction.isLoading ? 'Đang đăng xuất…' : 'Đăng xuất',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton.icon(
+              key: const ValueKey('delete-account'),
+              onPressed: busy ? null : onDeleteAccount,
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.error,
+              ),
+              icon: const Icon(Icons.delete_forever_outlined),
+              label: Text(
+                accountAction.isLoading
+                    ? 'Đang xử lý tài khoản…'
+                    : 'Xóa tài khoản và dữ liệu',
+              ),
+            ),
+            if (error != null) ...[
               const SizedBox(height: AppSpacing.sm),
               Semantics(
                 liveRegion: true,
-                child: Text(
-                  error.message,
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+                child: Text(switch (error) {
+                  AuthFailure failure => failure.message,
+                  AccountActionFailure failure => failure.message,
+                  _ => 'Chưa thể hoàn tất thao tác. Vui lòng thử lại.',
+                }, style: TextStyle(color: theme.colorScheme.error)),
               ),
             ],
           ],
@@ -265,6 +371,7 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final locale = MaterialLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -310,6 +417,24 @@ class _ProfileCard extends StatelessWidget {
                               ? 'Chưa nhập chiều cao'
                               : 'Chiều cao: ${profile!.heightCm!.toStringAsFixed(1)} cm',
                         ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          profile!.birthDate == null
+                              ? 'Chưa nhập ngày sinh'
+                              : 'Ngày sinh: ${locale.formatMediumDate(profile!.birthDate!)}',
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          profile!.healthGoal == null
+                              ? 'Chưa chọn mục tiêu sức khỏe'
+                              : 'Mục tiêu: ${profile!.healthGoal!.label}',
+                        ),
+                        if (profile!.targetWeightKg != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            'Cân nặng mục tiêu: ${profile!.targetWeightKg!.toStringAsFixed(1)} kg',
+                          ),
+                        ],
                       ],
                     ),
             ),
@@ -413,6 +538,8 @@ class _MetricsCard extends StatelessWidget {
                     )
                   : Column(
                       children: [
+                        WeightChart(metrics: metrics),
+                        const SizedBox(height: AppSpacing.md),
                         for (final metric in metrics)
                           ListTile(
                             contentPadding: EdgeInsets.zero,

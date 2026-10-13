@@ -1,3 +1,5 @@
+import '../../../core/utils/local_date_key.dart';
+
 class NutritionTotals {
   const NutritionTotals({
     this.kcal = 0,
@@ -118,6 +120,10 @@ class MealDraft {
   final List<MealItemSnapshot> items;
   final MealSource source;
 
+  int get timezoneOffsetMinutes => consumedAt.timeZoneOffset.inMinutes;
+  String get dateKey =>
+      dateKeyFromTimestampAndOffset(consumedAt, timezoneOffsetMinutes);
+
   NutritionTotals get totals =>
       items.fold(const NutritionTotals(), (sum, item) => sum + item.nutrition);
 }
@@ -130,6 +136,8 @@ class MealLog {
     required this.items,
     required this.totals,
     required this.source,
+    this.dateKey,
+    this.timezoneOffsetMinutes,
     this.createdAt,
     this.updatedAt,
   });
@@ -140,6 +148,8 @@ class MealLog {
   final List<MealItemSnapshot> items;
   final NutritionTotals totals;
   final MealSource source;
+  final String? dateKey;
+  final int? timezoneOffsetMinutes;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -150,3 +160,25 @@ class MealLog {
     source: source,
   );
 }
+
+List<MealItemSnapshot> recentMealItems(
+  Iterable<MealLog> meals, {
+  int limit = 8,
+}) {
+  final seen = <String>{};
+  final result = <MealItemSnapshot>[];
+  for (final meal in meals) {
+    for (final item in meal.items) {
+      final key = item.foodId.isNotEmpty
+          ? item.foodId
+          : item.name.trim().toLowerCase();
+      if (key.isEmpty || !seen.add(key)) continue;
+      result.add(item);
+      if (result.length == limit) return List.unmodifiable(result);
+    }
+  }
+  return List.unmodifiable(result);
+}
+
+NutritionTotals totalMealNutrition(Iterable<MealLog> meals) =>
+    meals.fold(const NutritionTotals(), (sum, meal) => sum + meal.totals);
