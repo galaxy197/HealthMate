@@ -68,7 +68,7 @@ enum MealType {
 
 enum MealSource {
   manual('Nhập thủ công'),
-  aiAssisted('Có Gemini hỗ trợ nhận diện');
+  aiAssisted('Có hỗ trợ nhận diện');
 
   const MealSource(this.label);
   final String label;

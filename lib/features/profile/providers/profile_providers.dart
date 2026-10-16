@@ -40,7 +40,9 @@ final userProfileProvider = StreamProvider<UserProfile?>((ref) async* {
   yield* ref.watch(healthProfileRepositoryProvider).watchProfile(user.uid);
 }, retry: (retryCount, error) => null);
 
-final bodyMetricsProvider = StreamProvider<List<BodyMetric>>((ref) async* {
+final bodyMetricsProvider = StreamProvider.autoDispose<List<BodyMetric>>((
+  ref,
+) async* {
   final user = ref.watch(authSessionProvider).value;
   if (user == null) {
     yield const [];
@@ -49,6 +51,20 @@ final bodyMetricsProvider = StreamProvider<List<BodyMetric>>((ref) async* {
   await ref.watch(profileBootstrapProvider.future);
   yield* ref.watch(healthProfileRepositoryProvider).watchBodyMetrics(user.uid);
 }, retry: (retryCount, error) => null);
+
+final latestBodyMetricProvider = StreamProvider.autoDispose
+    .family<List<BodyMetric>, DateTime>((ref, day) async* {
+      final uid = ref.watch(
+        authSessionProvider.select((session) => session.value?.uid),
+      );
+      if (uid == null) {
+        yield const [];
+        return;
+      }
+      yield* ref
+          .watch(healthProfileRepositoryProvider)
+          .watchLatestBodyMetric(uid, day);
+    }, retry: (_, _) => null);
 
 final profileControllerProvider =
     NotifierProvider<ProfileController, AsyncValue<void>>(

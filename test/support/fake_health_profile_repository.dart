@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:healthmate/core/utils/local_date_key.dart';
 
 import 'package:healthmate/features/profile/data/health_profile_repository.dart';
 import 'package:healthmate/features/profile/models/body_metric.dart';
@@ -55,6 +56,9 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
   int addMetricCalls = 0;
   int updateMetricCalls = 0;
   int deleteMetricCalls = 0;
+  int metricRangeCalls = 0;
+  int latestMetricListeners = 0;
+  int fullMetricWatchCalls = 0;
   OnboardingDraft? lastOnboardingDraft;
 
   UserProfile? get currentProfile => _profile;
@@ -144,7 +148,7 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
       targetWeightKg: draft.healthGoal.needsTargetWeight
           ? draft.targetWeightKg
           : null,
-      onboardingCompletedAt: now,
+      onboardingCompletedAt: current.onboardingCompletedAt ?? now,
       createdAt: current.createdAt,
       updatedAt: now,
       schemaVersion: 2,
@@ -172,6 +176,7 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
   @override
   Stream<List<BodyMetric>> watchBodyMetrics(String uid) =>
       Stream.multi((controller) {
+        fullMetricWatchCalls++;
         controller.add(List.unmodifiable(_metrics));
         final subscription = _metricChanges.stream.listen(
           controller.add,
@@ -180,6 +185,45 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
         );
         controller.onCancel = subscription.cancel;
       });
+
+  @override
+  Stream<List<BodyMetric>> watchLatestBodyMetric(String uid, DateTime day) =>
+      Stream.multi((c) {
+        latestMetricListeners++;
+        void emit() {
+          final list =
+              _metrics
+                  .where((m) => m.measuredAt.isBefore(localDayRange(day).end))
+                  .toList()
+                ..sort((a, b) => b.measuredAt.compareTo(a.measuredAt));
+          c.add(list.take(1).toList());
+        }
+
+        emit();
+        final sub = _metricChanges.stream.listen(
+          (_) => emit(),
+          onError: c.addError,
+        );
+        c.onCancel = () async {
+          latestMetricListeners--;
+          await sub.cancel();
+        };
+      });
+
+  @override
+  Future<List<BodyMetric>> loadBodyMetricsRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) async {
+    metricRangeCalls++;
+    await _operation();
+    return _metrics
+        .where(
+          (m) => !m.measuredAt.isBefore(start) && m.measuredAt.isBefore(end),
+        )
+        .toList();
+  }
 
   @override
   Future<String> addBodyMetric({

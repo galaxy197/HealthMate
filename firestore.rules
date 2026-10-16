@@ -111,7 +111,7 @@ service cloud.firestore {
         && data.mealType in ['breakfast', 'lunch', 'dinner', 'snack']
         && data.consumedAt is timestamp
         && data.consumedAt <= request.time + duration.value(5, 'm')
-        && validDateKeyAndTimezone(data)
+        && validDateKeyAndTimezone(data, data.consumedAt)
         && validMealItems(data.items)
         && data.totalKcal is number && data.totalKcal >= 0 && data.totalKcal <= 20000
         && data.totalProteinG is number && data.totalProteinG >= 0 && data.totalProteinG <= 2000
@@ -123,14 +123,19 @@ service cloud.firestore {
         && data.schemaVersion == 2;
     }
 
-    function validDateKeyAndTimezone(data) {
+    function validDateKeyAndTimezone(data, recordedAt) {
+      let localTime = recordedAt + duration.value(data.timezoneOffsetMinutes, 'm');
+      let parts = data.dateKey.split('-');
       return data.dateKey is string
         && data.dateKey.matches(
           '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
         )
         && data.timezoneOffsetMinutes is int
         && data.timezoneOffsetMinutes >= -720
-        && data.timezoneOffsetMinutes <= 840;
+        && data.timezoneOffsetMinutes <= 840
+        && localTime.year() == int(parts[0])
+        && localTime.month() == int(parts[1])
+        && localTime.day() == int(parts[2]);
     }
 
     function validWaterLog() {
@@ -148,7 +153,7 @@ service cloud.firestore {
         && data.amountMl <= 5000
         && data.consumedAt is timestamp
         && data.consumedAt <= request.time + duration.value(5, 'm')
-        && validDateKeyAndTimezone(data)
+        && validDateKeyAndTimezone(data, data.consumedAt)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -171,11 +176,62 @@ service cloud.firestore {
         && data.durationMinutes <= 1440
         && data.performedAt is timestamp
         && data.performedAt <= request.time + duration.value(5, 'm')
-        && validDateKeyAndTimezone(data)
+        && validDateKeyAndTimezone(data, data.performedAt)
         && data.note is string
         && data.note.size() <= 200
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
+    }
+
+    function goalDate(key) {
+      let parts = key.split('-');
+      let date = timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+      return key is string && key.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && date.year() == int(parts[0])
+        && date.month() == int(parts[1])
+        && date.day() == int(parts[2]);
+    }
+
+    function validGoal() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['goalType','targetValue','unit','startDateKey',
+          'endDateKey','status','baselineWeightKg','createdAt','updatedAt','schemaVersion'])
+        && d.keys().hasOnly(['goalType','targetValue','unit','startDateKey',
+          'endDateKey','status','baselineWeightKg','createdAt','updatedAt','schemaVersion'])
+        && d.schemaVersion == 1
+        && goalDate(d.startDateKey) && goalDate(d.endDateKey)
+        && d.endDateKey >= d.startDateKey
+        && d.status in ['active','paused','completed']
+        && d.targetValue is number
+        && ((d.goalType == 'meals' && d.unit == 'bữa' && d.targetValue >= 1 && d.targetValue <= 10 && d.targetValue % 1 == 0)
+          || (d.goalType == 'water' && d.unit == 'ml' && d.targetValue >= 50 && d.targetValue <= 5000 && d.targetValue % 1 == 0)
+          || (d.goalType == 'activity' && d.unit == 'phút' && d.targetValue >= 1 && d.targetValue <= 180 && d.targetValue % 1 == 0)
+          || (d.goalType == 'weight' && d.unit == 'kg' && d.targetValue >= 20 && d.targetValue <= 500))
+        && ((d.goalType == 'weight' && d.baselineWeightKg is number && d.baselineWeightKg >= 20 && d.baselineWeightKg <= 500)
+          || (d.goalType != 'weight' && d.baselineWeightKg == null))
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
+
+    function validQuest(key) {
+      let d = request.resource.data;
+      return d.keys().hasAll(['dateKey','questType','title','description','reason',
+          'targetValue','unit','status','createdAt','updatedAt','completedAt','ruleVersion'])
+        && d.keys().hasOnly(['dateKey','questType','title','description','reason',
+          'targetValue','unit','status','createdAt','updatedAt','completedAt','ruleVersion'])
+        && goalDate(d.dateKey) && d.dateKey == key
+        && d.ruleVersion == 1
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.description is string && d.description.size() > 0 && d.description.size() <= 500
+        && d.reason is string && d.reason.size() > 0 && d.reason.size() <= 500
+        && d.targetValue is number && d.targetValue % 1 == 0
+        && ((d.questType == 'meal' && d.unit == 'bữa' && d.targetValue == 1)
+          || (d.questType == 'water' && d.unit == 'ml' && d.targetValue >= 1 && d.targetValue <= 250)
+          || (d.questType == 'activity' && d.unit == 'phút' && d.targetValue >= 1 && d.targetValue <= 10)
+          || (d.questType == 'reflection' && d.unit == 'lần' && d.targetValue == 1))
+        && d.status in ['available','completed','skipped']
+        && ((d.status == 'completed' && d.completedAt is timestamp)
+          || (d.status != 'completed' && d.completedAt == null))
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
     }
 
     match /food_catalog/{foodId} {
@@ -295,6 +351,87 @@ service cloud.firestore {
           ]);
 
         allow delete: if owns(uid);
+      }
+
+      match /goals/{goalId} {
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validGoal()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if owns(uid) && validGoal()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'targetValue','startDateKey','endDateKey','status','updatedAt'
+          ]);
+      }
+
+      match /daily_quests/{dateKey} {
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validQuest(dateKey)
+          && request.resource.data.status == 'available'
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if owns(uid) && validQuest(dateKey)
+          && resource.data.status == 'available'
+          && request.resource.data.status in ['completed','skipped']
+          && request.resource.data.updatedAt == request.time
+          && (request.resource.data.status != 'completed'
+            || request.resource.data.completedAt == request.time)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status','updatedAt','completedAt'
+          ]);
+      }
+
+      match /chat_sessions/{sessionId} {
+        function validSession() {
+          let d = request.resource.data;
+          return d.keys().hasAll(['title', 'messageCount', 'lastTurnId',
+              'createdAt', 'updatedAt', 'schemaVersion'])
+            && d.keys().hasOnly(['title', 'messageCount', 'lastTurnId',
+              'createdAt', 'updatedAt', 'schemaVersion'])
+            && d.title is string && d.title.size() > 0 && d.title.size() <= 80
+            && d.messageCount is int && d.messageCount >= 2
+            && d.messageCount <= 40 && d.messageCount % 2 == 0
+            && d.lastTurnId is string && d.lastTurnId.matches('^[a-zA-Z0-9]{20}$')
+            && d.schemaVersion == 1 && d.createdAt is timestamp
+            && d.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/users/$(uid)/chat_sessions/$(sessionId)/messages/$(d.lastTurnId + '_u')).data.sequence == d.messageCount - 2
+            && getAfter(/databases/$(database)/documents/users/$(uid)/chat_sessions/$(sessionId)/messages/$(d.lastTurnId + '_a')).data.sequence == d.messageCount - 1;
+        }
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validSession()
+          && request.resource.data.messageCount == 2
+          && request.resource.data.createdAt == request.time;
+        allow update: if owns(uid) && validSession()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.messageCount == resource.data.messageCount + 2
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'messageCount', 'lastTurnId', 'updatedAt'
+          ]);
+
+        match /messages/{messageId} {
+          function validMessage() {
+            let d = request.resource.data;
+            let parent = getAfter(/databases/$(database)/documents/users/$(uid)/chat_sessions/$(sessionId)).data;
+            return d.keys().hasAll(['role', 'text', 'source', 'sequence',
+                'createdAt', 'schemaVersion', 'turnId'])
+              && d.keys().hasOnly(['role', 'text', 'source', 'sequence',
+                'createdAt', 'schemaVersion', 'turnId'])
+              && d.role in ['user', 'assistant']
+              && d.text is string && d.text.size() > 0
+              && d.text.size() <= (d.role == 'user' ? 1000 : 6000)
+              && d.source in ['journal', 'ai', 'help']
+              && d.turnId == parent.lastTurnId
+              && messageId == d.turnId + (d.role == 'user' ? '_u' : '_a')
+              && d.sequence is int
+              && d.sequence == parent.messageCount - (d.role == 'user' ? 2 : 1)
+              && d.createdAt == request.time && d.schemaVersion == 1;
+          }
+          allow read, delete: if owns(uid);
+          allow create: if owns(uid) && validMessage();
+          allow update: if false;
+        }
       }
 
       // Account deletion may remove present and future private subcollections.

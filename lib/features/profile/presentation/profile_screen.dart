@@ -24,6 +24,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final selectedMode = ref.watch(themeModeProvider);
     final user = ref.watch(authSessionProvider).value;
@@ -140,6 +141,22 @@ class ProfileScreen extends ConsumerWidget {
         Card(
           child: Column(
             children: [
+              ListTile(
+                key: const ValueKey('open-goals-quests'),
+                leading: const Icon(Icons.flag_outlined),
+                title: const Text('Mục tiêu và nhiệm vụ hằng ngày'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.go(AppRoutes.quest),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                key: const ValueKey('open-chat'),
+                leading: const Icon(Icons.forum_outlined),
+                title: const Text('Trò chuyện cùng HealthMate'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.go(AppRoutes.chat),
+              ),
+              const Divider(height: 1),
               ListTile(
                 key: const ValueKey('open-about'),
                 leading: const Icon(Icons.info_outline_rounded),

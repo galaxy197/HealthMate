@@ -14,6 +14,9 @@ class AiFoodSuggestion {
   final List<String> searchTerms;
 
   factory AiFoodSuggestion.fromJsonText(String source) {
+    if (source.length > 16384) {
+      throw const FormatException('Response too long.');
+    }
     final decoded = jsonDecode(source);
     if (decoded is! Map) throw const FormatException('Expected object.');
     final map = Map<String, dynamic>.from(decoded);

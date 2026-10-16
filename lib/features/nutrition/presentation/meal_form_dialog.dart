@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/nutrition_models.dart';
+import '../models/food_catalog_search.dart';
 import '../models/nutrition_validation.dart';
 import 'custom_food_dialog.dart';
 
@@ -38,6 +39,8 @@ class _MealFormDialogState extends State<MealFormDialog> {
   late List<MealItemSnapshot> _items;
   late final TextEditingController _searchController;
   String? _error;
+  static const _foodPageSize = 12;
+  int _visibleFoodCount = _foodPageSize;
 
   @override
   void initState() {
@@ -65,18 +68,8 @@ class _MealFormDialogState extends State<MealFormDialog> {
     _ => MealType.dinner,
   };
 
-  List<FoodCatalogItem> get _results {
-    final query = _searchController.text.trim().toLowerCase();
-    final source = query.isEmpty
-        ? widget.catalog
-        : widget.catalog.where((food) {
-            return food.name.toLowerCase().contains(query) ||
-                food.alternateNames.any(
-                  (name) => name.toLowerCase().contains(query),
-                );
-          });
-    return source.take(8).toList(growable: false);
-  }
+  List<FoodCatalogItem> get _results =>
+      searchFoodCatalog(widget.catalog, _searchController.text);
 
   Future<double?> _askGrams({double initial = 100}) async {
     final controller = TextEditingController(text: _formatNumber(initial));
@@ -263,6 +256,7 @@ class _MealFormDialogState extends State<MealFormDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final locale = MaterialLocalizations.of(context);
+    final results = _results;
     final totals = _items.fold(
       const NutritionTotals(),
       (sum, item) => sum + item.nutrition,
@@ -345,12 +339,19 @@ class _MealFormDialogState extends State<MealFormDialog> {
                   style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
+                Text(
+                  'Món phối hợp dùng công thức tham khảo. Nhập khối lượng đã ăn theo g; một tô hoặc một ổ không mặc định là 100 g.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
                 TextField(
                   key: const ValueKey('food-search'),
                   controller: _searchController,
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => setState(() {
+                    _visibleFoodCount = _foodPageSize;
+                  }),
                   decoration: const InputDecoration(
-                    hintText: 'Ví dụ: cơm, trứng, chuối…',
+                    hintText: 'Ví dụ: phở bò, com tam, trứng…',
                     prefixIcon: Icon(Icons.search_rounded),
                   ),
                 ),
@@ -362,27 +363,39 @@ class _MealFormDialogState extends State<MealFormDialog> {
                   label: const Text('Nhập món ngoài danh mục'),
                 ),
                 const SizedBox(height: 8),
-                if (_results.isEmpty)
+                if (results.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Text('Không tìm thấy món phù hợp trong danh mục.'),
                   )
                 else
-                  ..._results.map(
-                    (food) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(food.name),
-                      subtitle: Text(
-                        '${food.per100g.kcal.toStringAsFixed(0)} kcal / 100 g · ${food.sourceLabel}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                  ...results
+                      .take(_visibleFoodCount)
+                      .map(
+                        (food) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(food.name),
+                          subtitle: Text(
+                            '${food.per100g.kcal.toStringAsFixed(0)} kcal / 100 g'
+                            '${food.isEstimated ? ' · Ước tính' : ''} · ${food.sourceLabel}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton.filledTonal(
+                            onPressed: () => _add(food),
+                            tooltip: 'Thêm ${food.name}',
+                            icon: const Icon(Icons.add_rounded),
+                          ),
+                        ),
                       ),
-                      trailing: IconButton.filledTonal(
-                        onPressed: () => _add(food),
-                        tooltip: 'Thêm ${food.name}',
-                        icon: const Icon(Icons.add_rounded),
-                      ),
-                    ),
+                if (results.length > _visibleFoodCount)
+                  TextButton.icon(
+                    key: const ValueKey('more-catalog-foods'),
+                    onPressed: () => setState(() {
+                      _visibleFoodCount += _foodPageSize;
+                    }),
+                    icon: const Icon(Icons.expand_more_rounded),
+                    label: const Text('Xem thêm món'),
                   ),
                 const Divider(height: 32),
                 Text('Món đã chọn', style: theme.textTheme.titleMedium),

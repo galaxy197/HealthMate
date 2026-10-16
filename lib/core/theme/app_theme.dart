@@ -1,30 +1,51 @@
 import 'package:flutter/material.dart';
 
+import 'app_colors.dart';
 import 'app_spacing.dart';
 
 abstract final class AppTheme {
-  static const _green = Color(0xFF28745C);
-  static const _ink = Color(0xFF203B36);
-  static const _canvas = Color(0xFFF7F8F4);
-
   static final light = _build(Brightness.light);
   static final dark = _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
     final isLight = brightness == Brightness.light;
-    final scheme = ColorScheme.fromSeed(
-      seedColor: _green,
+    final seededScheme = ColorScheme.fromSeed(
+      seedColor: isLight ? AppColors.lightPrimary : AppColors.darkPrimary,
       brightness: brightness,
+    );
+    final scheme = seededScheme.copyWith(
+      primary: isLight ? AppColors.lightPrimary : AppColors.darkPrimary,
+      onPrimary: isLight ? AppColors.lightOnPrimary : AppColors.darkOnPrimary,
+      surface: isLight ? AppColors.lightSurface : AppColors.darkSurface,
+      onSurface: isLight ? AppColors.lightText : AppColors.darkText,
+      onSurfaceVariant: isLight
+          ? AppColors.lightTextMuted
+          : AppColors.darkTextMuted,
+      outline: isLight ? AppColors.lightOutline : AppColors.darkOutline,
+      outlineVariant: isLight ? AppColors.lightOutline : AppColors.darkOutline,
+      surfaceContainerLowest: isLight
+          ? AppColors.lightSurface
+          : AppColors.darkSurface,
+      surfaceContainerLow: isLight
+          ? AppColors.lightSurfaceMuted
+          : AppColors.darkSurfaceElevated,
+      surfaceContainer: isLight
+          ? AppColors.lightSurfaceMuted
+          : AppColors.darkSurfaceElevated,
     );
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
-      scaffoldBackgroundColor: isLight ? _canvas : scheme.surface,
+      fontFamily: 'BeVietnamPro',
+      scaffoldBackgroundColor: isLight
+          ? AppColors.lightCanvas
+          : AppColors.darkCanvas,
+      extensions: [isLight ? AppMetricColors.light : AppMetricColors.dark],
     );
     final textTheme = base.textTheme.apply(
-      bodyColor: isLight ? _ink : scheme.onSurface,
-      displayColor: isLight ? _ink : scheme.onSurface,
+      bodyColor: scheme.onSurface,
+      displayColor: scheme.onSurface,
     );
     final roundedShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
@@ -48,8 +69,8 @@ abstract final class AppTheme {
         bodyMedium: textTheme.bodyMedium?.copyWith(height: 1.5),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: isLight ? _canvas : scheme.surface,
-        foregroundColor: isLight ? _ink : scheme.onSurface,
+        backgroundColor: isLight ? AppColors.lightCanvas : AppColors.darkCanvas,
+        foregroundColor: scheme.onSurface,
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,

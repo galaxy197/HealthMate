@@ -3,6 +3,8 @@ import '../models/water_log.dart';
 abstract interface class WaterRepository {
   Stream<List<WaterLog>> watchLogs(String uid, String dateKey);
 
+  Future<List<WaterLog>> loadRange(String uid, DateTime start, DateTime end);
+
   Future<String> add({required String uid, required WaterLogDraft draft});
 
   Future<void> update({

@@ -44,8 +44,8 @@ abstract final class ProfileValidation {
         (currentDate.month == date.month && currentDate.day < date.day)) {
       age--;
     }
-    if (age < 13 || age > 120) {
-      return 'HealthMate hỗ trợ độ tuổi từ 13 đến 120.';
+    if (age < 18 || age > 120) {
+      return 'Bản MVP HealthMate dành cho người từ 18 đến 120 tuổi.';
     }
     return null;
   }
@@ -65,12 +65,16 @@ abstract final class ProfileValidation {
     return null;
   }
 
-  static double? parseDecimal(String value) =>
-      double.tryParse(value.replaceAll(',', '.'));
+  static double? parseDecimal(String value) {
+    final number = double.tryParse(value.replaceAll(',', '.'));
+    return number != null && number.isFinite ? number : null;
+  }
 
   static double? bmi({required double? heightCm, required double? weightKg}) {
     if (heightCm == null ||
         weightKg == null ||
+        !heightCm.isFinite ||
+        !weightKg.isFinite ||
         heightCm < 80 ||
         heightCm > 250 ||
         weightKg < 20 ||

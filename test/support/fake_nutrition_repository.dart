@@ -49,6 +49,11 @@ class FakeNutritionRepository implements NutritionRepository {
   int addCalls = 0;
   int updateCalls = 0;
   int deleteCalls = 0;
+  int rangeCalls = 0;
+  int activeDayListeners = 0;
+  Object? dayError;
+  Object? rangeError;
+  Completer<void>? rangePending;
 
   List<MealLog> get meals => List.unmodifiable(_meals);
 
@@ -61,10 +66,21 @@ class FakeNutritionRepository implements NutritionRepository {
     final dateKey = localDateKey(localDate);
     watchedDateKeys.add(dateKey);
     return Stream.multi((controller) {
-      void emit() => controller.add(_forDate(localDate));
+      activeDayListeners++;
+      void emit() {
+        if (dayError != null) {
+          controller.addError(dayError!);
+        } else {
+          controller.add(_forDate(localDate));
+        }
+      }
+
       if (emitImmediately) emit();
       final subscription = _changes.stream.listen((_) => emit());
-      controller.onCancel = subscription.cancel;
+      controller.onCancel = () async {
+        activeDayListeners--;
+        await subscription.cancel();
+      };
     });
   }
 
@@ -81,6 +97,22 @@ class FakeNutritionRepository implements NutritionRepository {
         final subscription = _changes.stream.listen((_) => emit());
         controller.onCancel = subscription.cancel;
       });
+
+  @override
+  Future<List<MealLog>> loadRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) async {
+    rangeCalls++;
+    await rangePending?.future;
+    if (rangeError != null) throw rangeError!;
+    final first = localDateKey(start), last = localDateKey(end);
+    return _meals.where((meal) {
+      final key = meal.dateKey ?? localDateKey(meal.consumedAt);
+      return key.compareTo(first) >= 0 && key.compareTo(last) < 0;
+    }).toList();
+  }
 
   @override
   Future<String> addMeal({

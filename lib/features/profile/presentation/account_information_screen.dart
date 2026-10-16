@@ -61,6 +61,10 @@ class AccountInformationScreen extends StatelessWidget {
         'HealthMate giúp bạn ghi nhận bữa ăn, nước uống, vận động và thay đổi thể trạng để nhìn lại thói quen của mình.',
       ),
       _InformationSection(
+        'Độ tuổi sử dụng',
+        'Bản MVP/demo HealthMate dành cho người từ 18 tuổi. Điều kiện AI được kiểm tra từ ngày sinh do bạn khai báo trong hồ sơ; đây không phải xác minh danh tính hoặc giấy tờ.',
+      ),
+      _InformationSection(
         'Cách sử dụng dữ liệu',
         'Các tổng hợp trong ứng dụng được tính từ dữ liệu bạn chủ động ghi nhận. Kết quả AI chỉ là gợi ý và luôn cần bạn kiểm tra trước khi lưu.',
       ),
@@ -77,11 +81,15 @@ class AccountInformationScreen extends StatelessWidget {
       ),
       _InformationSection(
         'Dữ liệu trên thiết bị',
-        'Lựa chọn giao diện sáng, tối hoặc theo thiết bị được lưu cục bộ trên thiết bị. Dữ liệu này không phải thông tin sức khỏe.',
+        'Lựa chọn giao diện được lưu cục bộ. Firebase SDK có thể giữ bộ nhớ đệm nhật ký để xem khi offline; đăng xuất không đồng nghĩa xóa bộ nhớ đệm này. Bản Android tắt sao lưu dữ liệu ứng dụng lên bản sao lưu hệ điều hành. Chỉ xóa dữ liệu ứng dụng trong Cài đặt Android sau khi các thay đổi cần giữ đã đồng bộ.',
       ),
       _InformationSection(
         'Tính năng AI',
-        'Khi bạn chủ động quét món ăn, ảnh được gửi đến Firebase AI Logic để phân tích. HealthMate không lưu ảnh gốc theo mặc định và chỉ lưu kết quả bạn đã xác nhận.',
+        'Khi bạn xác nhận rồi bấm Phân tích, ảnh được gửi đến dịch vụ AI của Google. Dịch vụ miễn phí có thể dùng ảnh/kết quả để cải thiện sản phẩm và cho người đánh giá xem. Chỉ chọn ảnh món ăn không có thông tin cá nhân. HealthMate không tải ảnh gốc lên kho lưu trữ; camera/thư viện có thể giữ tệp tạm trên thiết bị. Chỉ kết quả bạn xác nhận mới được lưu vào nhật ký.',
+      ),
+      _InformationSection(
+        'Hội thoại',
+        'Câu hỏi và câu trả lời được lưu riêng theo tài khoản trong Cloud Firestore. Tra cứu nhật ký được tính tại ứng dụng, không gửi nhật ký, hồ sơ, nội dung tự nhập hoặc lịch sử hội thoại đến AI. Khi bạn chọn một chủ đề kiến thức chung, chỉ câu hỏi định sẵn được gửi đến dịch vụ AI của Google. Dịch vụ miễn phí có thể dùng câu hỏi/câu trả lời để cải thiện sản phẩm, có thể có người đánh giá nội dung. Mỗi chủ đề là một yêu cầu độc lập. Xóa tài khoản sẽ xóa cả hội thoại HealthMate; việc này không xóa dữ liệu đã được dịch vụ AI xử lý trước đó.',
       ),
       _InformationSection(
         'Xóa dữ liệu',

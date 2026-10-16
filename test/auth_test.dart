@@ -264,7 +264,7 @@ void main() {
     expect(auth.signInCalls, 1);
     auth.pending!.complete();
     await tester.pumpAndSettle();
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
   });
 
   testWidgets('network error is shown, password stays masked, retry succeeds', (
@@ -292,7 +292,7 @@ void main() {
     await submit(tester);
     await tester.pumpAndSettle();
     expect(auth.signInCalls, 2);
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
   });
 
   testWidgets(
@@ -305,7 +305,7 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       auth.emitUser(FakeAuthRepository.testUser);
       await tester.pumpAndSettle();
-      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav-dashboard')), findsOneWidget);
       auth.emitUser(null);
       await tester.pumpAndSettle();
       expect(find.text('Chào mừng bạn trở lại'), findsOneWidget);

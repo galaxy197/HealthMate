@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:healthmate/core/utils/local_date_key.dart';
 
 import 'package:healthmate/features/water/data/water_repository.dart';
 import 'package:healthmate/features/water/models/water_log.dart';
@@ -11,17 +12,40 @@ class FakeWaterRepository implements WaterRepository {
   int addCalls = 0;
   int updateCalls = 0;
   int deleteCalls = 0;
+  int rangeCalls = 0;
+  int activeDayListeners = 0;
 
   List<WaterLog> get logs => List.unmodifiable(_logs);
 
   @override
   Stream<List<WaterLog>> watchLogs(String uid, String dateKey) =>
       Stream.multi((controller) {
+        activeDayListeners++;
         void emit() => controller.add(_forDate(dateKey));
         emit();
         final subscription = _changes.stream.listen((_) => emit());
-        controller.onCancel = subscription.cancel;
+        controller.onCancel = () async {
+          activeDayListeners--;
+          await subscription.cancel();
+        };
       });
+
+  @override
+  Future<List<WaterLog>> loadRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) async {
+    rangeCalls++;
+    final first = localDateKey(start), last = localDateKey(end);
+    return _logs
+        .where(
+          (log) =>
+              log.dateKey.compareTo(first) >= 0 &&
+              log.dateKey.compareTo(last) < 0,
+        )
+        .toList();
+  }
 
   @override
   Future<String> add({

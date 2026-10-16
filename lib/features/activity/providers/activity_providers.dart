@@ -12,17 +12,15 @@ final activityRepositoryProvider = Provider<ActivityRepository>(
   (ref) => FirebaseActivityRepository(FirebaseFirestore.instance),
 );
 
-final activityLogsProvider = StreamProvider.family<List<ActivityLog>, String>((
-  ref,
-  dateKey,
-) async* {
-  final user = ref.watch(authSessionProvider).value;
-  if (user == null) {
-    yield const [];
-    return;
-  }
-  yield* ref.watch(activityRepositoryProvider).watchLogs(user.uid, dateKey);
-});
+final activityLogsProvider = StreamProvider.autoDispose
+    .family<List<ActivityLog>, String>((ref, dateKey) async* {
+      final user = ref.watch(authSessionProvider).value;
+      if (user == null) {
+        yield const [];
+        return;
+      }
+      yield* ref.watch(activityRepositoryProvider).watchLogs(user.uid, dateKey);
+    });
 
 final activityControllerProvider =
     NotifierProvider<ActivityController, AsyncValue<void>>(

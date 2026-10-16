@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/utils/local_date_key.dart';
 
 import '../../journal/models/daily_log_failure.dart';
 import '../models/activity_log.dart';
@@ -26,6 +27,19 @@ class FirebaseActivityRepository implements ActivityRepository {
       throw DailyLogFailure.fromCode(error.code);
     }
   }
+
+  @override
+  Future<List<ActivityLog>> loadRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) => _guard(() async {
+    final snapshot = await _logs(uid)
+        .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
+        .where('dateKey', isLessThan: localDateKey(end))
+        .get(const GetOptions(source: Source.server));
+    return [for (final doc in snapshot.docs) _fromDoc(doc.id, doc.data())];
+  });
 
   @override
   Future<String> add({required String uid, required ActivityLogDraft draft}) =>

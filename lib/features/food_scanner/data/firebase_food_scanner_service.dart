@@ -22,7 +22,10 @@ class FirebaseFoodScannerService implements FoodScannerService {
             model: FoodScannerConfig.modelName,
             generationConfig: GenerationConfig(
               temperature: 0.1,
-              maxOutputTokens: 512,
+              maxOutputTokens: 2048,
+              thinkingConfig: ThinkingConfig.withThinkingLevel(
+                ThinkingLevel.low,
+              ),
               responseMimeType: 'application/json',
               responseSchema: Schema.object(
                 properties: {
@@ -86,13 +89,13 @@ class FirebaseFoodScannerService implements FoodScannerService {
       rethrow;
     } on FormatException {
       throw const FoodScannerFailure(
-        'Gemini trả về dữ liệu không hợp lệ. Bạn có thể thử lại hoặc nhập thủ công.',
+        'Kết quả nhận diện không hợp lệ. Bạn có thể thử lại hoặc nhập thủ công.',
       );
     } on FirebaseAIException catch (error) {
       final text = error.message.toLowerCase();
       if (text.contains('quota') || text.contains('429')) {
         throw const FoodScannerFailure(
-          'Đã chạm giới hạn Gemini miễn phí. Hãy thử lại sau hoặc nhập thủ công.',
+          'Đã chạm giới hạn nhận diện ảnh. Hãy thử lại sau hoặc nhập thủ công.',
         );
       }
       throw const FoodScannerFailure(

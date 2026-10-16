@@ -12,7 +12,9 @@ final nutritionRepositoryProvider = Provider<NutritionRepository>(
   (ref) => FirebaseNutritionRepository(FirebaseFirestore.instance),
 );
 
-final foodCatalogProvider = StreamProvider<List<FoodCatalogItem>>((ref) {
+final foodCatalogProvider = StreamProvider.autoDispose<List<FoodCatalogItem>>((
+  ref,
+) {
   return ref.watch(nutritionRepositoryProvider).watchFoodCatalog();
 });
 
@@ -28,19 +30,18 @@ final mealLogsProvider = StreamProvider.autoDispose
           .watchMealLogs(user.uid, localDate);
     });
 
-final recentMealItemsProvider = StreamProvider<List<MealItemSnapshot>>((
-  ref,
-) async* {
-  final user = ref.watch(authSessionProvider).value;
-  if (user == null) {
-    yield const [];
-    return;
-  }
-  yield* ref
-      .watch(nutritionRepositoryProvider)
-      .watchRecentMeals(user.uid)
-      .map(recentMealItems);
-});
+final recentMealItemsProvider =
+    StreamProvider.autoDispose<List<MealItemSnapshot>>((ref) async* {
+      final user = ref.watch(authSessionProvider).value;
+      if (user == null) {
+        yield const [];
+        return;
+      }
+      yield* ref
+          .watch(nutritionRepositoryProvider)
+          .watchRecentMeals(user.uid)
+          .map(recentMealItems);
+    });
 
 final nutritionControllerProvider =
     NotifierProvider<NutritionController, AsyncValue<void>>(

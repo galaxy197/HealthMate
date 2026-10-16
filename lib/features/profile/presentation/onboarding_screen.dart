@@ -154,11 +154,18 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
+    final first = DateTime(now.year - 120, now.month, now.day);
+    final last = DateTime(now.year - 18, now.month, now.day);
+    final initial = _birthDate ?? DateTime(now.year - 20);
     final selected = await showDatePicker(
       context: context,
-      initialDate: _birthDate ?? DateTime(now.year - 20),
-      firstDate: DateTime(now.year - 120, now.month, now.day),
-      lastDate: DateTime(now.year - 13, now.month, now.day),
+      initialDate: initial.isAfter(last)
+          ? last
+          : initial.isBefore(first)
+          ? first
+          : initial,
+      firstDate: first,
+      lastDate: last,
       helpText: 'Ngày sinh',
       cancelText: 'Hủy',
       confirmText: 'Chọn',
@@ -225,7 +232,7 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
     return FeaturePage(
       title: 'Thiết lập sức khỏe ban đầu',
       subtitle:
-          'Chỉ vài thông tin cần thiết để HealthMate cá nhân hóa trải nghiệm của bạn.',
+          'Bản MVP dành cho người từ 18 tuổi. Chỉ cung cấp thông tin cần thiết; dữ liệu đã lưu được giữ nguyên.',
       children: [
         LinearProgressIndicator(
           key: const ValueKey('onboarding-progress'),

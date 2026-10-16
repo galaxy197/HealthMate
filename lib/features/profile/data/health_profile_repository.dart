@@ -23,6 +23,14 @@ abstract interface class HealthProfileRepository {
 
   Stream<List<BodyMetric>> watchBodyMetrics(String uid);
 
+  Stream<List<BodyMetric>> watchLatestBodyMetric(String uid, DateTime day);
+
+  Future<List<BodyMetric>> loadBodyMetricsRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  );
+
   Future<String> addBodyMetric({
     required String uid,
     required BodyMetricDraft draft,

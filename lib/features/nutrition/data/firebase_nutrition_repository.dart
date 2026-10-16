@@ -122,6 +122,40 @@ class FirebaseNutritionRepository implements NutritionRepository {
   }
 
   @override
+  Future<List<MealLog>> loadRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      final snapshots = await (
+        _meals(uid)
+            .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
+            .where('dateKey', isLessThan: localDateKey(end))
+            .get(const GetOptions(source: Source.server)),
+        _meals(uid)
+            .where(
+              'consumedAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(start),
+            )
+            .where('consumedAt', isLessThan: Timestamp.fromDate(end))
+            .get(const GetOptions(source: Source.server)),
+      ).wait;
+      final byId = <String, MealLog>{
+        for (final doc in snapshots.$1.docs) doc.id: _meal(doc.id, doc.data()),
+      };
+      for (final doc in snapshots.$2.docs) {
+        if (doc.data()['dateKey'] is String) continue;
+        byId.putIfAbsent(doc.id, () => _meal(doc.id, doc.data()));
+      }
+      return byId.values.toList()
+        ..sort((a, b) => a.consumedAt.compareTo(b.consumedAt));
+    } on FirebaseException catch (error) {
+      throw NutritionFailure.fromCode(error.code);
+    }
+  }
+
+  @override
   Future<String> addMeal({required String uid, required MealDraft draft}) =>
       _guard(() async {
         final ref = _meals(uid).doc();

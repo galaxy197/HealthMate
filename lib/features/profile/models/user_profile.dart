@@ -1,4 +1,5 @@
 import 'health_goal.dart';
+import 'profile_validation.dart';
 
 class UserProfile {
   const UserProfile({
@@ -28,14 +29,21 @@ class UserProfile {
   final int schemaVersion;
 
   bool get hasRequiredOnboardingData =>
+      hasRequiredOnboardingDataAt(DateTime.now());
+
+  bool hasRequiredOnboardingDataAt(DateTime today) =>
       displayName.trim().length >= 2 &&
       birthDate != null &&
+      ProfileValidation.birthDate(birthDate, today: today) == null &&
       heightCm != null &&
       healthGoal != null &&
       (!healthGoal!.needsTargetWeight || targetWeightKg != null);
 
   bool get isOnboardingComplete =>
       onboardingCompletedAt != null && hasRequiredOnboardingData;
+
+  bool isOnboardingCompleteAt(DateTime today) =>
+      onboardingCompletedAt != null && hasRequiredOnboardingDataAt(today);
 }
 
 class UserProfileDraft {

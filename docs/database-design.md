@@ -106,8 +106,14 @@ theo múi giờ đã thống nhất với người dùng, chạy thử trên emu
 xin xác nhận người dùng rồi mới chạy production. Chỉ sau khi xác minh không còn
 bữa thiếu field mới được bỏ truy vấn tương thích. Đợt 6B chưa chạy migration này.
 
-Catalog hiện có 10 seed tham khảo từ USDA FoodData Central. Tất cả được gắn
-`isEstimated: true` vì giống thực phẩm và cách chế biến thực tế có thể khác.
+Catalog ban đầu có 10 seed tham khảo USDA FoodData Central. Ngày 16/10/2026
+đã thêm 101 thực phẩm theo Viện Dinh dưỡng 2007 và 47 món từ công thức ước tính,
+tổng **158 mục**; giữ nguyên 10 mục cũ. Tất cả mục mới `isEstimated: true` vì
+giống thực phẩm/cách chế biến thực tế có thể khác. Metadata quản trị bổ sung:
+`sourceUrl`, `catalogVersion`, `sourceDetails` (mã/trang nguồn hoặc gram nguyên
+liệu/khối lượng thành phẩm/giả định). Giữ các field đang được app đọc và đơn vị
+`per_100g`/`g`; không đổi snapshot meal hoặc dữ liệu `users/{uid}`. Bộ nạp chỉ
+create-if-absent, không ghi đè; xem [food-catalog.md](food-catalog.md).
 
 ## Giai đoạn 6 — Water và Activity Logs
 
@@ -194,3 +200,152 @@ vậy bao phủ toàn bộ collection đang triển khai và toàn bộ collecti
 người dùng mới ở giai đoạn sau, repository xóa tài khoản phải được cập nhật cùng
 schema. Wildcard Rules chỉ cho UID sở hữu đọc để liệt kê và xóa dữ liệu riêng;
 không cấp quyền tạo hoặc cập nhật cho đường dẫn chưa có rules nghiệp vụ.
+
+## Giai đoạn 7 — Goals và Daily Health Quest
+
+Định hướng `healthGoal`/`targetWeightKg` trong hồ sơ tiếp tục được giữ nguyên.
+Ứng dụng không tự chuyển định hướng onboarding thành mục tiêu định lượng hoặc
+ghi đè hồ sơ khi người dùng tạo mục tiêu mới. Không cần migration.
+
+### `users/{uid}/goals/{goalId}`
+
+- `goalType`: `meals | water | activity | weight`.
+- `targetValue`, `unit`: tương ứng bữa (1–10), ml (50–5000), phút (1–180),
+  kg (20–500). Đây là giới hạn nhập liệu, không phải khuyến nghị y tế cá nhân.
+- `startDateKey`, `endDateKey`: ngày địa phương `yyyy-MM-dd`, bao gồm cả hai
+  ngày; kết thúc không trước bắt đầu. Dùng ngày lịch thay vì UTC midnight để
+  thời hạn theo ngày không bị dịch khi chuyển múi giờ thiết bị.
+- `status`: `active | paused | completed` do người dùng chọn.
+- `baselineWeightKg`: số kg ban đầu cho weight, `null` với loại khác.
+- `createdAt`, `updatedAt`: server timestamps; `schemaVersion: 1`.
+
+Loại, đơn vị và baseline giữ nguyên khi sửa. Mục tiêu thói quen được tính lại
+mỗi ngày bằng số bữa, tổng nước hoặc tổng phút từ nhật ký thực của ngày đó.
+Không dùng tiến độ của ngày hiện tại để suy diễn ngày quá hạn.
+
+Mục tiêu cân nặng dùng `(latest - baseline) / (target - baseline)`, giới hạn
+0–1 và hỗ trợ cả tăng/giảm. Chỉ dùng lần cân từ ngày bắt đầu đến hết ngày đang
+xem. Khi baseline bằng target, đánh dấu đạt khi sai lệch dưới 0,1 kg; đây chỉ
+là quy ước hiển thị số liệu, không phải đánh giá sức khỏe. Không có lần cân
+trong thời hạn thì hiển thị chưa có dữ liệu.
+
+### `users/{uid}/daily_quests/{yyyy-MM-dd}`
+
+- ID document bằng `dateKey`; đúng một gợi ý được giữ cho mỗi UID/ngày.
+- `questType`: `meal | water | activity | reflection`.
+- `title`, `description`, `reason`: snapshot nội dung và lý do quy tắc.
+- `targetValue`, `unit`: bữa (1), ml (1–250), phút (1–10), lần (1).
+- `status`: `available | completed | skipped`.
+- `createdAt`, `updatedAt`: server timestamps; `completedAt` chỉ có timestamp
+  khi completed, còn lại `null`; `ruleVersion: 1`.
+
+Engine thuần ưu tiên mục tiêu đang hoạt động/chưa đủ theo thứ tự loại rồi ID.
+Chỉ gợi ý nước/vận động khi người dùng đã chọn mục tiêu tương ứng. Nếu không
+có mục tiêu phù hợp, gợi ý ghi bữa đầu tiên hoặc xem lại nhật ký. Không suy
+diễn sức khỏe từ việc thiếu log và không sử dụng AI hay điểm/phạt.
+
+Provider chờ dữ liệu goals/meal/water/activity tải thành công trước khi sinh
+gợi ý. Repository dùng transaction đọc trước khi tạo; khi document đã tồn tại
+thì không ghi lại. Thay mục tiêu/log hoặc mở màn hình nhiều lần không thay
+gợi ý hay trạng thái đã lưu. Hoàn thành/bỏ qua là xác nhận người dùng, không
+tự ghi nhật ký và không tự cộng tiến độ mục tiêu. Trạng thái terminal không
+được chuyển ngược. Transaction cần mạng; lỗi có nút thử lại.
+
+Rules kiểm tra schema, đơn vị, khoảng giá trị, timestamp và chuyển trạng thái,
+đồng thời chặn truy cập chéo UID. Client tự quyết định gợi ý từ engine nên Rules
+không chứng minh nội dung engine đã được chạy đúng; quest không phải điểm thưởng
+hay chứng nhận sức khỏe. Xóa tài khoản đã bao phủ cả hai collection này.
+
+Không thêm composite index: goals dùng collection listener, quest dùng document
+listener. Không deploy Rules/indexes production trong Giai đoạn 7.
+
+## Giai đoạn 8 — Các lượt đọc Tổng quan và Nhìn lại tuần
+
+Không tạo collection/schema thống kê mới; tổng được tính từ snapshot nhật ký.
+Không sửa Rules/indexes trong giai đoạn này. Các Rules Giai đoạn 7 vẫn cần được
+review/deploy riêng trước khi ghi goals/quests production.
+
+- Tổng quan dùng provider ngày chung với Nhật ký; nước/vận động theo `dateKey`,
+  bữa mới theo `dateKey`, bữa cũ thiếu khóa ngày theo khoảng timestamp địa phương
+  nửa mở. Không tải catalog/recent meals chỉ để tính tổng Dashboard.
+- Cân nặng Tổng quan dùng một query `measuredAt < startOfNextDay`, orderBy
+  `measuredAt` giảm dần, `limit(1)`. Không nghe toàn bộ lịch sử chỉ để hiển thị
+  một lần cân. Goals/Quest dùng provider/document đã có; Dashboard không tự tạo
+  nhiệm vụ khi chỉ xem tiến độ.
+- Báo cáo tuần dùng tuần lịch Thứ Hai–Chủ nhật. Các khoảng repository đều là
+  `[start, end)` với mốc ngày địa phương, end là đầu Thứ Hai kế tiếp.
+- Mỗi lượt mở/làm mới báo cáo có **5 query get từ server**: 2 cho meal (dateKey
+  range và consumedAt range để tương thích legacy), 1 water dateKey range,
+  1 activity dateKey range và 1 body_metrics measuredAt range. Meal có dateKey
+  bị bỏ khỏi nguồn legacy rồi gộp theo ID, tránh cộng trùng hoặc đổi ngày đã lưu.
+- Các query chỉ lọc/order cùng một field nên dùng single-field index mặc định.
+  Không có 21 listener theo 7 ngày. Future được chia sẻ theo UID/tuần; rebuild
+  cùng tuần không lặp lại query. Đóng báo cáo hoặc rời tab giải phóng provider;
+  mở lại lấy snapshot mới. Một nguồn lỗi thì không công bố tổng chưa đủ dữ liệu.
+- Chọn server cho lượt đọc tuần để không coi tập cache offline thiếu bản ghi là
+  báo cáo đầy đủ. Có nút tải lại và nhãn giờ lấy snapshot; không hứa báo cáo tự
+  realtime sau khi sửa log. Đồng hồ địa phương làm mới khi qua phút/ngày và khi
+  app trở lại foreground.
+- Screen trong indexed shell ngừng watch khi TickerMode của branch bị tắt.
+  AutoDispose hủy meal/water/activity/metrics/Goals/Quest/catalog/recent listeners
+  khi không còn consumer. Trạng thái chọn ngày Nhật ký vẫn ở provider hiện có.
+
+Tổng dinh dưỡng/nước/phút chỉ phản ánh phần đã ghi; ngày trống không đại diện
+cho giá trị sức khỏe bằng 0. Trung bình kcal chia cho số ngày có bữa ghi nhận,
+không chia mặc định 7. Ngày chưa tới không được tính vào tổng hay số ngày đã tới.
+Cân nặng ít hơn hai lần đo không được mô tả xu hướng; chênh lệch chỉ là phép trừ
+giữa số đo, không giải thích nguyên nhân.
+
+Bộ đếm fake repository xác minh số lần gọi range và listener active trong test;
+chưa đo số document read/billing trên project Firebase production. Emulator test
+xác minh query range, ranh giới ngày, limit cân nặng và chặn UID khác.
+## Hội thoại — Giai đoạn 9
+
+`users/{uid}/chat_sessions/{sessionId}`:
+`title` (nhãn chung, <=80 ký tự), `messageCount` (số chẵn 2..40), `lastTurnId`
+(20 chữ/số), `createdAt`, `updatedAt` (server timestamps), `schemaVersion: 1`.
+
+`.../messages/{turnId}_u` và `{turnId}_a`:
+`turnId`, `role: user|assistant`, `text` (user 1..1000, assistant 1..6000 ký tự),
+`source: journal|ai|help`, `sequence` (0..39), `createdAt` (server timestamp),
+`schemaVersion: 1`. Không lưu ảnh, toàn bộ hồ sơ hoặc payload context riêng.
+
+Một transaction tạo cả hai messages và cập nhật parent; Rules getAfter kiểm
+tra cặp và sequence. Tin đã tạo bất biến; delete theo UID cho quy trình xóa
+tài khoản. Retry cùng turnId là no-op khi user message đã tồn tại. Read lịch
+sử phiên: `orderBy(updatedAt desc).limit(20)`; messages: `orderBy(sequence)`
+`.limit(40)`. Không thêm composite index; không deploy Rules/index trong lượt.
+
+Nguồn `journal` là tổng snapshot tính tại ứng dụng từ các repository range;
+nguồn `ai` chỉ dành cho chủ đề kiến thức chung định sẵn theo lựa chọn free tier.
+Không gửi nhật ký hoặc hội thoại tới AI. Chi tiết: [chatbot.md](chatbot.md).
+
+## Rà soát Giai đoạn 10
+
+Không thêm collection, schemaVersion, field, composite index hoặc migration.
+Quy ước dateKey/UTC offset đã có được kiểm tra chặt hơn trên **create/update**:
+`dateKey` phải bằng ngày lịch của `consumedAt` (meal/water) hoặc `performedAt`
+(activity) sau khi cộng `timezoneOffsetMinutes`. Ngày không tồn tại hay offset
+ngoài giới hạn bị từ chối. Ví dụ 17:30 UTC +420 phút thuộc ngày kế tiếp ở UTC+7.
+Không đổi dữ liệu lịch sử; các bữa legacy thiếu dateKey vẫn dùng range timestamp
+hiện có. Thay đổi Rules chỉ ở source, đã test emulator, chưa deploy.
+
+Onboarding giữ nguyên `onboardingCompletedAt` đã lưu khi chạy lại, phù hợp quy
+tắc completion marker bất biến; không ghi serverTimestamp mới vào marker cũ.
+Người dùng đã duyệt MVP/demo 18+: client dùng ngày sinh đầy đủ để kiểm tra tuổi
+18–120 và điều hướng bổ sung hồ sơ khi thiếu/không hợp lệ. Dữ liệu cũ vẫn được
+giữ. Cổng AI kiểm tra cùng UID và onboarding hợp lệ ngay trước yêu cầu.
+Đây là tự khai/kiểm tra client, không phải chứng thực tuổi hay identity ở Rules.
+
+Rules mặc định không cho tạo/cập nhật path chưa định nghĩa; owner read/delete
+wildcard phục vụ cleanup dữ liệu của chính UID vẫn được giữ. Không cấp quyền
+cross-UID, guest hoặc catalog write. Mọi match allow là OR, không dựa vào nhánh
+deny để che nhánh allow khác. Xóa account dọn các collection hiện có, bao gồm
+chat messages trước session rồi mới profile/Auth; phải cập nhật cleanup khi
+schema có subcollection mới.
+
+Không lưu ảnh vào Firestore/Storage. Scanner mã hóa lại từ pixel để bỏ metadata
+gốc và xin đồng ý từng ảnh trước khi gửi; không gửi dữ liệu cá nhân với free AI.
+Cache native có thể giữ lại dữ liệu trên máy sau logout; app không tự clear
+pending writes. Cấu hình backup Android đã bổ sung, chưa thử device transfer.
+Kết quả **31 Rules + 4 SDK integration** và giới hạn tại [test-report.md](test-report.md).

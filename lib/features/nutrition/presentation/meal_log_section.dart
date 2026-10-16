@@ -78,7 +78,7 @@ class MealLogSection extends StatelessWidget {
                     children: [
                       Icon(Icons.camera_alt_outlined),
                       SizedBox(width: AppSpacing.sm),
-                      Expanded(child: Text('Quét món bằng Gemini')),
+                      Expanded(child: Text('Quét món')),
                     ],
                   ),
                 ),
@@ -209,7 +209,7 @@ class _MealTile extends StatelessWidget {
         'P ${decimal.format(meal.totals.proteinG)} g · '
         'C ${decimal.format(meal.totals.carbsG)} g · '
         'F ${decimal.format(meal.totals.fatG)} g'
-        '${meal.source == MealSource.aiAssisted ? ' · Gemini hỗ trợ nhận diện' : ''}',
+        '${meal.source == MealSource.aiAssisted ? ' · Có hỗ trợ nhận diện' : ''}',
       ),
       isThreeLine: true,
       trailing: PopupMenuButton<String>(

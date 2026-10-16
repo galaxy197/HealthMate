@@ -12,17 +12,15 @@ final waterRepositoryProvider = Provider<WaterRepository>(
   (ref) => FirebaseWaterRepository(FirebaseFirestore.instance),
 );
 
-final waterLogsProvider = StreamProvider.family<List<WaterLog>, String>((
-  ref,
-  dateKey,
-) async* {
-  final user = ref.watch(authSessionProvider).value;
-  if (user == null) {
-    yield const [];
-    return;
-  }
-  yield* ref.watch(waterRepositoryProvider).watchLogs(user.uid, dateKey);
-});
+final waterLogsProvider = StreamProvider.autoDispose
+    .family<List<WaterLog>, String>((ref, dateKey) async* {
+      final user = ref.watch(authSessionProvider).value;
+      if (user == null) {
+        yield const [];
+        return;
+      }
+      yield* ref.watch(waterRepositoryProvider).watchLogs(user.uid, dateKey);
+    });
 
 final waterControllerProvider =
     NotifierProvider<WaterController, AsyncValue<void>>(WaterController.new);

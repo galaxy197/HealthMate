@@ -1,11 +1,12 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mime/mime.dart';
 
 import '../../nutrition/models/nutrition_models.dart';
-import '../data/firebase_food_scanner_service.dart';
+import '../../../core/config/ai_access_policy.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../data/food_scanner_service.dart';
 import '../models/ai_food_suggestion.dart';
 import '../providers/food_scanner_providers.dart';
@@ -27,78 +28,128 @@ class FoodScannerDialog extends ConsumerStatefulWidget {
 }
 
 class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
-  final _picker = ImagePicker();
   final _nameController = TextEditingController();
   Uint8List? _bytes;
   String? _mimeType;
   AiFoodSuggestion? _suggestion;
   FoodCatalogItem? _selected;
   bool _loading = false;
+  bool _picking = false;
+  bool _acceptedProcessing = false;
+  int _operation = 0;
+  Completer<void>? _stopped;
   String? _error;
 
   @override
   void dispose() {
+    if (_stopped case final stopped? when !stopped.isCompleted) {
+      stopped.complete();
+    }
+    _operation++;
     _nameController.dispose();
     super.dispose();
   }
 
   Future<void> _pick(ImageSource source) async {
-    if (kIsWeb) {
-      setState(() {
-        _error =
-            'Quét ảnh hiện được bảo vệ và hỗ trợ trên ứng dụng Android. Bạn vẫn có thể nhập món thủ công trên web.';
-      });
+    if (_picking || _loading) return;
+    final uid = ref.read(authSessionProvider).value?.uid;
+    if (uid == null) {
+      setState(() => _error = 'Hãy đăng nhập trước khi chọn ảnh.');
       return;
     }
-    final image = await _picker.pickImage(
-      source: source,
-      imageQuality: 82,
-      maxWidth: 1600,
-      maxHeight: 1600,
-      requestFullMetadata: false,
-    );
-    if (image == null || !mounted) return;
-    final bytes = await image.readAsBytes();
-    final mime = lookupMimeType(
-      image.name,
-      headerBytes: bytes.take(16).toList(),
-    );
-    if (bytes.length > FoodScannerConfig.maxImageBytes) {
-      setState(() => _error = 'Ảnh lớn hơn 8 MB. Hãy chọn ảnh khác.');
-      return;
-    }
+    final operation = ++_operation;
     setState(() {
-      _bytes = bytes;
-      _mimeType = mime ?? 'image/jpeg';
-      _suggestion = null;
-      _selected = null;
+      _picking = true;
       _error = null;
-      _nameController.clear();
     });
+    try {
+      final image = await ref.read(foodImagePickerProvider).pick(source);
+      if (image == null || !_current(operation, uid)) return;
+      setState(() {
+        _bytes = image.bytes;
+        _mimeType = image.mimeType;
+        _suggestion = null;
+        _selected = null;
+        _acceptedProcessing = false;
+        _nameController.clear();
+      });
+    } catch (error) {
+      if (_current(operation, uid)) {
+        setState(
+          () => _error = error is FoodScannerFailure
+              ? error.message
+              : 'Chưa thể chọn ảnh. Bạn vẫn có thể nhập món thủ công.',
+        );
+      }
+    } finally {
+      if (_current(operation, uid)) setState(() => _picking = false);
+    }
   }
+
+  bool _current(int operation, String? uid) =>
+      mounted &&
+      operation == _operation &&
+      uid != null &&
+      ref.read(authSessionProvider).value?.uid == uid;
 
   Future<void> _analyze() async {
     final bytes = _bytes;
     final mime = _mimeType;
-    if (bytes == null || mime == null || _loading) return;
+    if (bytes == null ||
+        mime == null ||
+        _loading ||
+        _picking ||
+        !_acceptedProcessing) {
+      return;
+    }
+    final access = ref.read(aiAccessProvider);
+    if (!access.allowed) {
+      setState(() => _error = access.message);
+      return;
+    }
+    final uid = ref.read(authSessionProvider).value?.uid;
+    final operation = ++_operation;
+    final stopped = _stopped = Completer<void>();
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final result = await ref
-          .read(foodScannerServiceProvider)
-          .analyze(bytes: bytes, mimeType: mime);
-      if (!mounted) return;
+      final result = await Future.any<AiFoodSuggestion>([
+        ref
+            .read(foodScannerServiceProvider)
+            .analyze(bytes: bytes, mimeType: mime),
+        stopped.future.then<AiFoodSuggestion>(
+          (_) => throw const FoodScannerFailure('Đã đóng lượt quét.'),
+        ),
+      ]).timeout(const Duration(seconds: 45));
+      if (!_current(operation, uid)) return;
       _nameController.text = result.dishName;
       setState(() {
         _suggestion = result;
         _selected = _matches(result).firstOrNull;
       });
     } on FoodScannerFailure catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (_current(operation, uid)) setState(() => _error = error.message);
+    } on TimeoutException {
+      if (_current(operation, uid)) {
+        setState(
+          () => _error =
+              'Phân tích quá thời gian chờ. Hãy thử lại hoặc nhập thủ công.',
+        );
+      }
+    } catch (_) {
+      if (_current(operation, uid)) {
+        setState(
+          () => _error =
+              'Chưa thể phân tích ảnh. Hãy kiểm tra mạng hoặc nhập thủ công.',
+        );
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (_current(operation, uid)) {
+        _stopped = null;
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -122,6 +173,26 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authSessionProvider.select((session) => session.value?.uid), (
+      previous,
+      next,
+    ) {
+      if (previous == next) return;
+      _operation++;
+      if (_stopped case final stopped? when !stopped.isCompleted) {
+        stopped.complete();
+      }
+      final route = ModalRoute.of(context);
+      final navigator = Navigator.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Auth redirects may already have removed this dialog by this frame.
+        if (mounted && route?.isCurrent == true && navigator.canPop()) {
+          navigator.pop();
+        }
+      });
+    });
+    final access = ref.watch(aiAccessProvider);
+    final busy = _loading || _picking;
     final suggestion = _suggestion;
     final matches = suggestion == null
         ? const <FoodCatalogItem>[]
@@ -129,7 +200,7 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
     return Dialog.fullscreen(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Nhận diện món bằng Gemini'),
+          title: const Text('Nhận diện món từ ảnh'),
           leading: IconButton(
             onPressed: () => Navigator.pop(context),
             tooltip: 'Đóng',
@@ -140,10 +211,11 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
             child: ListView(
+              key: const ValueKey('scanner-content'),
               padding: const EdgeInsets.all(24),
               children: [
                 Text(
-                  'Gemini chỉ gợi ý tên và thành phần. Bạn xác nhận món và khẩu phần; dinh dưỡng được tính từ danh mục.',
+                  'Công cụ chỉ gợi ý tên và thành phần. Bạn xác nhận món và khẩu phần; dinh dưỡng được tính từ danh mục.',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 16),
@@ -167,7 +239,7 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
                       children: [
                         Icon(Icons.image_search_rounded, size: 56),
                         SizedBox(height: 8),
-                        Text('Ảnh không được lưu sau khi phân tích'),
+                        Text('Chỉ chọn ảnh món ăn'),
                       ],
                     ),
                   ),
@@ -177,22 +249,24 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
                   runSpacing: 8,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: _loading
-                          ? null
-                          : () => _pick(ImageSource.camera),
+                      onPressed: busy ? null : () => _pick(ImageSource.camera),
                       icon: const Icon(Icons.photo_camera_outlined),
                       label: const Text('Chụp ảnh'),
                     ),
                     OutlinedButton.icon(
-                      onPressed: _loading
-                          ? null
-                          : () => _pick(ImageSource.gallery),
+                      onPressed: busy ? null : () => _pick(ImageSource.gallery),
                       icon: const Icon(Icons.photo_library_outlined),
                       label: const Text('Chọn ảnh'),
                     ),
                     FilledButton.icon(
                       key: const ValueKey('analyze-food-image'),
-                      onPressed: _bytes == null || _loading ? null : _analyze,
+                      onPressed:
+                          _bytes == null ||
+                              busy ||
+                              !_acceptedProcessing ||
+                              !access.allowed
+                          ? null
+                          : _analyze,
                       icon: _loading
                           ? const SizedBox.square(
                               dimension: 18,
@@ -203,6 +277,24 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Khi bạn bấm Phân tích, ảnh được gửi đến dịch vụ AI của Google. Dịch vụ miễn phí có thể dùng ảnh và kết quả để cải thiện sản phẩm, có thể có người đánh giá nội dung. Không chọn ảnh có mặt người, giấy tờ hoặc thông tin riêng tư. HealthMate không tải ảnh gốc lên kho lưu trữ; camera/thư viện có thể giữ tệp tạm trên thiết bị.',
+                ),
+                CheckboxListTile(
+                  key: const ValueKey('scanner-processing-consent'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Ảnh chỉ có món ăn, không có thông tin cá nhân; tôi đồng ý gửi ảnh để phân tích.',
+                  ),
+                  value: _acceptedProcessing,
+                  onChanged: busy || _bytes == null
+                      ? null
+                      : (value) => setState(
+                          () => _acceptedProcessing = value ?? false,
+                        ),
+                ),
+                if (!access.allowed) Text(access.message),
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
@@ -219,7 +311,7 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
                     controller: _nameController,
                     maxLength: 80,
                     decoration: const InputDecoration(
-                      labelText: 'Tên món — hãy sửa nếu Gemini nhận diện sai',
+                      labelText: 'Tên món — hãy sửa nếu nhận diện chưa đúng',
                       prefixIcon: Icon(Icons.edit_outlined),
                     ),
                     onChanged: (_) => setState(() {}),

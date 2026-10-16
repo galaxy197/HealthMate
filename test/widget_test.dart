@@ -7,13 +7,17 @@ import 'package:healthmate/shared/providers/theme_mode_provider.dart';
 import 'support/test_app.dart';
 
 void main() {
-  testWidgets('starts in Vietnamese with honest pending content', (
+  testWidgets('starts in Vietnamese with an honest dashboard empty state', (
     tester,
   ) async {
-    final container = await pumpApp(tester);
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
-    expect(find.text('Tổng quan đang được chuẩn bị'), findsOneWidget);
-    expect(find.text('Đang chờ triển khai'), findsOneWidget);
+    final container = await pumpApp(
+      tester,
+      dashboardNow: DateTime(2026, 10, 13, 9),
+    );
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
+    expect(find.text('Chào buổi sáng, HealthMate Tester'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-empty')), findsOneWidget);
+    expect(find.textContaining('sẽ có trong các bản tiếp theo'), findsNothing);
     expect(
       container.read(appRouterProvider).routeInformationProvider.value.uri.path,
       AppRoutes.dashboard,
@@ -25,56 +29,64 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('all five navigation destinations open the correct route', (
-    tester,
-  ) async {
-    final container = await pumpApp(tester);
-    for (final destination in [
-      (label: 'Nhật ký', route: AppRoutes.journal, title: 'Nhật ký của bạn'),
-      (label: 'Quest', route: AppRoutes.quest, title: 'Nhịp khỏe mỗi ngày'),
-      (
-        label: 'AI / Chat',
-        route: AppRoutes.chat,
-        title: 'Thêm một người đồng hành',
-      ),
-      (label: 'Cá nhân', route: AppRoutes.profile, title: 'Không gian cá nhân'),
-      (
-        label: 'Tổng quan',
-        route: AppRoutes.dashboard,
-        title: 'Từng bước nhỏ,\nsống khỏe hơn.',
-      ),
-    ]) {
-      await tester.tap(
-        find.widgetWithText(NavigationDestination, destination.label),
-      );
+  testWidgets(
+    'visible navigation opens three core routes and keeps hidden routes',
+    (tester) async {
+      final container = await pumpApp(tester);
+      for (final destination in [
+        (
+          key: const ValueKey('nav-journal'),
+          route: AppRoutes.journal,
+          title: 'Nhật ký của bạn',
+        ),
+        (
+          key: const ValueKey('nav-profile'),
+          route: AppRoutes.profile,
+          title: 'Không gian cá nhân',
+        ),
+      ]) {
+        await tester.tap(find.byKey(destination.key));
+        await tester.pumpAndSettle();
+        expect(find.text(destination.title), findsOneWidget);
+        expect(
+          container
+              .read(appRouterProvider)
+              .routeInformationProvider
+              .value
+              .uri
+              .path,
+          destination.route,
+        );
+      }
+      await tester.tap(find.byKey(const ValueKey('nav-dashboard')));
       await tester.pumpAndSettle();
-      expect(find.text(destination.title), findsOneWidget);
-      expect(
-        container
-            .read(appRouterProvider)
-            .routeInformationProvider
-            .value
-            .uri
-            .path,
-        destination.route,
-      );
-      expect(tester.takeException(), isNull);
-    }
-  });
+      expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
+      expect(find.text('Quest'), findsNothing);
+      expect(find.text('AI / Chat'), findsNothing);
 
-  testWidgets('dashboard actions navigate and account can sign out', (
+      container.read(appRouterProvider).go(AppRoutes.quest);
+      await tester.pumpAndSettle();
+      expect(find.text('Nhịp khỏe mỗi ngày'), findsOneWidget);
+      container.read(appRouterProvider).go(AppRoutes.chat);
+      await tester.pumpAndSettle();
+      expect(find.text('Thêm một người đồng hành'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('core navigation reaches account and account can sign out', (
     tester,
   ) async {
     await pumpApp(tester);
-    await tester.tap(find.text('Khám phá nhật ký'));
+    await tester.tap(find.byKey(const ValueKey('nav-journal')));
     await tester.pumpAndSettle();
     expect(find.text('Nhật ký của bạn'), findsOneWidget);
-    await tester.tap(find.widgetWithText(NavigationDestination, 'Cá nhân'));
+    await tester.tap(find.byKey(const ValueKey('nav-profile')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sign-out')));
     await tester.pumpAndSettle();
     expect(find.text('Chào mừng bạn trở lại'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byKey(const ValueKey('quick-add-menu')), findsNothing);
   });
 
   testWidgets('authenticated user is redirected away from auth', (
@@ -83,7 +95,7 @@ void main() {
     final container = await pumpApp(tester);
     container.read(appRouterProvider).go(AppRoutes.auth);
     await tester.pumpAndSettle();
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
   });
 
   testWidgets('unknown route has a working recovery action', (tester) async {
@@ -93,14 +105,14 @@ void main() {
     expect(find.text('Không tìm thấy trang'), findsOneWidget);
     await tester.tap(find.text('Về Tổng quan'));
     await tester.pumpAndSettle();
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
   });
 
   testWidgets('theme preference changes the app and survives navigation', (
     tester,
   ) async {
     final container = await pumpApp(tester);
-    container.read(appRouterProvider).go(AppRoutes.profile);
+    await tester.tap(find.byKey(const ValueKey('nav-profile')));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Tối'));
     await tester.pumpAndSettle();
@@ -108,7 +120,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(themeModeProvider), ThemeMode.dark);
     expect(
-      Theme.of(tester.element(find.byType(NavigationBar))).brightness,
+      Theme.of(
+        tester.element(find.byKey(const ValueKey('nav-profile'))),
+      ).brightness,
       Brightness.dark,
     );
     container.read(appRouterProvider).go(AppRoutes.dashboard);
@@ -149,10 +163,7 @@ void main() {
             find.byType(NavigationRail),
             layout.rail ? findsOneWidget : findsNothing,
           );
-          expect(
-            find.byType(NavigationBar),
-            layout.rail ? findsNothing : findsOneWidget,
-          );
+          expect(find.byKey(const ValueKey('quick-add-menu')), findsOneWidget);
         }
         expect(tester.takeException(), isNull, reason: route);
       }

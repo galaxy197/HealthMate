@@ -839,3 +839,492 @@ activity journal và biểu đồ cân nặng; không triển khai Goals, Quest 
 ### Bước tiếp theo
 
 Dừng tại Giai đoạn 6B và chờ yêu cầu tiếp theo của người dùng.
+
+## 2026-10-13 — Giai đoạn 6D: UI nền tảng, Tổng quan và điều hướng nhanh
+
+Trạng thái: **hoàn thành code và kiểm thử cục bộ theo phạm vi đã duyệt**. Chỉ
+thực hiện token/component cần cho màn Tổng quan, màn Tổng quan dùng dữ liệu thật
+và thanh điều hướng mới; không làm 6D-3 trở đi.
+
+### Hành vi đã hoàn thành
+
+- Theme sáng/tối dùng nền kem ấm hoặc xanh đen, xanh lá làm màu chính và màu
+  nhấn riêng cho nước, bữa ăn, vận động và cân nặng. Font Be Vietnam Pro được
+  đóng gói cục bộ với giấy phép SIL Open Font License 1.1.
+- Tổng quan chào theo giờ và tên hồ sơ, hiển thị ngày địa phương, kcal và macro
+  đã ghi, tổng nước, phút vận động, số bữa và cân nặng gần nhất.
+- Tổng quan dùng trực tiếp `mealLogsProvider`, `waterLogsProvider`,
+  `activityLogsProvider`, `userProfileProvider` và `bodyMetricsProvider`; không
+  thêm repository hoặc query Firestore mới. Có loading, lỗi từng phần, retry và
+  empty state hướng dẫn bắt đầu.
+- Thẻ nước có nút ghi nhanh 250 ml và tiếp tục ghi qua `WaterController` thật.
+- Thanh điều hướng di động dạng thẻ nổi chỉ hiển thị Tổng quan, Nhật ký và Cá
+  nhân. Route/code Quest và Chat vẫn được giữ. Bố cục rộng tiếp tục dùng rail.
+- Nút cộng mở bottom sheet đúng bốn hành động. Hành động chuyển sang Nhật ký và
+  tái sử dụng dialog/controller hiện có; Quét món được nhấn mạnh nhưng không gắn
+  nhãn nhà cung cấp AI trên giao diện.
+
+### File chính đã tạo/sửa
+
+- Tạo token màu, `AppCard`, `IconChip`, `MetricValue`, `MetricTile`, `EmptyState`
+  và asset font tại `assets/fonts/be_vietnam_pro/`.
+- Sửa `app_theme.dart`, `app_spacing.dart`, `app_shell.dart`,
+  `dashboard_screen.dart`, `JournalScreen` và các nhãn hiển thị của luồng quét
+  món.
+- Tạo provider đồng hồ/ngày của Dashboard, provider lệnh nhanh một lần và
+  `test/dashboard_test.dart`; cập nhật test router/auth/onboarding liên quan.
+
+### Kiểm tra thực tế
+
+- `dart format lib test`: **106 file, không còn thay đổi định dạng ở lần chạy
+  cuối**.
+- `flutter analyze --no-pub`: **No issues found**.
+- `flutter test --no-pub`: **76/76 pass**.
+- Test mới bao phủ Dashboard trống/có dữ liệu từ fake repository, ghi nhanh
+  nước, điều hướng ở text scale 1.0/1.5, bốn hành động của bottom sheet và việc
+  mở lại dialog Nhật ký hiện có.
+
+### Việc người dùng cần xem và vấn đề còn lại
+
+- Cần xem trên điện thoại thật ở theme sáng/tối: tương phản chữ, độ ấm của nền,
+  độ cao thẻ khi tên dài, cuộn tới hàng metric thứ hai và vùng chạm của nút cộng.
+- Cần thử cỡ chữ hệ thống mặc định và khoảng 150%, bàn phím khi mở bốn form, cùng
+  thao tác back từ bottom sheet/dialog.
+- Chưa chạy build APK hoặc smoke test thiết bị trong lượt này. Không sửa/deploy
+  Firebase, không commit và không push.
+
+### Bước tiếp theo
+
+Dừng trước 6D-3 và chờ yêu cầu tiếp theo của người dùng.
+
+## 2026-10-16 — Giai đoạn 7: Goals và Daily Health Quest
+
+Trạng thái: **hoàn thành code, kiểm thử cục bộ và build APK debug**. Chỉ làm
+Giai đoạn 7; giữ nguyên các thay đổi chưa commit của đợt 6D.
+
+### Hành vi và dữ liệu
+
+- Mở **Cá nhân → Mục tiêu và nhiệm vụ hằng ngày** để thêm/sửa/xóa mục tiêu số
+  bữa, ml nước, phút vận động theo ngày hoặc cân nặng theo thời hạn. Có giá trị,
+  đơn vị, ngày bắt đầu/kết thúc và trạng thái active/paused/completed.
+- Định hướng sức khỏe onboarding trong hồ sơ được giữ riêng. Không tự tạo mục
+  tiêu định lượng hoặc di chuyển dữ liệu cũ.
+- Tiến độ thói quen chỉ cộng nhật ký thực đúng ngày. Cân nặng dùng khoảng cách
+  từ baseline đến target, hỗ trợ cả tăng/giảm và chỉ lấy lần cân trong thời hạn.
+- Engine thuần tạo một gợi ý/ngày, có lý do hiển thị. Chỉ gợi ý nước/vận động
+  khi người dùng đã đặt mục tiêu tương ứng. Không AI, điểm/phạt hoặc suy đoán
+  tình trạng sức khỏe từ nhật ký trống.
+- Quest lưu `users/{uid}/daily_quests/{dateKey}`. Transaction create-if-absent
+  giữ nguyên gợi ý và trạng thái khi mở nhiều lần hoặc có thao tác đồng thời.
+  Hoàn thành/bỏ qua được lưu, không tự ghi log hoặc cộng tiến độ.
+- Có loading/error/empty/success, thử lại dữ liệu lỗi, giữ input khi lưu form
+  thất bại. Ngày cập nhật theo đồng hồ địa phương; timer được hủy cùng provider.
+- Rules chỉ cho chủ UID thao tác, kiểm tra schema/giá trị/đơn vị/ngày lịch thật,
+  bảo vệ baseline/createdAt và chặn sửa nội dung hoặc mở lại quest đã kết thúc.
+- Xóa tài khoản hiện có đã bao phủ goals/daily_quests. Không thêm package,
+  composite index hoặc dịch vụ trả phí.
+
+### File chính
+
+- Tạo feature `lib/features/goals/`: model, validation/progress, repository
+  Firestore/interface, Riverpod providers/controller và form.
+- Tạo `daily_quest/models/daily_quest.dart`, `domain/quest_engine.dart`; thay
+  nội dung trang Quest chờ triển khai bằng giao diện thật.
+- Thêm một lối vào trong `ProfileScreen`; bổ sung Rules/test Rules, fake
+  repository và `test/goals_quest_test.dart`.
+- Cập nhật `README.md`, `docs/database-design.md` và tài liệu này.
+
+### Kiểm tra thực tế
+
+- `dart format lib test` và kiểm tra lại
+  `dart format --output=none --set-exit-if-changed lib test`: **116 file, 0 thay
+  đổi ở lần cuối**.
+- `flutter analyze --no-pub`: **No issues found**.
+- `flutter test --no-pub`: **89/89 pass**. Trong đó 13 test mới bao phủ các công
+  thức tiến độ, validation, quy tắc có thể tái lập, dữ liệu trống/đang tải/lỗi,
+  lưu/sửa/xóa/retry, terminal status khi mở lại, đổi ngày và màn nhỏ với chữ lớn.
+- Firebase Emulator (project demo, JBR Java 21): **24/24 pass**. Test mới kiểm
+  tra schema, hai UID/khách chưa đăng nhập, ngày không hợp lệ, immutable fields,
+  chuyển trạng thái và tạo quest đồng thời cùng ID. Đây là Rules/JS transaction
+  tests; widget tests dùng fake repositories.
+- `flutter build apk --debug --no-pub`: **thành công** tại
+  `build/app/outputs/flutter-apk/app-debug.apk` (assembleDebug 59,4 giây).
+- Build còn cảnh báo Firebase plugins dùng Kotlin Gradle Plugin cũ. Không nâng
+  dependencies trong giai đoạn này.
+
+### Việc còn lại và triển khai
+
+- **Chưa deploy Firebase Rules**. Cần review/deploy `firestore.rules` trước khi
+  tạo mục tiêu/nhiệm vụ trên Firebase production; không cần index mới.
+- Chưa smoke test trực tiếp trên điện thoại với Firebase thật. Cần thử tạo mục
+  tiêu cả bốn loại, tiến độ khi thêm/xóa log, giữ trạng thái quest sau mở lại,
+  lỗi mạng và cỡ chữ hệ thống lớn.
+- Transaction cần mạng; dữ liệu Firestore không bị ghi sang backend khác.
+  API đã đối chiếu tài liệu chính thức:
+  https://firebase.google.com/docs/firestore/manage-data/transactions
+- Không commit, push, migration hoặc deploy production. Các thay đổi có sẵn
+  của đợt 6D được bảo toàn.
+
+### Giai đoạn kế tiếp đề xuất
+
+Giai đoạn 8 — Dashboard và Weekly Reflection. Chưa triển khai.
+
+## 2026-10-16 — Giai đoạn 8: Dashboard và Weekly Reflection
+
+Trạng thái: **hoàn thành code, kiểm thử cục bộ và APK debug**. Chỉ làm Giai
+đoạn 8, bảo toàn mọi thay đổi chưa commit của 6D và Giai đoạn 7.
+
+### Hành vi đã hoàn thành
+
+- Tổng quan giữ bố cục đã duyệt, lấy tổng kcal/macro, nước, phút vận động và số
+  bữa từ provider ngày chung với Nhật ký. Thêm thẻ tiến độ mục tiêu và trạng thái
+  nhiệm vụ đã lưu; có hành động mở màn Goals/Quest hiện có, không tự tạo quest
+  chỉ vì mở Dashboard.
+- Có ngày và nhãn múi giờ thiết bị. Đồng hồ dùng chung cập nhật qua phút/ngày,
+  khi app trở lại foreground và được hủy khi không còn consumer.
+- Nguồn chưa tải/lỗi hiển thị `—`, không coi lỗi là số 0. Tổng quan có trạng
+  thái trống, dữ liệu thật, retry từng phần và thêm nhanh nước qua controller.
+- Cân nặng Dashboard dùng listener `limit(1)` theo measuredAt. Lịch sử đầy đủ
+  chỉ được dùng tại nơi cần quản lý hồ sơ; báo cáo dùng range tuần riêng.
+- Mục **Nhìn lại tuần** chỉ truy vấn khi mở. Chọn tuần trước/hiện tại, xem tổng
+  kcal/macro/ml/phút, số ngày có ghi nhận, trung bình kcal trên ngày có bữa và
+  biểu đồ theo ngày bằng fl_chart. Có biểu đồ tối đa 12 lần cân trong tuần và
+  chênh lệch số đo khi có ít nhất hai lần cân.
+- Ngày trống ghi rõ chưa ghi; ngày chưa tới không cộng. Không giả dữ liệu,
+  không chia bình quân mặc định 7 ngày, không suy đoán sức khỏe hoặc nguyên nhân
+  biến động cân nặng.
+- Báo cáo là snapshot lấy từ server: nhãn giờ tải, nút tải lại, lỗi khi thiếu
+  một nguồn. Sau sửa log cần mở lại/làm mới báo cáo; không tạo listener báo cáo
+  chạy nền hoặc ghi collection thống kê mới.
+
+### Truy vấn và vòng đời
+
+- Một lượt báo cáo gọi mỗi repository range đúng một lần: nutrition (2 query
+  để giữ legacy), water (1), activity (1), body metrics (1), tổng cộng **5 query
+  get**. Rebuild cùng UID/tuần không đọc lại; đóng/rời tab giải phóng cache.
+- Khoảng ngày nửa mở; meal theo dateKey đã lưu, bữa cũ thiếu dateKey theo
+  consumedAt địa phương và gộp theo ID. Không migration.
+- Screen ngừng watch khi branch của indexed shell bị ẩn; autoDispose hủy các
+  listener không còn consumer. Thẻ metric có chiều cao tự giãn để không tràn
+  khi trở lại màn ở cỡ chữ lớn hoặc giá trị dài.
+- Fake counters kiểm tra trước khi mở báo cáo có 0 lượt range; mở là 1 lượt
+  mỗi repository; rebuild giữ 1; làm mới thành 2. Dashboard active có 1 listener
+  meal/water/activity mỗi nguồn; rời sang Cá nhân còn 0 và quay lại là 1.
+- Test xác nhận Dashboard không mở listener lịch sử cân nặng đầy đủ. Đây là số
+  lần gọi và subscription đo trong fake tests; chưa đo billing/document reads
+  Firebase production.
+
+### File chính tạo/sửa
+
+- Tạo `features/weekly_reflection/models/weekly_reflection.dart`,
+  `providers/weekly_reflection_providers.dart`,
+  `presentation/weekly_reflection_card.dart`.
+- Tạo `dashboard/presentation/dashboard_goals_card.dart`, đồng hồ chung tại
+  `shared/providers/local_clock_provider.dart`, `test/weekly_reflection_test.dart`.
+- Sửa Dashboard/provider, range APIs và implementations của nutrition/water/
+  activity/profile, providers lifecycle và guard nhỏ tại Journal/Profile/Quest.
+- Sửa `MetricTile`, fake repositories/test harness, test Dashboard, thêm query
+  range tests trên emulator; cập nhật README/database-design/progress.
+- Không thêm package, không đổi Rules hoặc indexes trong Giai đoạn 8. Thay đổi
+  Rules và font dependency có sẵn từ các đợt trước được giữ nguyên.
+
+### Kiểm tra thực tế
+
+- `dart format lib test` và kiểm tra lại
+  `dart format --output=none --set-exit-if-changed lib test`: **122 file, 0 thay
+  đổi ở lần cuối**.
+- `flutter analyze --no-pub`: **No issues found**.
+- `flutter test --no-pub`: **103/103 pass** (14 test mới Giai đoạn 8).
+- Nhóm mới gồm tổng/macro/đơn vị, tuần qua năm, ngày rỗng/ít dữ liệu/future,
+  ranh giới nửa đêm, dateKey ưu tiên timestamp, dedupe, lỗi/retry, đổi tuần khi
+  đang tải, số query/listener, Goal/Quest Dashboard, rollover/resume, theme
+  sáng/tối và cỡ chữ 1.0/1.5 trên màn nhỏ.
+- Firestore Emulator project demo, JBR Java 21: **25/25 pass**. Query test mới
+  xác minh dateKey/timestamp ranges, legacy merge, cuối khoảng không lặp,
+  cân nặng limit(1) và chặn UID khác. Không gọi Firebase production.
+- `flutter build apk --debug --no-pub`: **thành công**, lần cuối assembleDebug
+  15,3 giây; APK tại `build/app/outputs/flutter-apk/app-debug.apk`.
+- Cảnh báo KGP cũ từ Firebase plugins vẫn còn, không phải lỗi build. Không nâng
+  dependencies ngoài phạm vi.
+
+### Việc người dùng cần làm và giới hạn
+
+- Cần thử trên điện thoại thật: Tổng quan đối chiếu Nhật ký, thêm/sửa/xóa rồi
+  tải lại báo cáo, cỡ chữ lớn, theme tối, nhãn múi giờ, mất mạng và back/dialog.
+  Chưa chạy smoke test với Firebase thật hoặc profiling production.
+- Báo cáo tuần cần mạng để lấy tập dữ liệu đầy đủ từ server. Dashboard vẫn theo
+  cơ chế cache/realtime của SDK hiện có; không tuyên bố số liệu chưa ghi là đủ.
+- Giai đoạn 8 không cần Rules/index mới. Rules Giai đoạn 7 trong source vẫn
+  chưa deploy; cần review/deploy trước khi ghi mục tiêu/nhiệm vụ production.
+- Không commit, push, deploy Firebase hoặc migration. Không làm Giai đoạn 9.
+
+### Giai đoạn kế tiếp đề xuất
+
+Giai đoạn 9 — AI Health Chatbot có ngữ cảnh HealthMate. Chưa triển khai.
+
+## Giai đoạn 9 — Trò chuyện HealthMate (16/10/2026)
+
+### Trạng thái và phạm vi được xác nhận
+
+Đã triển khai mã nguồn, kiểm thử tự động và build Android debug. Chưa kiểm thử
+đầu cuối trên Android/Firebase AI thật vì `flutter devices` chỉ nhận Windows,
+Chrome, Edge; chưa nhận điện thoại Android. Không tuyên bố production đã chạy.
+
+Đã đọc toàn bộ AGENTS.md, kiểm tra code/dependencies/Android/Rules và Git trước
+khi sửa. Có nhiều thay đổi chưa commit của 6D/7/8; giữ nguyên các thay đổi đó.
+Không thêm/nâng cấp package, không đổi cấu hình Firebase/App Check hoặc indexes.
+
+Sau khi đối chiếu điều khoản Gemini Developer API Unpaid Services hiện hành,
+người dùng đã xác nhận: **giữ miễn phí; số liệu trả lời tại app, AI chỉ nhận câu
+hỏi kiến thức chung định sẵn**. Đây là điều chỉnh rõ ràng so với phạm vi Giai
+đoạn 9 ban đầu gửi ngữ cảnh cá nhân tới AI. Không có tùy chọn gửi sức khỏe cá
+nhân tới model, không bật billing hoặc đổi sang dịch vụ trả phí.
+
+### Hành vi đã triển khai
+
+- Mở từ Cá nhân → Trò chuyện cùng HealthMate, giữ nguyên thanh điều hướng.
+- Tra cứu kcal/macro, nước, phút vận động hoặc tóm tắt ngày bằng repository
+  thật. Hỗ trợ hôm nay/hôm qua và chọn ngày; nhãn ngày/UTC offset/đơn vị rõ.
+  Chỉ đọc nguồn liên quan; phân biệt dữ liệu trống với lỗi/giá trị bằng 0.
+- AI chỉ nhận enum ba chủ đề: bữa ăn cân bằng, đọc nhãn dinh dưỡng, bắt đầu ghi
+  nhật ký. System instruction riêng, không đưa nội dung tự nhập, UID, hồ sơ,
+  nhật ký hoặc lịch sử hội thoại vào prompt. Không cấp tool/Firestore cho AI.
+- Đã kiểm tra tài liệu chính thức Firebase AI Logic models/chat/thinking và
+  Gemini terms ngày 16/10/2026. Model mặc định `gemini-3.8-flash`, override bằng
+  `HEALTHMATE_CHAT_MODEL`; generation 2048 output tokens, thinking low. Chưa gọi
+  model thật trong lượt này; không gửi dữ liệu sức khỏe thật đi kiểm thử.
+- Có thông báo xử lý dữ liệu trước lần chọn AI đầu trong mỗi lần vào Chat,
+  disclaimer, streaming, bản tạm chưa lưu, dừng nhận, timeout, retry và thông báo
+  lỗi thân thiện. Không bảo đảm dừng request trên server/hoàn quota.
+- Session/messages lưu dưới UID, 20 lượt mỗi phiên, tối đa 1000/6000 ký tự,
+  tải 20 phiên gần nhất. Ghi nguyên tử theo cặp với ID ổn định; lỗi lưu giữ đáp
+  án để retry cùng ID, không gọi AI lại. Chặn câu hỏi mới khi lưu chưa được xác
+  nhận; người dùng có thể retry hoặc chủ động tạo phiên mới.
+- Không thêm listener lịch sử. Khi rời nhánh hoặc đổi UID, hủy stream nhận và
+  bỏ kết quả đến muộn; không chờ cleanup mạng để giao diện tiếp tục. Composer
+  và consent tạm theo UID. Luồng xóa tài khoản cũ đã có xóa messages trước
+  sessions nên được tái sử dụng, không sửa Auth/account deletion.
+- Rules mới kiểm tra chủ UID, schema, role/source/độ dài, sequence, bộ đếm và
+  cặp message; không cho cập nhật tin đã tạo. Rules không chứng thực nguồn AI
+  ở phía máy chủ vì client ghi cả hai role; không dùng nhãn này để cấp quyền.
+
+### File chính tạo/sửa trong Giai đoạn 9
+
+- Tạo `lib/features/chatbot/models/chat_models.dart`.
+- Tạo `lib/features/chatbot/data/chat_repository.dart`,
+  `firebase_chat_repository.dart`, `knowledge_service.dart`,
+  `firebase_knowledge_service.dart`.
+- Tạo `lib/features/chatbot/domain/journal_chat_context.dart` và
+  `lib/features/chatbot/providers/chat_providers.dart`.
+- Thay placeholder `lib/features/chatbot/presentation/chat_screen.dart` bằng
+  luồng Chat hoạt động; sửa nhỏ `profile_screen.dart` để thêm lối vào và
+  `account_information_screen.dart` để giải thích quyền riêng tư.
+- Cập nhật cục bộ `firestore.rules`, `rules-tests/firestore.rules.test.cjs`.
+- Tạo `test/chatbot_test.dart`, `test/support/fake_chat_repository.dart`; thêm
+  overrides test vào `test/support/test_app.dart` để test không gọi Firebase/AI.
+- Tạo `docs/chatbot.md`; cập nhật README, database-design và báo cáo này.
+
+### Kiểm tra thực tế cuối lượt
+
+- `dart format lib test`: 131 file; kiểm tra lại
+  `dart format --output=none --set-exit-if-changed lib test`: **0 thay đổi**.
+- `flutter analyze --no-pub`: **No issues found** (12,0 giây lần cuối).
+- `flutter test --no-pub`: **121/121 pass** (18 test mới, tổng 17 giây).
+  Bao phủ chọn ngày/ranh giới nửa đêm/tổng, ngày rỗng, nguồn lỗi/retry, không
+  gửi text/context cá nhân tới AI, streaming/partial/trống/lỗi quota/timeout/
+  hủy, đổi UID và rời nhánh lúc tải, retry ghi không trùng, giới hạn phiên,
+  disclosure, sáng/tối, keyboard, textScale 1.0/1.5/2.0 và lối vào từ Profile.
+- Firebase Firestore Emulator project `demo-healthmate-rules`:
+  **29/29 pass** (4 test mới, 10,75 giây). Xác minh transaction cặp thật trên
+  emulator, idempotency, read order, cross-UID/guest, immutable message, giới
+  hạn/invalid schema và quy trình delete child/parent; không gọi production.
+- `flutter build apk --debug --no-pub`: **thành công**, assembleDebug 17,7 giây,
+  APK: `build/app/outputs/flutter-apk/app-debug.apk`.
+- Cảnh báo KGP của các Firebase plugins vẫn còn như Giai đoạn 8; không làm
+  build thất bại. Không tự nâng SDK/dependencies ngoài phạm vi.
+- `git -c core.safecrlf=false diff --check`: sạch. HEAD vẫn
+  `310c8971ee2189ab4f01f2002edd4f93ff1e5535`, không stage thay đổi.
+
+### Cần làm thủ công và giới hạn còn lại
+
+- Review/deploy Rules mới trong một nhiệm vụ được yêu cầu riêng trước khi ghi
+  Chat production; Rules Giai đoạn 7 trong source cũng còn chưa triển khai.
+  Lượt này không deploy Rules/indexes, không commit/push, không migration.
+- Cần Android thật để xác minh App Check/model/quota/streaming và lưu/tải lịch
+  sử với tài khoản kiểm thử sau khi rule được triển khai. Web/desktop chỉ tra
+  cứu nhật ký; gọi AI báo nền tảng chưa hỗ trợ.
+- Kiểm tra bằng mắt: bố cục sáng/tối, chữ lớn/keyboard, nút dừng, auto scroll,
+  mất mạng/retry, nhật ký nhiều ngày và đổi tài khoản. Checklist tại chatbot.md.
+- Chưa hỗ trợ hội thoại AI tự do hoặc phân tích số liệu sức khỏe bằng model;
+  đúng lựa chọn miễn phí đã xác nhận. Tra cứu hiện giới hạn tổng theo ngày cho
+  bữa ăn/nước/vận động. Lịch sử là snapshot, không realtime hoặc phân trang
+  hơn 20 phiên; chưa lưu bản nháp qua khởi động lại.
+- AI vẫn có thể sai; các test giả lập không chứng minh chất lượng nội dung hay
+  xác thực App Check của backend thật. Không tự bảo đảm miễn phí vô hạn.
+
+### Giai đoạn kế tiếp đề xuất
+
+Giai đoạn 10 — Security, kiểm thử tích hợp và hoàn thiện MVP. Chưa triển khai.
+
+## Giai đoạn 10 — Security, kiểm thử tích hợp và hoàn thiện MVP
+
+Ngày: **16/10/2026**. Hoàn thành rà soát, sửa lỗi trong phạm vi và kiểm thử
+cục bộ/emulator; APK debug build thành công. Demo Android thật và phát hành
+production còn các bước thủ công, không tuyên bố đã xác minh live AI.
+
+### Quyết định và thay đổi
+
+- Đọc toàn bộ AGENTS.md, khảo sát source/dependencies/tests/Android, Git status
+  và diff. Lưu baseline hash cục bộ để phân biệt thay đổi Phase 10 với các đợt
+  6D/7/8/9 còn chưa commit; không bỏ hoặc ghi đè các thay đổi sẵn có.
+- Người dùng đã duyệt **MVP/demo 18+** sau câu hỏi về điều khoản Gemini. Cập
+  nhật validation/ngày sinh/onboarding, cổng AI dùng chung kiểm tra session,
+  UID/profile và hoàn tất thiết lập; giữ dữ liệu cũ. Đây là tự khai, không phải
+  chứng thực danh tính/tuổi. Onboarding lặp giữ completion marker đã có.
+- Chặn NaN/Infinity/overflow ở dữ liệu nhập thể trạng/dinh dưỡng và BMI.
+  Rules kiểm tra dateKey thực sự khớp timestamp + UTC offset, bao gồm ca
+  nửa đêm/ngày nhuận. Không thêm field/index, không migration dữ liệu cũ.
+- Scanner có picker injectable, kiểm tra size/MIME/decode/dimensions, re-encode
+  PNG bỏ metadata gốc, đồng ý từng ảnh, xử lý quyền/lỗi/timeout45s, đóng/đổi UID
+  không nhận kết quả muộn; vẫn nhập thủ công khi catalog rỗng. Tăng giới hạn
+  output JSON có chặn kích thước; không tự lưu kết quả AI thành meal log.
+- Thông báo journal đang chờ server xác nhận, khóa gửi nhanh lặp khi pending;
+  không retry tự động tạo thêm record. Privacy giải thích cache/offline,
+  ảnh tạm/provider processing và giới hạn free tier. Android loại dữ liệu
+  app khỏi OS backup/cloud/device-transfer; APK compile cấu hình mới.
+- Thêm runner Auth+Firestore emulator dùng project demo cố định; test Flutter
+  gọi SDK/repository thật. Bốn plugin web đã có transitive được khai báo
+  thêm dev dependency, pub get offline giữ nguyên version, không thêm runtime
+  dependency hoặc nâng cấp hàng loạt.
+
+### File chính của riêng Giai đoạn 10
+
+- Mới: `lib/core/config/ai_access_policy.dart`,
+  `lib/features/food_scanner/data/food_image_picker.dart`,
+  `android/app/src/main/res/xml/data_extraction_rules.xml`,
+  `firebase.emulators.json`, `tool/test_emulators.ps1`,
+  `tool/chrome_test_adapter.cmd`, `tool/chrome_test_adapter.cjs`.
+- Sửa: `firestore.rules`, `rules-tests/firestore.rules.test.cjs`,
+  `android/app/src/main/AndroidManifest.xml`, `pubspec.yaml`, `pubspec.lock`;
+  `lib/features/profile/models/profile_validation.dart`, `user_profile.dart`,
+  `lib/features/profile/data/firebase_health_profile_repository.dart`,
+  `lib/features/profile/presentation/onboarding_screen.dart`,
+  `profile_form_dialog.dart`, `account_information_screen.dart`;
+  `lib/features/nutrition/models/nutrition_validation.dart`,
+  `lib/features/journal/presentation/journal_screen.dart`,
+  `lib/features/chatbot/providers/chat_providers.dart`,
+  `lib/features/food_scanner/data/firebase_food_scanner_service.dart`,
+  `models/ai_food_suggestion.dart`, `presentation/food_scanner_dialog.dart`,
+  `providers/food_scanner_providers.dart`.
+- Test mới: `test/security_regression_test.dart`, `test/food_scanner_test.dart`,
+  `test/firebase_repository_integration.dart` (opt-in, không tự discover).
+  Sửa hỗ trợ `test/support/test_app.dart`, `fake_health_profile_repository.dart`.
+- Tài liệu: tạo `docs/test-report.md`; cập nhật README,
+  `docs/database-design.md`, `docs/chatbot.md` và báo cáo này.
+
+### Kiểm thử thực tế
+
+- `dart format lib test tool`: **136 file, 0 thay đổi** ở lần cuối.
+- `flutter analyze --no-pub`: **No issues found**, 7,5 giây.
+- `flutter test --no-pub`: **134/134 pass**, khoảng 14 giây, không skip;
+  gồm 13 bài mới và chạy lại tất cả test cũ.
+- `tool/test_emulators.ps1`: **31/31 Rules + 4/4 real SDK integration pass**,
+  Auth9099/Firestore8080, project `demo-healthmate-rules`, không production.
+  SDK xác minh lưu/tải profile/onboarding/logs/Goals/Quest/Chat, chặn UID khác,
+  offline pending/reconnect chỉ ghi một lần và xóa dữ liệu trước Auth.
+- SDK web test runner Windows từng lỗi CanvasKit404/path slash; adapter
+  phục vụ file cache SDK nguyên bản trong Chrome test headless đã giải quyết.
+  Không sửa SDK hay bỏ qua assertions. Runner portable cuối đã chạy thành công.
+- `flutter pub get --offline`: thành công; 4 dependency đổi từ transitive
+  sang direct dev trong lockfile, không đổi version.
+- Kiểm tra cuối `dart format --output=none --set-exit-if-changed lib test tool`:
+  136 file, 0 thay đổi; `git -c core.safecrlf=false diff --check`: sạch.
+- `flutter build apk --debug --no-pub`: **thành công**, assembleDebug16,2 giây.
+  `build/app/outputs/flutter-apk/app-debug.apk`. Cảnh báo KGP Firebase plugins
+  vẫn có như trước, chưa nâng SDK/plugin ngoài phạm vi.
+- Rà soát secret source nonignored: không thấy private/service-account/key
+  Gemini riêng; Firebase public config vẫn có. Không audit toàn Git history/
+  ignored files. Storage không dùng, nên không có Storage Rules để test.
+
+### Việc cần người dùng và giới hạn
+
+- Không có Android kết nối khi kiểm tra. Cần thử camera/permissions, live
+  App Check/Gemini/quota, offline kill/restart, sáng/tối/chữ lớn, đổi tài khoản
+  và xóa tài khoản kiểm thử theo checklist README. Không chạy smoke test AI
+  Android thật trong lượt này.
+- Rules mới chưa deploy; cần review và yêu cầu riêng trước ghi Goals/Quest/
+  Chat production. Không bật billing, thêm backend, đổi Firebase project,
+  chạy migration, commit, stage hoặc push. HEAD vẫn
+  `310c8971ee2189ab4f01f2002edd4f93ff1e5535`.
+- Trước public release cần chốt application ID/icon/signing thay debug
+  template và cấu hình SHA-256/Play Integrity. Native cache không tự xóa khi
+  logout; backup/device transfer OEM chưa thử. Client cleanup phải được cập
+  nhật khi thêm collection mới. Không gọi bản debug là sẵn sàng phát hành.
+- Quyền UID/schema được test, không bảo đảm tính đúng dinh dưỡng/nguồn catalog
+  hay tuổi tự khai. AI có thể sai, hủy chờ không hoàn quota. Các giới hạn và
+  cách chạy lại được ghi đầy đủ trong `docs/test-report.md`.
+
+### Giai đoạn kế tiếp đề xuất
+
+Giai đoạn tùy chọn 11 — Thông báo và polish, chỉ sau kiểm tra Android thật và
+khi người dùng yêu cầu. **Chưa triển khai.**
+
+## Bổ sung Food Catalog — 16/10/2026
+
+Theo yêu cầu thêm món Việt và các món cơ bản, chỉ mở rộng danh mục dinh dưỡng
+(phạm vi Giai đoạn 4), không thực hiện Giai đoạn 11 hay tính năng khác.
+
+### Đã hoàn thành
+
+- Đọc lại AGENTS.md, kiểm tra Git/source/catalog repository/model/form/tests.
+  Catalog production thực có 10 mục, UI chỉ cho thấy 8 kết quả mà chưa có xem
+  tiếp. Lưu baseline hash cục bộ để giữ thay đổi các đợt trước.
+- Bổ sung **148 mục**: 101 thực phẩm tham chiếu Viện Dinh dưỡng 2007, có
+  mã/trang/basis; 47 món từ công thức HealthMate ước tính, có gram nguyên liệu
+  và khối lượng thành phẩm. Tất cả mục mới có nhãn ước tính, `100 g`/`g`.
+  Không coi một tô/ổ là 100 g; phân biệt sống/khô/chín. Không điền 0 cho số thiếu.
+- Nạp quản trị bằng Firebase CLI login hiện có vào đúng `food_catalog` project
+  `healthmate-app-20261013`. Commit nguyên tử/create-if-absent, không ghi đè
+  mục cũ, không ghi đường dẫn `users/*`, không cập nhật meal snapshots.
+- Đã đọc lại: tổng **158 mục**, **148/148 mục mới khớp dữ liệu**, có server
+  timestamp; **10/10 document cũ giữ nguyên**, gồm timestamps. Dry-run lần nữa
+  additions0/skipped148, không tạo trùng.
+- Form tìm tiếng Việt không dấu/có dấu/NFD và alias; xem tiếp từng 12 món,
+  tìm trên toàn bộ catalog, nhắc khối lượng và hiển thị ước tính. Không thêm
+  query/Firestore listener. Danh mục vẫn từ repository Firestore hiện có.
+
+### File chính
+
+- Mới: `data/food_catalog/ingredients.json`, `data/food_catalog/recipes.json`,
+  `tool/import_food_catalog.cjs`, `tool/food_catalog.test.cjs`,
+  `lib/features/nutrition/models/food_catalog_search.dart`,
+  `test/food_catalog_test.dart`, `docs/food-catalog.md`.
+- Sửa: `lib/features/nutrition/presentation/meal_form_dialog.dart`, README,
+  `docs/database-design.md` và báo cáo này. Không sửa Rules/index/dependencies.
+
+### Kiểm thử thực tế
+
+- `node --test tool/food_catalog.test.cjs`: **7/7 pass** (nguồn/đơn vị/số hữu
+  hạn, công thức thành phẩm, tham chiếu công thức, idempotence/precondition và
+  chặn đường dẫn ngoài catalog).
+- `flutter test --no-pub test/food_catalog_test.dart`: **4/4 pass** (tìm kiếm,
+  duyệt quá trang đầu ở textScale1.0/1.5, tìm mục chưa hiển thị và snapshot200g).
+- `dart format lib test tool`; kiểm tra lại với `--output=none
+  --set-exit-if-changed`: **138 file, 0 thay đổi** lần cuối.
+- `flutter analyze --no-pub`: **No issues found**, 7,1 giây.
+- `flutter test --no-pub`: **138/138 pass**, khoảng 12 giây.
+- Nạp/read-back production và dry-run chống tạo trùng đã chạy thật như trên.
+- `git -c core.safecrlf=false diff --check`: sạch. HEAD giữ nguyên
+  `310c8971ee2189ab4f01f2002edd4f93ff1e5535`, không stage/commit/push.
+
+### Giới hạn và cách xem
+
+- Dinh dưỡng món chế biến là công thức giả định, chưa được phân tích/chuẩn hóa
+  cho mọi quán hay nhãn hàng; khác lượng dầu/nước dùng/khẩu phần sẽ khác số liệu.
+  Nguồn năm 2007, không gọi là nguồn mới nhất. Chi tiết tại `docs/food-catalog.md`.
+- Mở lại **Thêm bữa ăn** khi có mạng để nhận catalog; chạy lại bản code mới để
+  có tìm không dấu và nút Xem thêm. Thử `pho bo`, `com tam`, `dau phu`.
+- Không build APK mới hoặc thử điện thoại trong lượt này. Không cần deploy
+  Rules/index, không chạy migration, không thay cấu hình AI hoặc bật billing;
+  chỉ catalog production được thêm theo yêu cầu.
+- Chờ yêu cầu tiếp theo, không tự triển khai giai đoạn khác.

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/utils/local_date_key.dart';
 
 import '../models/body_metric.dart';
 import '../models/health_goal.dart';
@@ -113,7 +114,9 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
         'targetWeightKg': draft.healthGoal.needsTargetWeight
             ? draft.targetWeightKg
             : null,
-        'onboardingCompletedAt': FieldValue.serverTimestamp(),
+        'onboardingCompletedAt':
+            profileSnapshot.data()?['onboardingCompletedAt'] ??
+            FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'schemaVersion': 2,
       });
@@ -151,6 +154,45 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
       throw ProfileFailure.fromCode('unknown');
     }
   }
+
+  @override
+  Stream<List<BodyMetric>> watchLatestBodyMetric(
+    String uid,
+    DateTime day,
+  ) async* {
+    try {
+      await for (final snapshot
+          in _metrics(uid)
+              .where(
+                'measuredAt',
+                isLessThan: Timestamp.fromDate(localDayRange(day).end),
+              )
+              .orderBy('measuredAt', descending: true)
+              .limit(1)
+              .snapshots()) {
+        yield [
+          for (final doc in snapshot.docs) _metricFromData(doc.id, doc.data()),
+        ];
+      }
+    } on FirebaseException catch (error) {
+      throw ProfileFailure.fromCode(error.code);
+    }
+  }
+
+  @override
+  Future<List<BodyMetric>> loadBodyMetricsRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) => _guard(() async {
+    final snapshot = await _metrics(uid)
+        .where('measuredAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('measuredAt', isLessThan: Timestamp.fromDate(end))
+        .get(const GetOptions(source: Source.server));
+    return [
+      for (final doc in snapshot.docs) _metricFromData(doc.id, doc.data()),
+    ];
+  });
 
   @override
   Future<String> addBodyMetric({

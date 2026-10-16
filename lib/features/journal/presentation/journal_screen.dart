@@ -18,6 +18,7 @@ import '../../water/presentation/water_log_dialog.dart';
 import '../../water/presentation/water_log_section.dart';
 import '../../water/providers/water_providers.dart';
 import '../providers/journal_date_provider.dart';
+import '../providers/journal_quick_action_provider.dart';
 import 'journal_date_selector.dart';
 import 'daily_summary_card.dart';
 
@@ -246,8 +247,33 @@ class JournalScreen extends ConsumerWidget {
     if (date != null) ref.read(journalDateProvider.notifier).select(date);
   }
 
+  Future<void> _openQuickAction(
+    BuildContext context,
+    WidgetRef ref,
+    JournalQuickAction action,
+    List<FoodCatalogItem> catalog,
+    DateTime selectedDate,
+  ) async {
+    switch (action) {
+      case JournalQuickAction.addMeal:
+        await _openMealForm(
+          context,
+          ref,
+          catalog,
+          initialConsumedAt: _timeOnSelectedDate(selectedDate),
+        );
+      case JournalQuickAction.scanFood:
+        await _scanFood(context, ref, catalog, selectedDate);
+      case JournalQuickAction.addWater:
+        await _openWaterForm(context, ref, selectedDate);
+      case JournalQuickAction.addActivity:
+        await _openActivityForm(context, ref, selectedDate);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final selectedDate = ref.watch(journalDateProvider);
     final catalogState = ref.watch(foodCatalogProvider);
     final mealsState = ref.watch(mealLogsProvider(selectedDate));
@@ -260,6 +286,18 @@ class JournalScreen extends ConsumerWidget {
     ref.watch(recentMealItemsProvider);
     final catalog = catalogState.value ?? const <FoodCatalogItem>[];
     final meals = mealsState.value ?? const <MealLog>[];
+    ref.listen<JournalQuickAction?>(journalQuickActionProvider, (
+      previous,
+      next,
+    ) {
+      if (next == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        final action = ref.read(journalQuickActionProvider.notifier).take();
+        if (action == null) return;
+        _openQuickAction(context, ref, action, catalog, selectedDate);
+      });
+    });
 
     return FeaturePage(
       title: 'Nhật ký của bạn',
@@ -275,6 +313,15 @@ class JournalScreen extends ConsumerWidget {
           onPick: () => _pickJournalDate(context, ref, selectedDate),
         ),
         const SizedBox(height: AppSpacing.md),
+        if (action.isLoading ||
+            waterAction.isLoading ||
+            activityAction.isLoading)
+          const Padding(
+            padding: EdgeInsets.only(bottom: AppSpacing.md),
+            child: Text(
+              'Đang chờ máy chủ xác nhận thay đổi. Nếu mất mạng, thao tác có thể được đồng bộ khi kết nối lại; đừng gửi lặp.',
+            ),
+          ),
         DailySummaryCard(
           date: selectedDate,
           mealsState: mealsState,
@@ -296,7 +343,7 @@ class JournalScreen extends ConsumerWidget {
                   catalog,
                   initialConsumedAt: _timeOnSelectedDate(selectedDate),
                 ),
-          onScan: catalog.isEmpty || action.isLoading
+          onScan: action.isLoading
               ? null
               : () => _scanFood(context, ref, catalog, selectedDate),
           onEdit: (meal) => _openMealForm(context, ref, catalog, meal: meal),

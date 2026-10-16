@@ -107,7 +107,7 @@ void main() {
 
   testWidgets('completed user opens the requested app route', (tester) async {
     final container = await pumpApp(tester);
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
     expect(
       container.read(appRouterProvider).routeInformationProvider.value.uri.path,
       AppRoutes.dashboard,
@@ -212,7 +212,7 @@ void main() {
       container.read(appRouterProvider).routeInformationProvider.value.uri.path,
       AppRoutes.dashboard,
     );
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
     expect(find.text('Mục tiêu: Giảm cân'), findsOneWidget);
@@ -241,7 +241,7 @@ void main() {
     repository.failure = null;
     await tapOnboardingButton(tester, 'onboarding-complete');
     expect(repository.completeOnboardingCalls, 2);
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
   });
 
   testWidgets('save action is disabled while the transaction is pending', (
@@ -265,6 +265,6 @@ void main() {
     expect(repository.completeOnboardingCalls, 1);
     repository.pending!.complete();
     await tester.pumpAndSettle();
-    expect(find.text('Từng bước nhỏ,\nsống khỏe hơn.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
   });
 }
