@@ -296,6 +296,165 @@ void main() {
   );
 
   test(
+    'F02 snapshot scaling survives repository save/reload independently of catalog',
+    () async {
+      const old = MealItemSnapshot(
+        foodId: 'rice-cooked',
+        name: 'Cơm cũ',
+        grams: 100,
+        nutrition: NutritionTotals(
+          kcal: 130,
+          proteinG: 2.69,
+          carbsG: 28.17,
+          fatG: .28,
+        ),
+        sourceLabel: 'Nguồn lịch sử',
+        isEstimated: true,
+      );
+      final id = await nutrition.addMeal(
+        uid: alice,
+        draft: MealDraft(
+          type: MealType.lunch,
+          consumedAt: DateTime.now(),
+          items: [old],
+          source: MealSource.manual,
+        ),
+      );
+      for (final grams in [100.0, 150.0]) {
+        await nutrition.updateMeal(
+          uid: alice,
+          mealId: id,
+          draft: MealDraft(
+            type: MealType.lunch,
+            consumedAt: DateTime.now(),
+            items: [old.withGrams(grams)],
+            source: MealSource.manual,
+          ),
+        );
+        final loaded = (await nutrition.loadRange(
+          alice,
+          day,
+          DateTime(day.year, day.month, day.day + 1),
+        )).singleWhere((meal) => meal.id == id).items.single;
+        expect(loaded.nutrition.kcal, 130 * grams / 100);
+        expect(loaded.nutrition.carbsG, closeTo(28.17 * grams / 100, 1e-9));
+        expect(loaded.sourceLabel, 'Nguồn lịch sử');
+        expect(loaded.hasNutritionData, isTrue);
+      }
+      const current = FoodCatalogItem(
+        id: 'rice-cooked',
+        name: 'Cơm hiện tại',
+        alternateNames: [],
+        category: 'Ngũ cốc',
+        servingBasis: 'per_100g',
+        unit: 'g',
+        per100g: NutritionTotals(kcal: 260),
+        sourceLabel: 'Nguồn mới',
+        isEstimated: true,
+      );
+      final newer = await nutrition.addMeal(
+        uid: alice,
+        draft: MealDraft(
+          type: MealType.dinner,
+          consumedAt: DateTime.now(),
+          items: [MealItemSnapshot.fromCatalog(current, 150)],
+          source: MealSource.manual,
+        ),
+      );
+      final loaded = (await nutrition.loadRange(
+        alice,
+        day,
+        DateTime(day.year, day.month, day.day + 1),
+      )).singleWhere((meal) => meal.id == newer);
+      expect(loaded.totals.kcal, 390);
+    },
+  );
+
+  test(
+    'R01 goal write remains pending across 15 seconds offline and commits once',
+    () async {
+      final collection = db.collection('users/$alice/goals');
+      final before = (await collection.get(
+        const GetOptions(source: Source.server),
+      )).size;
+      await db.disableNetwork();
+      var settled = false;
+      Object? error;
+      final write = goals
+          .saveGoal(
+            alice,
+            GoalDraft(
+              type: GoalType.water,
+              targetValue: 501,
+              startDate: day,
+              endDate: DateTime(day.year, day.month, day.day + 2),
+            ),
+          )
+          .then(
+            (_) {
+              settled = true;
+            },
+            onError: (Object failure) {
+              settled = true;
+              error = failure;
+            },
+          );
+      bool settledOffline;
+      try {
+        await Future<void>.delayed(const Duration(seconds: 16));
+        settledOffline = settled;
+      } finally {
+        await db.enableNetwork();
+        await write;
+        await db.waitForPendingWrites();
+      }
+      expect(
+        (await collection.get(const GetOptions(source: Source.server))).size,
+        before + 1,
+      );
+      expect(
+        settledOffline,
+        isFalse,
+        reason:
+            'A timeout must not claim rejection while the SDK still commits the write.',
+      );
+      expect(error, isNull);
+      final stable = goals.newGoalId();
+      final draft = GoalDraft(
+        type: GoalType.water,
+        targetValue: 502,
+        startDate: day,
+        endDate: DateTime(day.year, day.month, day.day + 2),
+      );
+      await goals.saveGoal(alice, draft, id: stable, create: true);
+      await goals.saveGoal(alice, draft, id: stable, create: true);
+      await expectLater(
+        goals.saveGoal(
+          alice,
+          GoalDraft(
+            type: GoalType.water,
+            targetValue: 503,
+            startDate: day,
+            endDate: DateTime(day.year, day.month, day.day + 2),
+          ),
+          id: stable,
+          create: true,
+        ),
+        throwsA(anything),
+      );
+      expect(
+        (await collection.get(const GetOptions(source: Source.server))).size,
+        before + 2,
+      );
+      await goals.saveGoal(alice, draft, id: goals.newGoalId(), create: true);
+      expect(
+        (await collection.get(const GetOptions(source: Source.server))).size,
+        before + 3,
+      );
+    },
+  );
+
+  test(
     'reauthenticated password change and account cleanup remove data before Auth',
     () async {
       await authentication.reauthenticateWithPassword(password);

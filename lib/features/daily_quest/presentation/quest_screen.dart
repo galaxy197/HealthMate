@@ -9,6 +9,9 @@ import '../../../core/utils/local_date_key.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/feature_page.dart';
+import '../../../core/widgets/confirmed_save.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../goals/models/goal_failure.dart';
 import '../../activity/providers/activity_providers.dart';
 import '../../goals/models/tracking_goal.dart';
 import '../../goals/presentation/goal_form_dialog.dart';
@@ -28,17 +31,29 @@ class QuestScreen extends ConsumerWidget {
     TrackingGoal? goal,
   }) async {
     final metrics = ref.read(bodyMetricsProvider).value;
+    final uid = ref.read(authSessionProvider).value?.uid;
+    final id = goal?.id ?? ref.read(goalsRepositoryProvider).newGoalId();
     await showDialog<GoalDraft>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => GoalFormDialog(
-        today: today,
-        goal: goal,
-        currentWeightKg: metrics == null || metrics.isEmpty
-            ? null
-            : metrics.first.weightKg,
-        onSave: (draft) =>
-            ref.read(goalActionsProvider.notifier).save(draft, id: goal?.id),
+      builder: (_) => AccountBoundDialog(
+        child: GoalFormDialog(
+          today: today,
+          goal: goal,
+          errorMessage: () => context.mounted
+              ? ref.read(goalActionsProvider).error?.toString()
+              : null,
+          currentWeightKg: metrics == null || metrics.isEmpty
+              ? null
+              : metrics.first.weightKg,
+          onSave: (draft) =>
+              !context.mounted ||
+                  ref.read(authSessionProvider).value?.uid != uid
+              ? Future.value(false)
+              : ref
+                    .read(goalActionsProvider.notifier)
+                    .save(draft, id: id, create: goal == null),
+        ),
       ),
     );
   }
@@ -92,10 +107,16 @@ class QuestScreen extends ConsumerWidget {
       GoalType.weight => metrics,
     };
     void retrySources() {
-      if (goals.hasError) ref.invalidate(goalsProvider);
-      if (meals.hasError) ref.invalidate(mealLogsProvider(today));
-      if (water.hasError) ref.invalidate(waterLogsProvider(key));
-      if (activity.hasError) ref.invalidate(activityLogsProvider(key));
+      if (goals.hasError || goals.isLoading) ref.invalidate(goalsProvider);
+      if (meals.hasError || meals.isLoading) {
+        ref.invalidate(mealLogsProvider(today));
+      }
+      if (water.hasError || water.isLoading) {
+        ref.invalidate(waterLogsProvider(key));
+      }
+      if (activity.hasError || activity.isLoading) {
+        ref.invalidate(activityLogsProvider(key));
+      }
       if (metrics.hasError) ref.invalidate(bodyMetricsProvider);
     }
 
@@ -122,7 +143,8 @@ class QuestScreen extends ConsumerWidget {
         if (quest.hasError || setup.hasError)
           _RetryCard(
             message:
-                'Chưa thể tải hoặc tạo nhiệm vụ. Không tạo gợi ý từ dữ liệu chưa tải được.',
+                'Chưa thể tải hoặc tạo nhiệm vụ. Không tạo gợi ý từ dữ liệu chưa tải được.'
+                '${setup.error is GoalFailure ? '\n${(setup.error as GoalFailure).message}' : ''}',
             onRetry: () {
               retrySources();
               ref.invalidate(dailyQuestProvider(key));

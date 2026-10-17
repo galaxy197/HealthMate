@@ -87,6 +87,7 @@ class MealItemSnapshot {
     required this.nutrition,
     required this.sourceLabel,
     required this.isEstimated,
+    this.hasNutritionData = true,
   });
 
   factory MealItemSnapshot.fromCatalog(FoodCatalogItem food, double grams) =>
@@ -105,6 +106,44 @@ class MealItemSnapshot {
   final NutritionTotals nutrition;
   final String sourceLabel;
   final bool isEstimated;
+  final bool hasNutritionData;
+
+  MealItemSnapshot withGrams(double newGrams) {
+    final values = [
+      grams,
+      newGrams,
+      nutrition.kcal,
+      nutrition.proteinG,
+      nutrition.carbsG,
+      nutrition.fatG,
+    ];
+    if (!hasNutritionData ||
+        values.any((v) => !v.isFinite) ||
+        grams <= 0 ||
+        newGrams <= 0 ||
+        values.skip(2).any((v) => v < 0)) {
+      throw const FormatException(
+        'Snapshot dinh dưỡng hoặc khối lượng không hợp lệ.',
+      );
+    }
+    final scaled = nutrition.scale(newGrams / grams);
+    if ([
+      scaled.kcal,
+      scaled.proteinG,
+      scaled.carbsG,
+      scaled.fatG,
+    ].any((v) => !v.isFinite)) {
+      throw const FormatException('Không thể tính khẩu phần từ snapshot này.');
+    }
+    return MealItemSnapshot(
+      foodId: foodId,
+      name: name,
+      grams: newGrams,
+      nutrition: scaled,
+      sourceLabel: sourceLabel,
+      isEstimated: isEstimated,
+    );
+  }
 }
 
 class MealDraft {

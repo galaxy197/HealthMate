@@ -58,24 +58,18 @@ class MetricTile extends StatelessWidget {
           MetricValue(value: value, unit: unit),
           if (subtitle != null || action != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (subtitle != null)
-                  Expanded(
-                    child: Text(
-                      subtitle!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                  Text(
+                    subtitle!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                  )
-                else
-                  const Spacer(),
+                  ),
                 if (action != null) ...[
-                  const SizedBox(width: AppSpacing.xs),
+                  if (subtitle != null) const SizedBox(height: AppSpacing.xs),
                   action!,
                 ],
               ],

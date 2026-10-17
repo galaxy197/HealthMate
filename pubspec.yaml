@@ -47,6 +47,8 @@ dependencies:
   shared_preferences: ^2.5.6
 
 dev_dependencies:
+  # Test-only transport diagnostics for the bounded Android AI probe.
+  http: ^1.6.0
   # Register real web SDK implementations in the opt-in emulator test harness.
   cloud_firestore_web: ^5.7.3
   firebase_auth_web: ^6.3.0

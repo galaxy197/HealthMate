@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:firebase_ai/firebase_ai.dart';
+import '../../../core/errors/operation_diagnostics.dart';
 
 import '../models/ai_food_suggestion.dart';
 import 'food_scanner_service.dart';
@@ -71,6 +72,8 @@ class FirebaseFoodScannerService implements FoodScannerService {
     if (!const {'image/jpeg', 'image/png', 'image/webp'}.contains(mimeType)) {
       throw const FoodScannerFailure('Định dạng ảnh chưa được hỗ trợ.');
     }
+    final clock = Stopwatch()..start();
+    operationDiagnostic('ai-scanner', 'sdk-request', 'start', clock);
     try {
       final response = await _model.generateContent([
         Content.multi([
@@ -84,7 +87,9 @@ class FirebaseFoodScannerService implements FoodScannerService {
       if (text == null || text.trim().isEmpty) {
         throw const FormatException('Empty model response.');
       }
-      return AiFoodSuggestion.fromJsonText(text);
+      final result = AiFoodSuggestion.fromJsonText(text);
+      operationDiagnostic('ai-scanner', 'parse-complete', 'success', clock);
+      return result;
     } on FoodScannerFailure {
       rethrow;
     } on FormatException {
@@ -92,6 +97,13 @@ class FirebaseFoodScannerService implements FoodScannerService {
         'Kết quả nhận diện không hợp lệ. Bạn có thể thử lại hoặc nhập thủ công.',
       );
     } on FirebaseAIException catch (error) {
+      operationDiagnostic(
+        'ai-scanner',
+        'sdk-request',
+        'error',
+        clock,
+        code: diagnosticErrorCode(error),
+      );
       final text = error.message.toLowerCase();
       if (text.contains('quota') || text.contains('429')) {
         throw const FoodScannerFailure(

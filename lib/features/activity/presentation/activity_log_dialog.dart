@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/confirmed_save.dart';
 
 import '../models/activity_log.dart';
 
 class ActivityLogDialog extends StatefulWidget {
-  const ActivityLogDialog({required this.selectedDate, this.log, super.key});
+  const ActivityLogDialog({
+    required this.selectedDate,
+    this.log,
+    this.onSave,
+    super.key,
+  });
 
+  final Future<bool> Function(ActivityLogDraft)? onSave;
   final DateTime selectedDate;
   final ActivityLog? log;
 
@@ -12,7 +19,8 @@ class ActivityLogDialog extends StatefulWidget {
   State<ActivityLogDialog> createState() => _ActivityLogDialogState();
 }
 
-class _ActivityLogDialogState extends State<ActivityLogDialog> {
+class _ActivityLogDialogState extends State<ActivityLogDialog>
+    with ConfirmedSave<ActivityLogDraft, ActivityLogDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _duration;
   late final TextEditingController _note;
@@ -65,98 +73,108 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (saving) return;
     if (!_formKey.currentState!.validate()) return;
     final timeError = ActivityValidation.performedAt(_performedAt);
     if (timeError != null) {
       setState(() => _timeError = timeError);
       return;
     }
-    Navigator.pop(
-      context,
+    await saveDraft(
       ActivityLogDraft(
         type: _type,
         durationMinutes: int.parse(_duration.text.trim()),
         performedAt: _performedAt,
         note: _note.text.trim(),
       ),
+      widget.onSave,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final locale = MaterialLocalizations.of(context);
-    return AlertDialog(
-      title: Text(widget.log == null ? 'Thêm vận động' : 'Sửa vận động'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              DropdownButtonFormField<ActivityType>(
-                key: const ValueKey('activity-type'),
-                initialValue: _type,
-                decoration: const InputDecoration(labelText: 'Loại hoạt động'),
-                items: [
-                  for (final type in ActivityType.values)
-                    DropdownMenuItem(value: type, child: Text(type.label)),
+    return guardSave(
+      AlertDialog(
+        title: Text(widget.log == null ? 'Thêm vận động' : 'Sửa vận động'),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                saveFeedback(),
+                DropdownButtonFormField<ActivityType>(
+                  key: const ValueKey('activity-type'),
+                  initialValue: _type,
+                  decoration: const InputDecoration(
+                    labelText: 'Loại hoạt động',
+                  ),
+                  items: [
+                    for (final type in ActivityType.values)
+                      DropdownMenuItem(value: type, child: Text(type.label)),
+                  ],
+                  onChanged: (value) => setState(() => _type = value ?? _type),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  key: const ValueKey('activity-duration'),
+                  controller: _duration,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Thời lượng',
+                    suffixText: 'phút',
+                  ),
+                  validator: ActivityValidation.duration,
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _pickTime,
+                  icon: const Icon(Icons.schedule_outlined),
+                  label: Text(
+                    locale.formatTimeOfDay(
+                      TimeOfDay.fromDateTime(_performedAt),
+                    ),
+                  ),
+                ),
+                if (_timeError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _timeError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ],
-                onChanged: (value) => setState(() => _type = value ?? _type),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                key: const ValueKey('activity-duration'),
-                controller: _duration,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Thời lượng',
-                  suffixText: 'phút',
-                ),
-                validator: ActivityValidation.duration,
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _pickTime,
-                icon: const Icon(Icons.schedule_outlined),
-                label: Text(
-                  locale.formatTimeOfDay(TimeOfDay.fromDateTime(_performedAt)),
-                ),
-              ),
-              if (_timeError != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _timeError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                const SizedBox(height: 16),
+                TextFormField(
+                  key: const ValueKey('activity-note'),
+                  controller: _note,
+                  maxLength: ActivityValidation.maxNoteLength,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú (không bắt buộc)',
+                  ),
+                  validator: ActivityValidation.note,
                 ),
               ],
-              const SizedBox(height: 16),
-              TextFormField(
-                key: const ValueKey('activity-note'),
-                controller: _note,
-                maxLength: ActivityValidation.maxNoteLength,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Ghi chú (không bắt buộc)',
-                ),
-                validator: ActivityValidation.note,
-              ),
-            ],
+            ),
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            key: const ValueKey('save-activity'),
+            onPressed: saving ? null : _submit,
+            child: Text(saving ? 'Đang lưu…' : 'Lưu'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          key: const ValueKey('save-activity'),
-          onPressed: _submit,
-          child: const Text('Lưu'),
-        ),
-      ],
     );
   }
 }

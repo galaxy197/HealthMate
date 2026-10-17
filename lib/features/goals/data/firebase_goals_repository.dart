@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/errors/operation_diagnostics.dart';
 
 import '../../../core/utils/local_date_key.dart';
 import '../../daily_quest/models/daily_quest.dart';
@@ -38,39 +39,69 @@ class FirebaseGoalsRepository implements GoalsRepository {
         }).toList()..sort((a, b) => a.id.compareTo(b.id));
         yield goals;
       }
-    } catch (_) {
-      throw const GoalFailure();
+    } catch (error) {
+      throw GoalFailure.at(error, 'goals-read');
     }
   }
 
   @override
-  Future<void> saveGoal(String uid, GoalDraft draft, {String? id}) =>
-      _guard(() async {
-        final error = draft.validate();
-        if (error != null) throw GoalFailure(error);
-        final data = <String, Object?>{
-          'goalType': draft.type.name,
-          'targetValue': draft.targetValue,
-          'unit': draft.type.unit,
-          'startDateKey': localDateKey(draft.startDate),
-          'endDateKey': localDateKey(draft.endDate),
-          'status': draft.status.name,
-          'baselineWeightKg': draft.baselineWeightKg,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'schemaVersion': 1,
-        };
-        if (id == null) {
-          await _goals(
-            uid,
-          ).doc().set({...data, 'createdAt': FieldValue.serverTimestamp()});
-        } else {
-          await _goals(uid).doc(id).update(data);
+  String newGoalId() => firestore.collection('users').doc().id;
+
+  @override
+  Future<void> saveGoal(
+    String uid,
+    GoalDraft draft, {
+    String? id,
+    bool create = false,
+  }) => _guard('goal-save', () async {
+    final error = draft.validate();
+    if (error != null) throw GoalFailure(error);
+    final data = <String, Object?>{
+      'goalType': draft.type.name,
+      'targetValue': draft.targetValue,
+      'unit': draft.type.unit,
+      'startDateKey': localDateKey(draft.startDate),
+      'endDateKey': localDateKey(draft.endDate),
+      'status': draft.status.name,
+      'baselineWeightKg': draft.baselineWeightKg,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'schemaVersion': 1,
+    };
+    if (create) {
+      if (id == null) {
+        throw const GoalFailure('Thiếu mã thao tác tạo mục tiêu.');
+      }
+      final reference = _goals(uid).doc(id);
+      await firestore.runTransaction((transaction) async {
+        final previous = await transaction.get(reference);
+        if (previous.exists) {
+          final matches = data.entries
+              .where((e) => e.key != 'updatedAt')
+              .every((e) => previous.data()?[e.key] == e.value);
+          if (!matches) {
+            throw const GoalFailure(
+              'Thao tác trước đã lưu nội dung khác. Hãy đóng form, tải lại mục tiêu và chọn sửa.',
+            );
+          }
+          return;
         }
+        transaction.set(reference, {
+          ...data,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       });
+    } else if (id == null) {
+      await _goals(
+        uid,
+      ).doc().set({...data, 'createdAt': FieldValue.serverTimestamp()});
+    } else {
+      await _goals(uid).doc(id).update(data);
+    }
+  });
 
   @override
   Future<void> deleteGoal(String uid, String id) =>
-      _guard(() => _goals(uid).doc(id).delete());
+      _guard('goal-delete', () => _goals(uid).doc(id).delete());
 
   @override
   Stream<DailyQuest?> watchQuest(String uid, String dateKey) async* {
@@ -91,14 +122,14 @@ class FirebaseGoalsRepository implements GoalsRepository {
                 ruleVersion: d['ruleVersion'] as int,
               );
       }
-    } catch (_) {
-      throw const GoalFailure();
+    } catch (error) {
+      throw GoalFailure.at(error, 'quest-read');
     }
   }
 
   @override
   Future<void> ensureQuest(String uid, DailyQuest candidate) =>
-      _guard(() async {
+      _guard('quest-create', () async {
         final doc = _quest(uid, candidate.dateKey);
         await firestore.runTransaction((transaction) async {
           final existing = await transaction.get(doc);
@@ -122,7 +153,7 @@ class FirebaseGoalsRepository implements GoalsRepository {
 
   @override
   Future<void> finishQuest(String uid, String dateKey, QuestStatus status) =>
-      _guard(() async {
+      _guard('quest-finish', () async {
         if (status == QuestStatus.available) {
           throw const GoalFailure('Chọn hoàn thành hoặc bỏ qua.');
         }
@@ -143,13 +174,19 @@ class FirebaseGoalsRepository implements GoalsRepository {
         });
       });
 
-  Future<void> _guard(Future<void> Function() action) async {
+  Future<void> _guard(String stage, Future<void> Function() action) async {
+    final clock = Stopwatch()..start();
+    operationDiagnostic('goals', stage, 'start', clock);
     try {
-      await action().timeout(const Duration(seconds: 15));
-    } on GoalFailure {
-      rethrow;
-    } catch (_) {
-      throw const GoalFailure();
+      // A write Future stays pending until SDK acknowledgement. A UI timeout
+      // would not cancel the write and previously allowed duplicate goals.
+      await action();
+      operationDiagnostic('goals', stage, 'success', clock);
+    } catch (error) {
+      final failure = GoalFailure.at(error, stage);
+      operationDiagnostic('goals', stage, 'error', clock, code: failure.code);
+      if (error is GoalFailure) rethrow;
+      throw failure;
     }
   }
 

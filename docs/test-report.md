@@ -189,3 +189,29 @@ các đợt trước. Danh sách thay đổi Giai đoạn 10: [implementation-pr
 - [App Check Flutter](https://firebase.google.com/docs/app-check/flutter/default-providers)
 - [App Check debug](https://firebase.google.com/docs/app-check/flutter/debug-provider)
 - [Android backup/device transfer](https://developer.android.com/identity/data/autobackup)
+
+## Bảo trì MVP — 17/10/2026 (F01–F06, R01)
+
+Đây là kết quả mới của đợt bảo trì, không thay thế lịch sử ở trên.
+Chi tiết nguyên nhân, file, bằng chứng đỏ→xanh và giới hạn runtime:
+[maintenance-2026-10-17.md](maintenance-2026-10-17.md).
+
+- HEAD ban đầu/cuối: `3e8e9cc756c0a8caf1a882f6829088216736e56b`, checkout sạch lúc bắt đầu.
+- Format `lib test integration_test`: 145 file, 0 thay đổi; analyze: No issues found (19,0s).
+- Flutter: **176/176 pass**; catalog Node: **7/7 pass**.
+- Firebase Rules **31/31** và SDK integration **6/6 pass**, project cố định
+  `demo-healthmate-rules`, Auth/Firestore emulator, SDK qua Chrome.
+- Android x64 debug build thành công (52,1s); có cảnh báo KGP từ plugin Firebase.
+- Đã sửa/xác minh F01 giữ bản nháp + pending/session, F02 snapshot lịch sử,
+  F05/F06 responsive/không cắt nhãn, R01 retry tạo mục tiêu theo ID ổn định.
+- F03 đã sửa chẩn đoán/retry local; đọc Rules production xác nhận thiếu match ghi
+  Goals/Quest/Chat. **Chưa deploy, chưa xác minh luồng Quest production đã hết lỗi.**
+- F04 Android QA: một lượt Chat cloud18,151s/14chunks và Scanner service15,709s
+  thành công; ba lượt khác timeout45s mỗi thao tác. **AI chưa ổn định, chưa sửa dứt điểm.**
+  Không đổi model/provider/timeout, billing hoặc App Check enforcement.
+- Layout: 24 tổ hợp360/390/412/900dp × scale1/1,5/2 × sáng/tối, có xem ảnh render.
+  Chưa kiểm tra điện thoại thật hoặc toàn bộ scanner end-to-end.
+- QA AVD mới trên D:, không dữ liệu người dùng; không uninstall/pm clear/wipe,
+  tạo tài khoản production hoặc dùng dữ liệu sức khỏe thật để test.
+- Không stage/commit/push/PR/deploy/migration. Chỉ thêm `http` đã có bắc cầu vào
+  dev dependency cho probe, khôi phục offline, không nâng phiên bản.

@@ -49,45 +49,54 @@ class DailySummaryCard extends StatelessWidget {
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.md),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                _SummaryValue(
-                  key: const ValueKey('summary-kcal'),
-                  icon: Icons.local_fire_department_outlined,
-                  label: 'Năng lượng',
-                  value: nutrition == null
-                      ? '—'
-                      : '${number.format(nutrition.kcal.round())} kcal',
-                ),
-                _SummaryValue(
-                  key: const ValueKey('summary-macros'),
-                  icon: Icons.pie_chart_outline_rounded,
-                  label: 'P · C · F',
-                  value: nutrition == null
-                      ? '—'
-                      : '${decimal.format(nutrition.proteinG)} · '
-                            '${decimal.format(nutrition.carbsG)} · '
-                            '${decimal.format(nutrition.fatG)} g',
-                ),
-                _SummaryValue(
-                  key: const ValueKey('summary-water'),
-                  icon: Icons.water_drop_outlined,
-                  label: 'Nước',
-                  value: water == null
-                      ? '—'
-                      : '${number.format(totalWaterMl(water))} ml',
-                ),
-                _SummaryValue(
-                  key: const ValueKey('summary-activity'),
-                  icon: Icons.directions_walk_outlined,
-                  label: 'Vận động',
-                  value: activities == null
-                      ? '—'
-                      : '${number.format(totalActivityMinutes(activities))} phút',
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final columns = constraints.maxWidth >= 248 * scale ? 2 : 1;
+                final width =
+                    (constraints.maxWidth - AppSpacing.sm * (columns - 1)) /
+                    columns;
+                return Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    _SummaryValue(
+                      key: const ValueKey('summary-kcal'),
+                      icon: Icons.local_fire_department_outlined,
+                      label: 'Năng lượng',
+                      value: nutrition == null
+                          ? '—'
+                          : '${number.format(nutrition.kcal.round())} kcal',
+                    ),
+                    _SummaryValue(
+                      key: const ValueKey('summary-macros'),
+                      icon: Icons.pie_chart_outline_rounded,
+                      label: 'P · C · F',
+                      value: nutrition == null
+                          ? '—'
+                          : '${decimal.format(nutrition.proteinG)} · '
+                                '${decimal.format(nutrition.carbsG)} · '
+                                '${decimal.format(nutrition.fatG)} g',
+                    ),
+                    _SummaryValue(
+                      key: const ValueKey('summary-water'),
+                      icon: Icons.water_drop_outlined,
+                      label: 'Nước',
+                      value: water == null
+                          ? '—'
+                          : '${number.format(totalWaterMl(water))} ml',
+                    ),
+                    _SummaryValue(
+                      key: const ValueKey('summary-activity'),
+                      icon: Icons.directions_walk_outlined,
+                      label: 'Vận động',
+                      value: activities == null
+                          ? '—'
+                          : '${number.format(totalActivityMinutes(activities))} phút',
+                    ),
+                  ].map((child) => SizedBox(width: width, child: child)).toList(),
+                );
+              },
             ),
             if (loading) ...[
               const SizedBox(height: AppSpacing.md),
@@ -123,7 +132,6 @@ class _SummaryValue extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      width: 145,
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,

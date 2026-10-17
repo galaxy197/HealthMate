@@ -1328,3 +1328,30 @@ Theo yêu cầu thêm món Việt và các món cơ bản, chỉ mở rộng dan
   Rules/index, không chạy migration, không thay cấu hình AI hoặc bật billing;
   chỉ catalog production được thêm theo yêu cầu.
 - Chờ yêu cầu tiếp theo, không tự triển khai giai đoạn khác.
+
+## 17/10/2026 — Bảo trì MVP F01–F06 và R01
+
+Phạm vi theo tài liệu sửa lỗi do người dùng cung cấp; không triển khai giai đoạn mới.
+Xem [báo cáo bảo trì](maintenance-2026-10-17.md) để biết từng file và bằng chứng.
+
+- **Đã sửa local và kiểm chứng:** giữ bản nháp bữa/nước/vận động đến xác nhận ghi;
+  chống gửi lặp và completion UID cũ; scale snapshot lịch sử; tóm tắt2×2 theo
+  constraint; dòng phụ thẻ nước đầy đủ; mục tiêu retry với ID thao tác ổn định.
+- **Quest:** thêm chẩn đoán nguồn và retry thực; Rules local/SDK emulator đạt.
+  Rules đang deploy thiếu quyền ghi Goals/Quest/Chat, đọc xác nhận trong lượt này.
+  Chờ review và yêu cầu deploy riêng, rồi kiểm tra backend thật.
+- **AI:** thêm chẩn đoán an toàn + standalone QA probe. Cloud Android có một lượt
+  thành công nhưng lặp lại timeout sau HTTP send, chưa có response/status;
+  chưa xác định/sửa dứt điểm F04. Không đổi provider/model, timeout hay enforcement.
+- **Kiểm tra cuối:** format145file/0thay đổi, analyze sạch, Flutter176/176,
+  Node7/7, Rules31/31 + SDK6/6 (demo emulator), APK Android x64 debug build thành công.
+- **File chính:** confirmed_save/operation_diagnostics mới; JournalScreen và form/controller
+  meal/water/activity; nutrition snapshot/parser; Goals repository/form/provider;
+  Quest screen; Chat/Scanner diagnostics; DailySummaryCard/MetricTile; ba bộ test
+  maintenance, SDK integration và probe Android; tài liệu kết quả nối thêm.
+- **Còn lại:** review Rules + deploy theo yêu cầu riêng; điều tra F04 bằng log/response
+  cụ thể, retest QA Android và điện thoại thật. Không tự phát triển tính năng tiếp theo.
+- Git HEAD giữ `3e8e9cc756c0a8caf1a882f6829088216736e56b`; thay đổi ở working tree,
+  không stage/commit/push/PR hoặc production deploy/migration/billing.
+- Người dùng đã yêu cầu tắt laptop sau khi hoàn thành: chỉ hẹn shutdown bình thường,
+  không ép đóng chương trình có nội dung chưa lưu.

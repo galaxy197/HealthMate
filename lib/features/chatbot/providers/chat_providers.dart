@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/providers/local_clock_provider.dart';
 import '../../../core/config/ai_access_policy.dart';
+import '../../../core/errors/operation_diagnostics.dart';
 import '../../activity/providers/activity_providers.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
@@ -207,6 +208,7 @@ class ChatController extends Notifier<ChatState> {
     DateTime date,
     KnowledgeTopic? topic,
   ) async {
+    final diagnosticClock = Stopwatch()..start();
     final generation = ++_generation;
     _lastQuestion = question;
     _lastDate = date;
@@ -252,7 +254,9 @@ class ChatController extends Notifier<ChatState> {
         preview: _readyToSave!.answer,
       );
       final turn = _readyToSave!;
+      operationDiagnostic('chat', 'save', 'start', diagnosticClock);
       await _repository.saveTurn(uid, sessionId, turn);
+      operationDiagnostic('chat', 'save', 'success', diagnosticClock);
       if (!_valid(generation)) return false;
       final count = state.messages.length;
       final messages = [
@@ -289,8 +293,16 @@ class ChatController extends Notifier<ChatState> {
       );
       return true;
     } on _Cancelled {
+      operationDiagnostic('chat', 'answer', 'cancelled', diagnosticClock);
       return false;
     } catch (error) {
+      operationDiagnostic(
+        'chat',
+        _readyToSave == null ? 'answer' : 'save',
+        'error',
+        diagnosticClock,
+        code: diagnosticErrorCode(error),
+      );
       if (_valid(generation)) {
         state = state.change(
           phase: ChatPhase.idle,
@@ -358,7 +370,7 @@ class ChatController extends Notifier<ChatState> {
   String _message(Object error) => error is ChatFailure
       ? error.message
       : error is TimeoutException
-      ? 'Yêu cầu quá thời gian chờ. Kiểm tra mạng rồi thử lại.'
+      ? 'Yêu cầu quá thời gian chờ. Chưa nhận được đáp án hoàn chỉnh; hãy thử lại hoặc dùng tra cứu nhật ký. Nguyên nhân dịch vụ cần được kiểm tra riêng.'
       : 'Chưa thể hoàn tất yêu cầu. Kiểm tra mạng rồi thử lại.';
 }
 

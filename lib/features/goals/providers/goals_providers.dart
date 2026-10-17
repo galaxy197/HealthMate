@@ -1,3 +1,4 @@
+import '../../../core/errors/operation_diagnostics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -53,25 +54,49 @@ final questSetupProvider = FutureProvider.autoDispose.family<void, DateTime>((
   if (user == null) return;
   final repository = ref.watch(goalsRepositoryProvider);
   final key = localDateKey(day);
-  final existing = await ref.watch(dailyQuestProvider(key).future);
-  if (existing != null || !ref.mounted) return;
-  final sources = await (
-    ref.read(goalsProvider.future),
-    ref.read(mealLogsProvider(day).future),
-    ref.read(waterLogsProvider(key).future),
-    ref.read(activityLogsProvider(key).future),
-  ).wait.timeout(const Duration(seconds: 15));
-  if (!ref.mounted) return;
-  await repository.ensureQuest(
-    user.uid,
-    suggestQuest(
-      day: day,
-      goals: sources.$1,
-      mealCount: sources.$2.length,
-      waterMl: totalWaterMl(sources.$3),
-      activityMinutes: totalActivityMinutes(sources.$4),
-    ),
+  GoalFailure? firstFailure;
+  Future<T> load<T>(String stage, Future<T> source) async {
+    final clock = Stopwatch()..start();
+    operationDiagnostic('quest', stage, 'start', clock);
+    try {
+      final result = await source.timeout(const Duration(seconds: 15));
+      operationDiagnostic('quest', stage, 'success', clock);
+      return result;
+    } catch (error) {
+      final failure = GoalFailure.at(error, stage);
+      firstFailure ??= failure;
+      operationDiagnostic('quest', stage, 'error', clock, code: failure.code);
+      throw failure;
+    }
+  }
+
+  final existing = await load(
+    'quest-read',
+    ref.watch(dailyQuestProvider(key).future),
   );
+  if (existing != null || !ref.mounted) return;
+  try {
+    final sources = await (
+      load('goals-read', ref.watch(goalsProvider.future)),
+      load('meals-read', ref.watch(mealLogsProvider(day).future)),
+      load('water-read', ref.watch(waterLogsProvider(key).future)),
+      load('activity-read', ref.watch(activityLogsProvider(key).future)),
+    ).wait;
+    if (!ref.mounted) return;
+    await repository.ensureQuest(
+      user.uid,
+      suggestQuest(
+        day: day,
+        goals: sources.$1,
+        mealCount: sources.$2.length,
+        waterMl: totalWaterMl(sources.$3),
+        activityMinutes: totalActivityMinutes(sources.$4),
+      ),
+    );
+  } catch (error) {
+    throw firstFailure ??
+        (error is GoalFailure ? error : GoalFailure.at(error, 'quest-create'));
+  }
 }, retry: (_, _) => null);
 
 final goalActionsProvider = NotifierProvider<GoalActions, AsyncValue<void>>(
@@ -79,9 +104,11 @@ final goalActionsProvider = NotifierProvider<GoalActions, AsyncValue<void>>(
 );
 
 class GoalActions extends Notifier<AsyncValue<void>> {
+  int _generation = 0;
   @override
   AsyncValue<void> build() {
     ref.watch(authSessionProvider.select((s) => s.value?.uid));
+    _generation++;
     return const AsyncData(null);
   }
 
@@ -89,8 +116,10 @@ class GoalActions extends Notifier<AsyncValue<void>> {
     if (!state.isLoading) state = const AsyncData(null);
   }
 
-  Future<bool> save(GoalDraft draft, {String? id}) =>
-      _perform((repo, uid) => repo.saveGoal(uid, draft, id: id));
+  Future<bool> save(GoalDraft draft, {String? id, bool create = false}) =>
+      _perform(
+        (repo, uid) => repo.saveGoal(uid, draft, id: id, create: create),
+      );
   Future<bool> delete(String id) =>
       _perform((repo, uid) => repo.deleteGoal(uid, id));
   Future<bool> finish(String key, QuestStatus status) =>
@@ -103,15 +132,20 @@ class GoalActions extends Notifier<AsyncValue<void>> {
     final uid = ref.read(authSessionProvider).value?.uid;
     if (uid == null) return false;
     final repository = ref.read(goalsRepositoryProvider);
+    final generation = _generation;
+    bool current() =>
+        ref.mounted &&
+        _generation == generation &&
+        ref.read(authSessionProvider).value?.uid == uid;
     state = const AsyncLoading();
     try {
       await action(repository, uid);
-      if (ref.mounted && ref.read(authSessionProvider).value?.uid == uid) {
+      if (current()) {
         state = const AsyncData(null);
       }
-      return true;
+      return current();
     } catch (e, stack) {
-      if (ref.mounted && ref.read(authSessionProvider).value?.uid == uid) {
+      if (current()) {
         state = AsyncError(e is GoalFailure ? e : const GoalFailure(), stack);
       }
       return false;

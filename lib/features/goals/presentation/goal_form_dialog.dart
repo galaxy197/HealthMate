@@ -11,12 +11,14 @@ class GoalFormDialog extends StatefulWidget {
     required this.onSave,
     this.goal,
     this.currentWeightKg,
+    this.errorMessage,
     super.key,
   });
   final DateTime today;
   final Future<bool> Function(GoalDraft) onSave;
   final TrackingGoal? goal;
   final double? currentWeightKg;
+  final String? Function()? errorMessage;
   @override
   State<GoalFormDialog> createState() => _GoalFormDialogState();
 }
@@ -103,119 +105,132 @@ class _GoalFormDialogState extends State<GoalFormDialog> {
     }
     setState(() {
       _saving = false;
-      _error = 'Chưa thể lưu. Thông tin bạn nhập vẫn được giữ; hãy thử lại.';
+      final detail = widget.errorMessage?.call() ?? 'Chưa thể lưu.';
+      _error = '$detail Thông tin bạn nhập vẫn được giữ; hãy thử lại.';
     });
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.goal == null ? 'Thêm mục tiêu' : 'Sửa mục tiêu'),
-    content: SizedBox(
-      width: 440,
-      child: AbsorbPointer(
-        absorbing: _saving,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<GoalType>(
-                key: const ValueKey('goal-type'),
-                initialValue: _type,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Loại mục tiêu'),
-                items: [
-                  for (final type in GoalType.values)
-                    DropdownMenuItem(value: type, child: Text(type.label)),
-                ],
-                onChanged: widget.goal != null
-                    ? null
-                    : (type) => setState(() {
-                        _type = type!;
-                        _target.clear();
-                        _error = null;
-                      }),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                _type == GoalType.weight
-                    ? 'Theo dõi thay đổi từ cân nặng ban đầu. Bạn tự chọn mức và thời hạn phù hợp.'
-                    : 'Mức bạn tự chọn cho mỗi ngày trong thời hạn. Không phải khuyến nghị sức khỏe cá nhân.',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                key: const ValueKey('goal-target'),
-                controller: _target,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_saving,
+    child: AlertDialog(
+      title: Text(widget.goal == null ? 'Thêm mục tiêu' : 'Sửa mục tiêu'),
+      content: SizedBox(
+        width: 440,
+        child: AbsorbPointer(
+          absorbing: _saving,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_saving)
+                  const Text(
+                    'Đang chờ máy chủ xác nhận. Không gửi lặp khi chưa có kết quả.',
+                  ),
+                DropdownButtonFormField<GoalType>(
+                  key: const ValueKey('goal-type'),
+                  initialValue: _type,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Loại mục tiêu'),
+                  items: [
+                    for (final type in GoalType.values)
+                      DropdownMenuItem(value: type, child: Text(type.label)),
+                  ],
+                  onChanged: widget.goal != null
+                      ? null
+                      : (type) => setState(() {
+                          _type = type!;
+                          _target.clear();
+                          _error = null;
+                        }),
                 ),
-                decoration: InputDecoration(
-                  labelText: 'Giá trị (${_type.unit})',
-                  helperText:
-                      '${_type.min.toInt()}–${_type.max.toInt()} ${_type.unit}',
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  _type == GoalType.weight
+                      ? 'Theo dõi thay đổi từ cân nặng ban đầu. Bạn tự chọn mức và thời hạn phù hợp.'
+                      : 'Mức bạn tự chọn cho mỗi ngày trong thời hạn. Không phải khuyến nghị sức khỏe cá nhân.',
                 ),
-              ),
-              if (_type == GoalType.weight) ...[
                 const SizedBox(height: AppSpacing.md),
                 TextField(
-                  key: const ValueKey('goal-baseline'),
-                  controller: _baseline,
-                  enabled: widget.goal == null,
+                  key: const ValueKey('goal-target'),
+                  controller: _target,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Cân nặng ban đầu (kg)',
+                  decoration: InputDecoration(
+                    labelText: 'Giá trị (${_type.unit})',
+                    helperText:
+                        '${_type.min.toInt()}–${_type.max.toInt()} ${_type.unit}',
                   ),
                 ),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              OutlinedButton(
-                onPressed: () => _pick(true),
-                child: Text(
-                  'Bắt đầu: ${DateFormat('dd/MM/yyyy').format(_start)}',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              OutlinedButton(
-                onPressed: () => _pick(false),
-                child: Text(
-                  'Kết thúc: ${DateFormat('dd/MM/yyyy').format(_end)}',
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              DropdownButtonFormField<GoalStatus>(
-                initialValue: _status,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Trạng thái'),
-                items: [
-                  for (final status in GoalStatus.values)
-                    DropdownMenuItem(value: status, child: Text(status.label)),
+                if (_type == GoalType.weight) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    key: const ValueKey('goal-baseline'),
+                    controller: _baseline,
+                    enabled: widget.goal == null,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Cân nặng ban đầu (kg)',
+                    ),
+                  ),
                 ],
-                onChanged: (value) => setState(() => _status = value!),
-              ),
-              if (_error != null) ...[
                 const SizedBox(height: AppSpacing.md),
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                OutlinedButton(
+                  onPressed: () => _pick(true),
+                  child: Text(
+                    'Bắt đầu: ${DateFormat('dd/MM/yyyy').format(_start)}',
+                  ),
                 ),
+                const SizedBox(height: AppSpacing.sm),
+                OutlinedButton(
+                  onPressed: () => _pick(false),
+                  child: Text(
+                    'Kết thúc: ${DateFormat('dd/MM/yyyy').format(_end)}',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<GoalStatus>(
+                  initialValue: _status,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Trạng thái'),
+                  items: [
+                    for (final status in GoalStatus.values)
+                      DropdownMenuItem(
+                        value: status,
+                        child: Text(status.label),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _status = value!),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          key: const ValueKey('save-goal'),
+          onPressed: _saving ? null : _submit,
+          child: Text(_saving ? 'Đang lưu…' : 'Lưu mục tiêu'),
+        ),
+      ],
     ),
-    actions: [
-      TextButton(
-        onPressed: _saving ? null : () => Navigator.pop(context),
-        child: const Text('Hủy'),
-      ),
-      FilledButton(
-        key: const ValueKey('save-goal'),
-        onPressed: _saving ? null : _submit,
-        child: Text(_saving ? 'Đang lưu…' : 'Lưu mục tiêu'),
-      ),
-    ],
   );
 }

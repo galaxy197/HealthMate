@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/local_date_key.dart';
 import '../../../core/widgets/feature_page.dart';
+import '../../../core/widgets/confirmed_save.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../activity/models/activity_log.dart';
 import '../../activity/presentation/activity_log_dialog.dart';
 import '../../activity/presentation/activity_log_section.dart';
@@ -36,26 +38,40 @@ class JournalScreen extends ConsumerWidget {
     DateTime? initialConsumedAt,
     MealLog? duplicateFrom,
   }) async {
+    final uid = ref.read(authSessionProvider).value?.uid;
     final draft = await showDialog<MealDraft>(
       context: context,
-      builder: (_) => MealFormDialog(
-        catalog: catalog,
-        recentItems: ref.read(recentMealItemsProvider).value ?? const [],
-        meal: meal,
-        initialConsumedAt: initialConsumedAt,
-        initialType: duplicateFrom?.type,
-        initialItems: duplicateFrom?.items ?? const [],
-        suggestedFood: suggestedFood,
-        initialSearch: initialSearch,
-        aiAssisted: aiAssisted,
+      barrierDismissible: false,
+      builder: (_) => AccountBoundDialog(
+        child: MealFormDialog(
+          catalog: catalog,
+          recentItems: ref.read(recentMealItemsProvider).value ?? const [],
+          meal: meal,
+          initialConsumedAt: initialConsumedAt,
+          initialType: duplicateFrom?.type,
+          initialItems: duplicateFrom?.items ?? const [],
+          suggestedFood: suggestedFood,
+          initialSearch: initialSearch,
+          aiAssisted: aiAssisted,
+          onSave: (draft) {
+            if (!context.mounted ||
+                ref.read(authSessionProvider).value?.uid != uid) {
+              return Future.value(false);
+            }
+            final controller = ref.read(nutritionControllerProvider.notifier);
+            return meal == null
+                ? controller.addMeal(draft)
+                : controller.updateMeal(mealId: meal.id, draft: draft);
+          },
+        ),
       ),
     );
-    if (draft == null || !context.mounted) return;
-    final controller = ref.read(nutritionControllerProvider.notifier);
-    final saved = meal == null
-        ? await controller.addMeal(draft)
-        : await controller.updateMeal(mealId: meal.id, draft: draft);
-    if (saved && context.mounted) {
+    if (draft == null ||
+        !context.mounted ||
+        ref.read(authSessionProvider).value?.uid != uid) {
+      return;
+    }
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -161,16 +177,33 @@ class JournalScreen extends ConsumerWidget {
     DateTime selectedDate, {
     WaterLog? log,
   }) async {
+    final uid = ref.read(authSessionProvider).value?.uid;
     final draft = await showDialog<WaterLogDraft>(
       context: context,
-      builder: (_) => WaterLogDialog(selectedDate: selectedDate, log: log),
+      barrierDismissible: false,
+      builder: (_) => AccountBoundDialog(
+        child: WaterLogDialog(
+          selectedDate: selectedDate,
+          log: log,
+          onSave: (draft) {
+            if (!context.mounted ||
+                ref.read(authSessionProvider).value?.uid != uid) {
+              return Future.value(false);
+            }
+            final controller = ref.read(waterControllerProvider.notifier);
+            return log == null
+                ? controller.add(draft)
+                : controller.update(log.id, draft);
+          },
+        ),
+      ),
     );
-    if (draft == null || !context.mounted) return;
-    final controller = ref.read(waterControllerProvider.notifier);
-    final saved = log == null
-        ? await controller.add(draft)
-        : await controller.update(log.id, draft);
-    if (saved && context.mounted) {
+    if (draft == null ||
+        !context.mounted ||
+        ref.read(authSessionProvider).value?.uid != uid) {
+      return;
+    }
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -187,16 +220,33 @@ class JournalScreen extends ConsumerWidget {
     DateTime selectedDate, {
     ActivityLog? log,
   }) async {
+    final uid = ref.read(authSessionProvider).value?.uid;
     final draft = await showDialog<ActivityLogDraft>(
       context: context,
-      builder: (_) => ActivityLogDialog(selectedDate: selectedDate, log: log),
+      barrierDismissible: false,
+      builder: (_) => AccountBoundDialog(
+        child: ActivityLogDialog(
+          selectedDate: selectedDate,
+          log: log,
+          onSave: (draft) {
+            if (!context.mounted ||
+                ref.read(authSessionProvider).value?.uid != uid) {
+              return Future.value(false);
+            }
+            final controller = ref.read(activityControllerProvider.notifier);
+            return log == null
+                ? controller.add(draft)
+                : controller.update(log.id, draft);
+          },
+        ),
+      ),
     );
-    if (draft == null || !context.mounted) return;
-    final controller = ref.read(activityControllerProvider.notifier);
-    final saved = log == null
-        ? await controller.add(draft)
-        : await controller.update(log.id, draft);
-    if (saved && context.mounted) {
+    if (draft == null ||
+        !context.mounted ||
+        ref.read(authSessionProvider).value?.uid != uid) {
+      return;
+    }
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

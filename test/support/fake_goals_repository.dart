@@ -34,11 +34,19 @@ class FakeGoalsRepository implements GoalsRepository {
   Stream<DailyQuest?> watchQuest(String uid, String dateKey) =>
       _stream(() => quests['$uid/$dateKey']);
   @override
-  Future<void> saveGoal(String uid, GoalDraft draft, {String? id}) async {
+  String newGoalId() => 'goal-${++_sequence}';
+  @override
+  Future<void> saveGoal(
+    String uid,
+    GoalDraft draft, {
+    String? id,
+    bool create = false,
+  }) async {
     if (failSave) throw const GoalFailure();
     final error = draft.validate();
     if (error != null) throw GoalFailure(error);
     final list = goals.putIfAbsent(uid, () => []);
+    if (create && list.any((g) => g.id == id)) return;
     final goal = TrackingGoal(id: id ?? 'goal-${++_sequence}', draft: draft);
     list.removeWhere((g) => g.id == goal.id);
     list.add(goal);

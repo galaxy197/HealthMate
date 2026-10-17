@@ -251,6 +251,13 @@ class FirebaseNutritionRepository implements NutritionRepository {
             ),
             sourceLabel: item['sourceLabel'] as String? ?? '',
             isEstimated: item['isEstimated'] as bool? ?? true,
+            hasNutritionData: [
+              'grams',
+              'kcal',
+              'proteinG',
+              'carbsG',
+              'fatG',
+            ].every((key) => item[key] is num && (item[key] as num).isFinite),
           ),
         )
         .toList(growable: false);

@@ -20,14 +20,19 @@ final waterLogsProvider = StreamProvider.autoDispose
         return;
       }
       yield* ref.watch(waterRepositoryProvider).watchLogs(user.uid, dateKey);
-    });
+    }, retry: (_, _) => null);
 
 final waterControllerProvider =
     NotifierProvider<WaterController, AsyncValue<void>>(WaterController.new);
 
 class WaterController extends Notifier<AsyncValue<void>> {
+  int _generation = 0;
   @override
-  AsyncValue<void> build() => const AsyncData(null);
+  AsyncValue<void> build() {
+    ref.watch(authSessionProvider.select((s) => s.value?.uid));
+    _generation++;
+    return const AsyncData(null);
+  }
 
   void clearError() {
     if (!state.isLoading) state = const AsyncData(null);
@@ -57,13 +62,19 @@ class WaterController extends Notifier<AsyncValue<void>> {
       );
       return false;
     }
+    final generation = _generation;
+    bool current() =>
+        ref.mounted &&
+        generation == _generation &&
+        ref.read(authSessionProvider).value?.uid == user.uid;
     state = const AsyncLoading();
     try {
       await operation(user);
-      if (ref.mounted) state = const AsyncData(null);
+      if (!current()) return false;
+      state = const AsyncData(null);
       return true;
     } catch (error, stack) {
-      if (ref.mounted) {
+      if (current()) {
         state = AsyncError(
           error is DailyLogFailure
               ? error
