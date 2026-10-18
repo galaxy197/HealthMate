@@ -7,12 +7,14 @@ class FeaturePage extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.children,
+    this.compactHeader = false,
     super.key,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> children;
+  final bool compactHeader;
 
   @override
   Widget build(BuildContext context) {
@@ -26,38 +28,50 @@ class FeaturePage extends StatelessWidget {
                 maxWidth: AppSpacing.contentWidth,
               ),
               child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
+                padding: EdgeInsets.all(
+                  compactHeader ? AppSpacing.md : AppSpacing.lg,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.spa_rounded,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Flexible(
-                          child: Text(
-                            'HealthMate',
-                            style: theme.textTheme.titleMedium,
+                    if (!compactHeader)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.spa_rounded,
+                            color: theme.colorScheme.primary,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
+                          const SizedBox(width: AppSpacing.sm),
+                          Flexible(
+                            child: Text(
+                              'HealthMate',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (!compactHeader) const SizedBox(height: AppSpacing.xl),
                     Semantics(
                       header: true,
-                      child: Text(title, style: theme.textTheme.headlineLarge),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                      child: Text(
+                        title,
+                        style: compactHeader
+                            ? theme.textTheme.headlineSmall
+                            : theme.textTheme.headlineLarge,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    SizedBox(
+                      height: compactHeader ? AppSpacing.sm : AppSpacing.lg,
+                    ),
                     ...children,
                     const SizedBox(height: AppSpacing.xl),
                     const HealthDisclaimer(),

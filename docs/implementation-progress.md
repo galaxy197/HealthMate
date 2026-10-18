@@ -1560,3 +1560,66 @@ Chi tiết tại [core-scope.md](core-scope.md), schema tại database-design.md
   thử trên máy thật (ngày/mục tiêu cũ, lưu/offline/UID, keyboard/safe-area, font
   100/150/200%, sáng/tối/vuốt chart). Chi tiết bằng chứng và lỗi đã sửa tại
   docs/test-report.md/core-scope.md phần C6. Dừng C6, không mở giai đoạn khác.
+
+## U1 — UX Nhật ký/Tiến độ + chuẩn bị Firebase (18/10/2026)
+
+- Local hoàn thành; production chưa deploy/nghiệm thu. Base main/fd2f72b, code
+  U1 để working tree review, chưa commit/push. Không U2/billing/migration/AI.
+- Nhật ký có overview kcal/macros/mục tiêu đúng ngày, trạng thái tải/lỗi độc lập;
+  mục tiêu lỗi không chặn ghi, thiếu không tự điền số. Details sheet gắn UID.
+  Header gọn, bữa/nút+ theo ngày chọn xuất hiện sớm; nước/vận động vẫn CRUD thật
+  bên dưới, global+ vẫn hôm nay. Không gộp/xóa MealLog cũ.
+- Tiến độ ưu tiên khoảng tuần/tổng/biểu đồ; hướng dẫn và lịch sử ngày mở khi cần.
+  Giữ số ngày ghi/mẫu số, mục tiêu lịch sử, trọng số timestamp, query/vòng đời;
+  target lỗi có retry ngoài vùng đóng. Không tạo aggregate/listener mới.
+- File chính: FeaturePage; JournalScreen + journal_nutrition_overview mới;
+  MealLogSection; ProgressScreen/WeeklyReflectionCard;21test mới trong u1_ux_test;
+  finder/scroll/expand test cũ và native core_acceptance; tool inspect GET/backup;
+  README/core-scope/test-report/firebase-deployment-plan và gallery docs/ux/u1.
+- Baseline349/349pass36s; final format180file0đổi, analyze sạch43,8s,
+  Flutter370/370pass64s, catalog7/7, Rules47/47 + SDK14/14pass24s. Android E2E
+  API30/QA AVD/backend demo đủ10core + viewport/Gần đây pass164s.
+- Viewport390×844/100%/sáng-tối/đủ macro/offset0: addBreakfast1319→497dp,
+  toàn bộ nút đến545<748dp; chart888→362dp. Gần đây5bấm, không search; cuộn1→0.
+  8ảnh trước/sau/JSON +2native ở docs/ux/u1.12matrix360/412×100/150/200%×2theme,
+  keyboard260dp không che Lưu. Không ép chữ lớn đạt viewport100%.
+- APK lib/main.dart debug ARM64 build39,6s:
+  D:\HealthMateMaintenanceQA\HealthMate-U1-debug-arm64.apk (150690083bytes).
+  Source copy D khớp217file; gradle.properties tạm override đã khôi phục. QA AVD
+  đã tắt; không clear/wipe phiên thật. build/app cũ được giữ ở D:\HealthMateMaintenanceQA\
+  archived-project-build-app-20261018 do C gần đầy; không mất source/APK C6.
+- Rules/index không đổi; review47Rules/14SDK gồm ownership/schema/snapshot/cleanup.
+  GET metadata19:12:59UTC+07 vẫn13/10/hash0b7a11…khác locald33e01…;
+ 7nhóm core chưa có create/update;2indexes READY. Tool/read-only backup và
+  playbook đúng project/default DB/rollback đã chuẩn bị, chưa deploy/rollback.
+- Còn QA điện thoại thật/Play Integrity/release/production. KGP warning và
+  AVD Impeller/SwiftShader uniform warning được ghi rõ, ảnh/native E2E đã xem/pass.
+  Bước sau chỉ đề xuất U2 khi được giao rõ, không tự làm.
+
+## U2 — Triển khai Rules và nghiệm thu SDK production (18/10/2026)
+
+- Chủ sản phẩm yêu cầu hoàn tất file UX/Firebase và cho phép đúng hai tài khoản
+  QA tổng hợp; chỉ dọn dữ liệu QA. Base main/fd2f72b; giữ toàn bộ working tree U1,
+  chưa stage/commit/push. Không đổi nghiệp vụ, schema, Rules source hoặc indexes.
+- Backup source/metadata/config rollback trước deploy tại
+  D:\HealthMateMaintenanceQA\u2-before-20261018-193138; bản copy được đối chiếu.
+  Chạy lại 47/47 Rules + 14/14 SDK emulator, exit 0 (SDK 20 giây).
+- Deploy đúng `firebase deploy --only firestore:rules --project healthmate-app-20261013`,
+  exit 0. Release 2026-10-18T12:33:45.507953Z, ruleset 423ff6c8-79b7-4158-ba4f-2de9871a715d;
+  GET sau deploy và cuối QA cùng hash LF-trim d33e017ecc4ca63ef1068ec55ab3ff732df0430492e57fcbfee6b4a89b796877,
+  matchesLocal=true; hai composite nước/vận động READY. Không deploy index/rollback.
+- Harness opt-in test/firebase_production_qa.dart và runner tool/test_production_qa.ps1:
+  named Firebase apps QA A/B/guest, không default session/Admin SDK/emulator;
+  email QA cố định, retry không tạo thêm tài khoản, credentials ngoài repo/ACL riêng.
+- SDK production Chrome đạt 1 scenario / 10 checkpoint trong 27 giây, cả teardown:
+  onboarding, mục tiêu lịch sử, favorite/custom/recipe, meal snapshot sau sửa/xóa
+  nguồn, scale/copy ngày, daily queries/index, Goal/Quest, logout/login và offline
+  3 giây/reconnect/retry cùng ID. 50 yêu cầu B/guest read/query/write/delete A bị
+  chặn. Dọn/xác minh dữ liệu Firestore hai QA, A cleanup giữ B; giữ hai Auth QA.
+- Format 180 file, 0 đổi; analyze final sạch 6,7 giây (lượt đầu có unnecessary
+  dart:async ở harness mới, đã bỏ). Không thay app code sau U1; dùng kết quả U1
+  370 Flutter / 7 catalog / Android E2E / APK đã ghi, không ghi thành lần chạy U2.
+- Metadata/log không credential tại docs/firebase/u2; README/core-scope/test-report/
+  deployment-plan cập nhật trạng thái hiện hành. Không đổi App Check/billing/AI,
+  seed/migrate hoặc dữ liệu thật. Chưa kiểm chứng Android UI production/máy thật,
+  Play Integrity, release signing. Hoàn tất U1/U2 trong file, dừng phạm vi này.

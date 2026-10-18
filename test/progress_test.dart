@@ -43,6 +43,14 @@ Future<void> openProgress(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> openDailyDetails(WidgetTester tester) async {
+  final tile = find.byType(ExpansionTile).first;
+  await Scrollable.ensureVisible(tester.element(tile), alignment: .2);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Chi tiết từng ngày / Mục tiêu'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUpAll(() async {
     final fonts = FontLoader('BeVietnamPro');
@@ -134,10 +142,8 @@ void main() {
       );
       expect(n.rangeCalls, 0);
       await openProgress(tester);
-      expect(
-        find.textContaining('600 kcal · Đạm 60 g · Tinh bột 120 g · Béo 30 g'),
-        findsOneWidget,
-      );
+      expect(find.text('600 kcal đã ghi'), findsOneWidget);
+      expect(find.text('Đạm 60 g · Tinh bột 120 g · Béo 30 g'), findsOneWidget);
       expect(
         find.textContaining('Nước: 750 ml · Vận động: 25 phút'),
         findsOneWidget,
@@ -146,6 +152,7 @@ void main() {
         find.textContaining('Trung bình trên 2 ngày có ghi bữa: 300 kcal/ngày'),
         findsOneWidget,
       );
+      await openDailyDetails(tester);
       expect(find.text('Chưa đặt mục tiêu cho ngày này.'), findsOneWidget);
       expect(
         find.text('Mục tiêu: 1800 kcal · Chưa đặt macro'),
@@ -211,6 +218,7 @@ void main() {
     expect(find.textContaining('Mới có một lần cân; chưa đủ'), findsOneWidget);
     expect(find.textContaining('Trung bình trên'), findsNothing);
     expect(find.textContaining('Chênh lệch lần cuối'), findsNothing);
+    await openDailyDetails(tester);
     expect(find.text('Chưa đặt mục tiêu cho ngày này.'), findsNWidgets(7));
   });
 
@@ -234,7 +242,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('nav-progress')));
       await tester.pump();
       await tester.pump();
-      expect(find.textContaining('600 kcal · Đạm'), findsOneWidget);
+      expect(find.text('600 kcal đã ghi'), findsOneWidget);
       expect(find.text('Chưa đặt mục tiêu cho ngày này.'), findsNothing);
       t.failRead = true;
       gate.complete();
@@ -243,10 +251,11 @@ void main() {
         find.textContaining('Chưa tải được mục tiêu tuần.'),
         findsOneWidget,
       );
-      expect(find.textContaining('600 kcal · Đạm'), findsOneWidget);
+      expect(find.text('600 kcal đã ghi'), findsOneWidget);
       t.failRead = false;
       await tapVisible(tester, 'retry-week-targets');
       await tester.pumpAndSettle();
+      await openDailyDetails(tester);
       expect(find.text('Chưa đặt mục tiêu cho ngày này.'), findsNWidgets(7));
       expect(t.rangeCalls, 2);
       expect(n.rangeCalls, 1);
@@ -289,7 +298,7 @@ void main() {
       gate.complete();
       await tester.pumpAndSettle();
       expect(find.text('14/12/2026 – 20/12/2026'), findsOneWidget);
-      expect(find.textContaining('600 kcal · Đạm'), findsNothing);
+      expect(find.text('600 kcal đã ghi'), findsNothing);
       expect(n.rangeCalls, 3);
       await tester.tap(find.byKey(const ValueKey('nav-profile')));
       await tester.pumpAndSettle();
@@ -342,6 +351,7 @@ void main() {
     gate.complete();
     await tester.pumpAndSettle();
     expect(find.textContaining('7777'), findsNothing);
+    await openDailyDetails(tester);
     expect(find.text('Chưa đặt mục tiêu cho ngày này.'), findsNWidgets(7));
     expect(tester.takeException(), isNull);
   });

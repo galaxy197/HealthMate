@@ -25,6 +25,7 @@ import 'package:healthmate/features/food_library/models/food_library_models.dart
 import 'package:healthmate/features/food_library/providers/favorite_food_providers.dart';
 import 'package:healthmate/features/food_library/providers/food_library_providers.dart';
 import 'package:healthmate/features/nutrition/data/firebase_nutrition_repository.dart';
+import 'package:healthmate/features/nutrition/models/nutrition_models.dart';
 import 'package:healthmate/features/nutrition/providers/nutrition_providers.dart';
 import 'package:healthmate/features/nutrition/presentation/meal_form_dialog.dart';
 import 'package:healthmate/features/nutrition_targets/data/firebase_nutrition_target_repository.dart';
@@ -297,6 +298,9 @@ void main() {
       container.invalidate(nutritionTargetProvider);
       await tap(tester, keyed('edit-nutrition-target-${localDateKey(_today)}'));
       await enter(tester, 'target-kcal', '2000');
+      await enter(tester, 'target-protein', '100');
+      await enter(tester, 'target-carbs', '275');
+      await enter(tester, 'target-fat', '60');
       await tap(tester, keyed('save-target'));
       await waitFor(tester, keyed('target-kcal'), absent: true);
       expect(
@@ -311,6 +315,17 @@ void main() {
 
       await tap(tester, keyed('nav-journal'));
       await waitFor(tester, keyed('add-meal-lunch'));
+      await waitFor(tester, find.text('0 kcal / 2000 kcal'));
+      // Native first viewport proof: no reveal/ensureVisible before measuring.
+      final journalViewport = tester.getRect(
+        find.byType(CustomScrollView).first,
+      );
+      final breakfastAdd = tester.getRect(keyed('add-meal-breakfast'));
+      expect(breakfastAdd.top, greaterThanOrEqualTo(journalViewport.top));
+      expect(breakfastAdd.bottom, lessThanOrEqualTo(journalViewport.bottom));
+      expect(keyed('add-meal-breakfast').hitTestable(), findsOneWidget);
+      debugPrint('U1_VIEWPORT journal add=$breakfastAdd body=$journalViewport');
+      await capture('c6-u1-journal-first-viewport');
       await tap(tester, keyed('add-meal-lunch'));
       await waitFor(tester, keyed('catalog-food-$_catalogId'));
       await tap(tester, find.byTooltip('Thêm Cơm fixture C6'));
@@ -358,10 +373,7 @@ void main() {
       expect(copies.single.totals.kcal, 260);
       expect(copies.single.id, isNot(sourceId));
       await tap(tester, keyed('journal-previous-day'));
-      await waitFor(
-        tester,
-        find.textContaining('Năng lượng đã ghi / mục tiêu: 260 / 1800'),
-      );
+      await waitFor(tester, find.text('260 kcal / 1800 kcal'));
       await capture('c6-01-journal-history');
       await checkpoint('04-edit-copy-selected-day');
 
@@ -393,6 +405,14 @@ void main() {
         tester,
         find.textContaining('Nước: 350 ml · Vận động: 25 phút'),
       );
+      final progressViewport = tester.getRect(
+        find.byType(CustomScrollView).first,
+      );
+      final chart = tester.getRect(keyed('weekly-chart'));
+      expect(chart.top, lessThan(progressViewport.bottom));
+      expect(keyed('weekly-range').hitTestable(), findsOneWidget);
+      expect(keyed('weekly-kcal-summary').hitTestable(), findsOneWidget);
+      debugPrint('U1_VIEWPORT progress chart=$chart body=$progressViewport');
       await capture('c6-02-progress');
       await checkpoint('05-water-activity-weight-progress');
 
@@ -526,6 +546,28 @@ void main() {
       );
       await checkpoint('08-offline-draft-retry-target-history');
 
+      await tap(tester, keyed('nav-journal'));
+      await tap(tester, keyed('add-meal-breakfast'));
+      await tap(tester, find.widgetWithText(ChoiceChip, 'Gần đây'));
+      await waitFor(tester, find.byTooltip('Dùng lại Cơm fixture C6'));
+      await tap(tester, find.byTooltip('Dùng lại Cơm fixture C6'));
+      await tap(tester, find.widgetWithText(FilledButton, 'Xác nhận'));
+      await tap(tester, keyed('save-meal'));
+      await waitFor(tester, find.byType(MealFormDialog), absent: true);
+      final repeated = await nutrition.loadRange(
+        alice,
+        _today,
+        DateTime(_today.year, _today.month, _today.day + 1),
+      );
+      expect(repeated.length, 3);
+      final breakfast = repeated.singleWhere(
+        (m) => m.type == MealType.breakfast,
+      );
+      expect(breakfast.items.single.grams, 200);
+      expect(breakfast.totals.kcal, 260);
+      expect(breakfast.dateKey, localDateKey(_today));
+      debugPrint('U1_RECENT repeated through 5 existing taps, no typed search');
+
       await profileRoot();
       await tap(tester, find.widgetWithText(ChoiceChip, 'Tối'));
       tester.platformDispatcher.textScaleFactorTestValue = 2;
@@ -569,6 +611,7 @@ void main() {
         'checkpoints': 10,
         'android': true,
         'production': false,
+        'u1ViewportAndRecent': true,
       };
     },
     timeout: const Timeout(Duration(minutes: 12)),

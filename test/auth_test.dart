@@ -203,7 +203,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(auth.lastEmail, 'member@example.com');
       expect(auth.lastPassword, ' password with spaces ');
-      expect(find.text('Nhật ký của bạn'), findsOneWidget);
+      expect(find.byKey(const ValueKey('journal-screen')), findsOneWidget);
     },
   );
 

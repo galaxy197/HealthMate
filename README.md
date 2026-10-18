@@ -4,7 +4,23 @@
 Android là nền tảng chính;
 web phục vụ xem và kiểm tra giao diện trong quá trình phát triển.
 
-## Phạm vi hiện tại — Core C6
+## Phạm vi hiện tại — Core C6, UX U1 và Firebase U2
+
+U1 thu gọn Nhật ký thành một overview kcal/macros + mục tiêu đúng ngày; nút thêm
+theo bữa hiện trong viewport đầu390×844/chữ100%. Tiến độ đưa tổng/biểu đồ lên đầu,
+chi tiết ngày và cách đọc mở khi cần. Giữ form, snapshot, ngày, retry và nghiệp vụ.
+[Ảnh trước/sau và phép đo](docs/ux/u1/README.md),
+[kế hoạch Firebase có thể review](docs/firebase-deployment-plan.md).
+U1 local:370Flutter tests,47Rules,14SDK,7catalog; Android E2E đủ10chặng và các
+kiểm tra viewport/dùng lại món mới. APK debug ARM64:
+`D:\HealthMateMaintenanceQA\HealthMate-U1-debug-arm64.apk`.
+**U2 đã hoàn tất ngày 18/10/2026:** deploy chỉ Firestore Rules, xác minh hash
+production khớp bản đã review và hai index hiện có READY. Firebase SDK production
+đạt một kịch bản gồm 10 chặng, có 50 yêu cầu guest/truy cập chéo bị từ chối.
+Đã tạo đúng hai tài khoản QA theo cho phép, dọn và xác minh dữ liệu Firestore QA;
+giữ hai tài khoản Auth. [Bằng chứng U2](docs/firebase/u2/README.md).
+Không đổi App Check/billing/indexes, không migration hoặc tác động dữ liệu thật.
+Điện thoại thật, Android production UI và bản release ký phát hành vẫn chưa nghiệm thu.
 
 Bản mặc định tập trung vào dinh dưỡng, cân nặng, nước và vận động cơ bản.
 Chatbot và Food Scanner **tạm tắt** bằng hai cờ cục bộ
@@ -34,12 +50,13 @@ Mục tiêu từng ngày lấy theo phiên bản hiệu lực; đổi mục tiê
 về ngày cũ. Chưa ghi khác với ghi 0 và ngày tương lai; dưới 2 lần cân chưa mô tả
 thay đổi. Tải báo cáo từ máy chủ khi mở/đổi tuần, có giờ tải và nút tải lại sau
 khi sửa nhật ký. Lỗi mục tiêu không che tổng nhật ký đã tải thành công.
-Rules cho nutrition_targets/favorite_foods/custom_foods/recipes đã kiểm thử local;
-GET Rules production ngày17/10/2026 vẫn thiếu các match này. Cần review và yêu cầu
-deploy riêng. C6 đã nghiệm thu local: 349 Flutter tests, 47 Rules tests, 14 Firebase
+Rules cho nutrition_targets/favorite_foods/custom_foods/recipes đã kiểm thử local
+và triển khai, xác minh trong U2 (trước U2 production còn thiếu các match này).
+C6 đã nghiệm thu local: 349 Flutter tests, 47 Rules tests, 14 Firebase
 SDK tests, 10/10 chặng E2E Android API30 trên AVD QA/backend emulator và APK debug
-ARM64 từ lib/main.dart. Production và điện thoại thật chưa nghiệm thu; chưa có
-bản release ký phát hành. Báo cáo, ảnh và giới hạn ở docs/test-report.md phần C6.
+ARM64 từ lib/main.dart. U2 bổ sung kiểm thử SDK production; điện thoại thật chưa
+nghiệm thu và chưa có bản release ký phát hành. Báo cáo theo từng đợt tại
+docs/test-report.md; các trạng thái C6/U1 bên dưới là lịch sử tại thời điểm chạy.
 C6 sửa vòng đời subscription khi đổi UID, chặn thao tác Auth trễ nhắm nhầm tài
 khoản, giữ draft hồ sơ/cân nặng khi lưu lỗi và giữ đúng thời điểm lần cân mới.
 

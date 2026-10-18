@@ -112,7 +112,7 @@ void main() {
 
         await tester.tap(find.byKey(const ValueKey('nav-journal')));
         await tester.pumpAndSettle();
-        expect(find.text('Nhật ký của bạn'), findsOneWidget);
+        expect(find.byKey(const ValueKey('journal-screen')), findsOneWidget);
         await tester.tap(find.byKey(const ValueKey('nav-profile')));
         await tester.pumpAndSettle();
         expect(find.text('Không gian cá nhân'), findsOneWidget);
@@ -151,7 +151,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('quick-action-water')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nhật ký của bạn'), findsOneWidget);
+    expect(find.byKey(const ValueKey('journal-screen')), findsOneWidget);
     expect(find.text('Thêm nước uống'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

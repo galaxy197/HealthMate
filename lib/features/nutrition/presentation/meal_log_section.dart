@@ -44,21 +44,14 @@ class MealLogSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final loadError = mealsState.error;
-    final totals = totalMealNutrition(meals);
     final integer = NumberFormat.decimalPattern('vi_VN');
-    final decimal = NumberFormat('0.0', 'vi_VN');
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Bữa ăn & dinh dưỡng', style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Giá trị được tính theo khối lượng từ danh mục tham khảo và không thay thế tư vấn chuyên môn.',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-            ),
+            Text('Bữa ăn', style: theme.textTheme.titleLarge),
             const SizedBox(height: AppSpacing.md),
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -117,17 +110,6 @@ class MealLogSection extends StatelessWidget {
               ),
             ],
             const Divider(height: AppSpacing.xl),
-            if (!mealsState.isLoading && mealsState.error == null) ...[
-              Text(
-                '${integer.format(totals.kcal.round())} kcal · '
-                'P ${decimal.format(totals.proteinG)} g · '
-                'C ${decimal.format(totals.carbsG)} g · '
-                'F ${decimal.format(totals.fatG)} g',
-                key: const ValueKey('nutrition-daily-totals'),
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
             if (mealsState.isLoading)
               const Row(
                 children: [
@@ -171,22 +153,26 @@ class MealLogSection extends StatelessWidget {
                 ),
               for (final type in MealType.values) ...[
                 const Divider(),
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
-                  runSpacing: 8,
+                Row(
                   children: [
-                    Text(
-                      type.label,
-                      style: theme.textTheme.titleMedium,
-                      key: ValueKey('meal-group-${type.name}'),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            type.label,
+                            style: theme.textTheme.titleMedium,
+                            key: ValueKey('meal-group-${type.name}'),
+                          ),
+                          Text(
+                            '${integer.format(totalMealNutrition(meals.where((meal) => meal.type == type)).kcal.round())} kcal · ${meals.where((meal) => meal.type == type).length} bản ghi',
+                          ),
+                        ],
+                      ),
                     ),
-                    Text(
-                      '${integer.format(totalMealNutrition(meals.where((meal) => meal.type == type)).kcal.round())} kcal · ${meals.where((meal) => meal.type == type).length} bản ghi',
-                    ),
-                    TextButton.icon(
+                    IconButton(
                       key: ValueKey('add-meal-${type.name}'),
+                      tooltip: 'Thêm ${type.label.toLowerCase()}',
                       onPressed:
                           action.isLoading ||
                               (onAddForType == null && onAdd == null)
@@ -195,7 +181,6 @@ class MealLogSection extends StatelessWidget {
                                 ? onAddForType!(type)
                                 : onAdd?.call(),
                       icon: const Icon(Icons.add),
-                      label: const Text('Thêm'),
                     ),
                   ],
                 ),

@@ -178,10 +178,10 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.journal);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('300 kcal · P 30,0 g · C 40,0 g · F 10,0 g'),
-      findsOneWidget,
-    );
+    expect(find.text('300 kcal / — kcal'), findsOneWidget);
+    for (final macro in ['30 / — g', '40 / — g', '10 / — g']) {
+      expect(find.text(macro), findsOneWidget);
+    }
     expect(find.text('250 ml · 0,25 lít'), findsOneWidget);
     expect(find.text('30 phút'), findsWidgets);
     expect(find.textContaining('Món yesterday'), findsNothing);
@@ -189,7 +189,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('journal-previous-day')));
     await tester.pumpAndSettle();
 
-    expect(find.text('50 kcal · P 5,0 g · C 7,0 g · F 2,0 g'), findsOneWidget);
+    expect(find.text('50 kcal / — kcal'), findsOneWidget);
+    for (final macro in ['5 / — g', '7 / — g', '2 / — g']) {
+      expect(find.text(macro), findsOneWidget);
+    }
     expect(find.text('900 ml · 0,90 lít'), findsOneWidget);
     expect(find.text('90 phút'), findsWidgets);
     expect(find.textContaining('Món today-a'), findsNothing);
@@ -197,7 +200,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('journal-previous-day')));
     await tester.pumpAndSettle();
 
-    expect(find.text('0 kcal · P 0,0 g · C 0,0 g · F 0,0 g'), findsOneWidget);
+    expect(find.text('0 kcal / — kcal'), findsOneWidget);
+    expect(find.text('0 / — g'), findsNWidgets(3));
     expect(
       find.textContaining('Chưa có bữa ăn nào trong ngày này.'),
       findsOneWidget,
@@ -252,7 +256,7 @@ void main() {
     expect(tester.takeException(), isNull, reason: 'journal');
 
     expect(find.textContaining('Chọn Thêm ở bữa để bắt đầu'), findsOneWidget);
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+    await tester.ensureVisible(find.byKey(const ValueKey('add-meal')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add-meal')));
     await tester.pumpAndSettle();
@@ -301,7 +305,7 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.journal);
     await tester.pumpAndSettle();
 
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+    await tester.ensureVisible(find.byKey(const ValueKey('scan-food')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('scan-food')));
     await tester.pumpAndSettle();

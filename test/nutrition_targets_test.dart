@@ -190,7 +190,12 @@ void main() {
       await tester.pumpAndSettle();
       repository.delayed.complete(target('2026-10-16', 900));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Áp dụng từ 2026-10-17'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('journal-nutrition-details')));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Mục tiêu áp dụng từ 2026-10-17'),
+        findsOneWidget,
+      );
       expect(find.textContaining('/ 900 kcal'), findsNothing);
     },
   );

@@ -20,7 +20,6 @@ import '../../nutrition/models/nutrition_failure.dart';
 import '../../nutrition/presentation/meal_form_dialog.dart';
 import '../../nutrition/presentation/meal_log_section.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
-import '../../nutrition_targets/presentation/nutrition_target_card.dart';
 import '../../water/models/water_log.dart';
 import '../../water/presentation/water_log_dialog.dart';
 import '../../water/presentation/water_log_section.dart';
@@ -28,7 +27,7 @@ import '../../water/providers/water_providers.dart';
 import '../providers/journal_date_provider.dart';
 import '../providers/journal_quick_action_provider.dart';
 import 'journal_date_selector.dart';
-import 'daily_summary_card.dart';
+import 'journal_nutrition_overview.dart';
 
 class JournalScreen extends ConsumerWidget {
   const JournalScreen({super.key});
@@ -382,9 +381,10 @@ class JournalScreen extends ConsumerWidget {
     });
 
     return FeaturePage(
-      title: 'Nhật ký của bạn',
-      subtitle:
-          'Ghi bữa ăn, kiểm tra khẩu phần và theo dõi dinh dưỡng theo thời gian.',
+      key: const ValueKey('journal-screen'),
+      title: 'Nhật ký',
+      subtitle: '',
+      compactHeader: true,
       children: [
         JournalDateSelector(
           date: selectedDate,
@@ -404,13 +404,7 @@ class JournalScreen extends ConsumerWidget {
               'Đang chờ máy chủ xác nhận thay đổi. Nếu mất mạng, thao tác có thể được đồng bộ khi kết nối lại; đừng gửi lặp.',
             ),
           ),
-        DailySummaryCard(
-          date: selectedDate,
-          mealsState: mealsState,
-          waterState: waterState,
-          activityState: activityState,
-        ),
-        NutritionTargetCard(day: selectedDate, meals: mealsState),
+        JournalNutritionOverview(day: selectedDate, meals: mealsState),
         const SizedBox(height: AppSpacing.md),
         MealLogSection(
           onAddForType: (type) => _openMealForm(

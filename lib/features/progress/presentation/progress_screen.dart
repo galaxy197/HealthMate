@@ -14,8 +14,8 @@ class ProgressScreen extends ConsumerWidget {
     return FeaturePage(
       key: const ValueKey('progress-screen'),
       title: 'Tiến độ',
-      subtitle:
-          'Nhìn lại số liệu đã ghi theo tuần. Giờ thiết bị: ${today.timeZoneName}.',
+      subtitle: '',
+      compactHeader: true,
       children: [WeeklyReflectionCard(today: today, progressMode: true)],
     );
   }

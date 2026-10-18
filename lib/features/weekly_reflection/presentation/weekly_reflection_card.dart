@@ -75,37 +75,47 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
     final last = DateTime(start.year, start.month, start.day + 6);
     final date = DateFormat('dd/MM/yyyy');
     final state = _expanded ? ref.watch(weeklyLogsProvider(start)) : null;
+    final targets =
+        _expanded &&
+            widget.progressMode &&
+            state != null &&
+            !state.isLoading &&
+            !state.hasError
+        ? ref.watch(weeklyNutritionTargetsProvider(start))
+        : null;
     return AppCard(
+      padding: EdgeInsets.all(widget.progressMode ? 16 : AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
-            key: const ValueKey('open-weekly-reflection'),
-            onTap: widget.progressMode
-                ? null
-                : () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: Row(
-                children: [
-                  const Icon(Icons.insights_outlined),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      widget.progressMode ? 'Tuần của bạn' : 'Nhìn lại tuần',
-                      style: Theme.of(context).textTheme.titleLarge,
+          if (!widget.progressMode)
+            InkWell(
+              key: const ValueKey('open-weekly-reflection'),
+              onTap: widget.progressMode
+                  ? null
+                  : () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                child: Row(
+                  children: [
+                    const Icon(Icons.insights_outlined),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        widget.progressMode ? 'Tuần của bạn' : 'Nhìn lại tuần',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
                     ),
-                  ),
-                  if (!widget.progressMode)
-                    Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                ],
+                    if (!widget.progressMode)
+                      Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                  ],
+                ),
               ),
             ),
-          ),
           if (!_expanded)
             const Text('Xem những gì bạn đã ghi trong tuần. Chỉ tải khi mở.'),
           if (_expanded) ...[
-            const SizedBox(height: AppSpacing.md),
+            if (!widget.progressMode) const SizedBox(height: AppSpacing.md),
             Row(
               children: [
                 IconButton(
@@ -117,6 +127,7 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                 Expanded(
                   child: Text(
                     '${date.format(start)} – ${date.format(last)}',
+                    key: const ValueKey('weekly-range'),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -131,10 +142,6 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
-            const Text(
-              'Tuần từ Thứ Hai đến Chủ nhật, theo ngày địa phương đã lưu. Ngày trống chỉ có nghĩa là chưa ghi nhận.',
-            ),
-            const SizedBox(height: AppSpacing.md),
             state!.when(
               skipLoadingOnRefresh: false,
               skipLoadingOnReload: false,
@@ -160,16 +167,6 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Cập nhật ${DateFormat('HH:mm dd/MM').format(logs.loadedAt)}. Bấm tải lại sau khi sửa nhật ký.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    TextButton.icon(
-                      key: const ValueKey('refresh-week'),
-                      onPressed: () => _refresh(start),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Tải lại báo cáo'),
-                    ),
                     if (!reflection.hasLogs) ...[
                       const Text(
                         'Chưa có nhật ký bữa ăn, nước hoặc vận động trong tuần này.',
@@ -178,48 +175,34 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                         'Trong ${reflection.eligibleDays} ngày đã tới: 0 ngày ghi bữa ăn, 0 ngày ghi nước, 0 ngày ghi vận động.',
                       ),
                     ] else ...[
-                      _ReflectionSummary(reflection: reflection),
-                      const SizedBox(height: AppSpacing.lg),
-                      DropdownButtonFormField<_ChartMetric>(
-                        initialValue: _metric,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Biểu đồ theo ngày',
-                        ),
-                        items: [
+                      _ReflectionSummary(
+                        reflection: reflection,
+                        compact: widget.progressMode,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
                           for (final metric in _ChartMetric.values)
-                            DropdownMenuItem(
-                              value: metric,
-                              child: Text(
-                                metric.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                            ChoiceChip(
+                              key: ValueKey('week-metric-${metric.name}'),
+                              selected: metric == _metric,
+                              label: Text(switch (metric) {
+                                _ChartMetric.kcal => 'Năng lượng',
+                                _ChartMetric.water => 'Nước',
+                                _ChartMetric.activity => 'Vận động',
+                              }),
+                              onSelected: (_) =>
+                                  setState(() => _metric = metric),
                             ),
                         ],
-                        onChanged: (value) => setState(() => _metric = value!),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      const Text(
-                        'Có thể vuốt ngang biểu đồ khi cỡ chữ lớn. Xem chi tiết bên dưới để phân biệt 0 đã ghi, chưa ghi và chưa tới ngày.',
                       ),
                       if (reflection.days.any(_metric.recorded))
                         _WeekChart(reflection: reflection, metric: _metric)
                       else
                         Text(
                           'Chưa có ghi nhận cho ${_metric.label.toLowerCase()} trong tuần này.',
-                        ),
-                      const SizedBox(height: AppSpacing.md),
-                      for (final day in reflection.days)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Text(
-                            '${DateFormat('EEE d/M', 'vi').format(day.date)}: ${day.isFuture
-                                ? 'Chưa tới ngày'
-                                : !_metric.recorded(day)
-                                ? 'Chưa ghi'
-                                : '${NumberFormat('0.#', 'vi').format(_metric.value(day))} ${_metric.unit} đã ghi'}',
-                          ),
                         ),
                     ],
                     const SizedBox(height: AppSpacing.lg),
@@ -230,9 +213,6 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                         'Cân nặng trong tuần',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      const Text(
-                        'Biểu đồ tối đa 12 lần cân gần nhất trong tuần; các điểm cách nhau theo ngày đo.',
-                      ),
                       WeightChart(
                         metrics: reflection.metrics.reversed.toList(),
                       ),
@@ -242,17 +222,80 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                             : 'Chênh lệch lần cuối so với lần đầu: ${NumberFormat('+0.#;-0.#', 'vi').format(reflection.weightChange)} kg. Không suy diễn nguyên nhân từ số đo.',
                       ),
                     ],
-                    for (final metric in reflection.metrics)
-                      Text(
-                        '${DateFormat('dd/MM/yyyy HH:mm').format(metric.measuredAt)} · ${NumberFormat('0.#', 'vi').format(metric.weightKg)} kg',
+                    if (targets?.isLoading == true)
+                      const Text('Đang tải mục tiêu tuần…'),
+                    if (targets?.hasError == true) ...[
+                      const Text(
+                        'Chưa tải được mục tiêu tuần. Tổng nhật ký phía trên vẫn là dữ liệu đã tải; chưa thể so sánh mục tiêu.',
                       ),
-                    if (widget.progressMode) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      _DailyTargets(start: start, reflection: reflection),
+                      TextButton(
+                        key: const ValueKey('retry-week-targets'),
+                        onPressed: () => ref.invalidate(
+                          weeklyNutritionTargetsProvider(start),
+                        ),
+                        child: const Text('Thử lại mục tiêu'),
+                      ),
                     ],
-                    const SizedBox(height: AppSpacing.md),
-                    const Text(
-                      'Tổng hợp phản ánh những gì đã ghi, không đại diện toàn bộ lượng ăn/uống hay hoạt động thực tế và không phải đánh giá sức khỏe.',
+                    ExpansionTile(
+                      key: ValueKey('week-details-${localDateKey(start)}'),
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Chi tiết từng ngày / Mục tiêu'),
+                      children: [
+                        for (final day in reflection.days)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                '${DateFormat('EEE d/M', 'vi').format(day.date)}: ${day.isFuture
+                                    ? 'Chưa tới ngày'
+                                    : !_metric.recorded(day)
+                                    ? 'Chưa ghi'
+                                    : '${NumberFormat('0.#', 'vi').format(_metric.value(day))} ${_metric.unit} đã ghi'}',
+                              ),
+                            ),
+                          ),
+                        for (final metric in reflection.metrics)
+                          Text(
+                            '${DateFormat('dd/MM/yyyy HH:mm').format(metric.measuredAt)} · ${NumberFormat('0.#', 'vi').format(metric.weightKg)} kg',
+                          ),
+                        if (targets != null &&
+                            !targets.isLoading &&
+                            !targets.hasError)
+                          _DailyTargets(state: targets, reflection: reflection),
+                      ],
+                    ),
+                    ExpansionTile(
+                      key: const ValueKey('week-reading-guide'),
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Cách đọc số liệu'),
+                      children: [
+                        Text(
+                          'Tuần từ Thứ Hai đến Chủ nhật, theo ngày địa phương đã lưu. Giờ thiết bị: ${widget.today.timeZoneName}. Ngày trống chỉ có nghĩa là chưa ghi nhận.',
+                        ),
+                        Text(
+                          'Trong ${reflection.eligibleDays} ngày đã tới: ${reflection.mealDays} ngày ghi bữa ăn, ${reflection.waterDays} ngày ghi nước, ${reflection.activityDays} ngày ghi vận động.',
+                        ),
+                        const Text(
+                          'Có thể vuốt ngang biểu đồ khi cỡ chữ lớn. Chi tiết từng ngày phân biệt 0 đã ghi, chưa ghi và chưa tới ngày. Không coi ngày thiếu nhật ký là ăn 0 kcal.',
+                        ),
+                        const Text(
+                          'Biểu đồ cân nặng tối đa 12 lần gần nhất trong tuần; điểm cách nhau theo thời điểm đo.',
+                        ),
+                        const Text(
+                          'Tổng hợp chỉ phản ánh nhật ký đã ghi, không đại diện toàn bộ lượng ăn/uống hay hoạt động thực tế và không phải đánh giá sức khỏe.',
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Cập nhật ${DateFormat('HH:mm dd/MM').format(logs.loadedAt)}. Tải lại sau khi sửa nhật ký.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    TextButton.icon(
+                      key: const ValueKey('refresh-week'),
+                      onPressed: () => _refresh(start),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tải lại báo cáo'),
                     ),
                   ],
                 );
@@ -266,8 +309,9 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
 }
 
 class _ReflectionSummary extends StatelessWidget {
-  const _ReflectionSummary({required this.reflection});
+  const _ReflectionSummary({required this.reflection, this.compact = false});
   final WeeklyReflection reflection;
+  final bool compact;
   @override
   Widget build(BuildContext context) {
     final r = reflection;
@@ -279,20 +323,33 @@ class _ReflectionSummary extends StatelessWidget {
           'Tổng đã ghi trong tuần',
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        Text(
-          '${n.format(r.nutrition.kcal)} kcal · Đạm ${n.format(r.nutrition.proteinG)} g · Tinh bột ${n.format(r.nutrition.carbsG)} g · Béo ${n.format(r.nutrition.fatG)} g',
-        ),
+        if (compact) ...[
+          Text(
+            '${n.format(r.nutrition.kcal)} kcal đã ghi',
+            key: const ValueKey('weekly-kcal-summary'),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            'Đạm ${n.format(r.nutrition.proteinG)} g · Tinh bột ${n.format(r.nutrition.carbsG)} g · Béo ${n.format(r.nutrition.fatG)} g',
+          ),
+        ] else
+          Text(
+            '${n.format(r.nutrition.kcal)} kcal · Đạm ${n.format(r.nutrition.proteinG)} g · Tinh bột ${n.format(r.nutrition.carbsG)} g · Béo ${n.format(r.nutrition.fatG)} g',
+          ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           'Nước: ${n.format(r.waterMl)} ml · Vận động: ${n.format(r.activityMinutes)} phút',
         ),
         const SizedBox(height: AppSpacing.sm),
-        Text(
-          'Trong ${r.eligibleDays} ngày đã tới: ${r.mealDays} ngày ghi bữa ăn, ${r.waterDays} ngày ghi nước, ${r.activityDays} ngày ghi vận động.',
-        ),
+        if (!compact)
+          Text(
+            'Trong ${r.eligibleDays} ngày đã tới: ${r.mealDays} ngày ghi bữa ăn, ${r.waterDays} ngày ghi nước, ${r.activityDays} ngày ghi vận động.',
+          ),
         if (r.averageKcalPerRecordedDay != null)
           Text(
-            'Trung bình trên ${r.mealDays} ngày có ghi bữa: ${n.format(r.averageKcalPerRecordedDay)} kcal/ngày. Không coi ngày thiếu nhật ký là ăn 0 kcal.',
+            'Trung bình trên ${r.mealDays} ngày có ghi bữa: ${n.format(r.averageKcalPerRecordedDay)} kcal/ngày.${compact ? '' : ' Không coi ngày thiếu nhật ký là ăn 0 kcal.'}',
           ),
       ],
     );
@@ -390,13 +447,12 @@ class _WeekChart extends StatelessWidget {
 }
 
 // Loaded once for the selected week, never a query per day.
-class _DailyTargets extends ConsumerWidget {
-  const _DailyTargets({required this.start, required this.reflection});
-  final DateTime start;
+class _DailyTargets extends StatelessWidget {
+  const _DailyTargets({required this.state, required this.reflection});
+  final AsyncValue<List<NutritionTarget>> state;
   final WeeklyReflection reflection;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(weeklyNutritionTargetsProvider(start));
+  Widget build(BuildContext context) {
     final n = NumberFormat('0.#', 'vi');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -415,20 +471,7 @@ class _DailyTargets extends ConsumerWidget {
             padding: EdgeInsets.all(16),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (_, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Chưa tải được mục tiêu tuần. Tổng nhật ký phía trên vẫn là dữ liệu đã tải; chưa thể so sánh mục tiêu.',
-              ),
-              TextButton(
-                key: const ValueKey('retry-week-targets'),
-                onPressed: () =>
-                    ref.invalidate(weeklyNutritionTargetsProvider(start)),
-                child: const Text('Thử lại mục tiêu'),
-              ),
-            ],
-          ),
+          error: (_, _) => const SizedBox.shrink(),
           data: (targets) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

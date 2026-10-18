@@ -41,7 +41,7 @@ void main() {
         (
           key: const ValueKey('nav-journal'),
           route: AppRoutes.journal,
-          title: 'Nhật ký của bạn',
+          title: 'Nhật ký',
         ),
         (
           key: const ValueKey('nav-profile'),
@@ -51,7 +51,12 @@ void main() {
       ]) {
         await tester.tap(find.byKey(destination.key));
         await tester.pumpAndSettle();
-        expect(find.text(destination.title), findsOneWidget);
+        expect(
+          destination.route == AppRoutes.journal
+              ? find.byKey(const ValueKey('journal-screen'))
+              : find.text(destination.title),
+          findsOneWidget,
+        );
         expect(
           container
               .read(appRouterProvider)
@@ -84,7 +89,7 @@ void main() {
     await pumpApp(tester);
     await tester.tap(find.byKey(const ValueKey('nav-journal')));
     await tester.pumpAndSettle();
-    expect(find.text('Nhật ký của bạn'), findsOneWidget);
+    expect(find.byKey(const ValueKey('journal-screen')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('nav-profile')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sign-out')));

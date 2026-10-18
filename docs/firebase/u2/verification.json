@@ -1,0 +1,19 @@
+{
+  "appCheckModified": false,
+  "realUserDataTouched": false,
+  "productionTest": "1 scenario, 10 checkpoints, passed, 27 seconds",
+  "phase": "U2",
+  "rulesVerified": true,
+  "androidProductionUiVerified": false,
+  "indexesDeployed": false,
+  "deployedSha256": "d33e017ecc4ca63ef1068ec55ab3ff732df0430492e57fcbfee6b4a89b796877",
+  "project": "healthmate-app-20261013",
+  "qaAuthAccountsDeleted": 0,
+  "qaAuthAccountsCreated": 2,
+  "billingModified": false,
+  "backupDirectory": "D:\\HealthMateMaintenanceQA\\u2-before-20261018-193138",
+  "rejectedUnauthorizedRequests": 50,
+  "qaFirestoreDataCleanedAndVerified": 2,
+  "baseCommit": "fd2f72bbc07c0afe62942e0b62d5e1bf0b71bb12",
+  "qaCredentialsOutsideRepository": true
+}

@@ -1,0 +1,26 @@
+00:00 +0: loading D:/HealthMateMaintenanceQA/c6-workspace/test/firebase_production_qa.dart
+00:00 +0: (setUpAll)
+00:00 +0: U2 production repositories and deployed access controls
+U2 PASS 01 two QA identities and onboarding persisted
+U2 PASS 02 target effective dates and history
+U2 PASS 03 personal food, recipe, idempotent favorites
+U2 PASS 04 recipe meal snapshot survives source edit/delete; scale/copy date
+U2 PASS 05 daily logs and production composite queries
+HM_DIAG area=goals stage=goal-save outcome=start code=none elapsedMs=0
+HM_DIAG area=goals stage=goal-save outcome=success code=none elapsedMs=81
+HM_DIAG area=goals stage=goal-save outcome=start code=none elapsedMs=0
+HM_DIAG area=goals stage=goal-save outcome=success code=none elapsedMs=68
+HM_DIAG area=goals stage=quest-create outcome=start code=none elapsedMs=0
+HM_DIAG area=goals stage=quest-create outcome=success code=none elapsedMs=82
+HM_DIAG area=goals stage=quest-finish outcome=start code=none elapsedMs=0
+HM_DIAG area=goals stage=quest-finish outcome=success code=none elapsedMs=87
+HM_DIAG area=goals stage=quest-create outcome=start code=none elapsedMs=0
+HM_DIAG area=goals stage=quest-create outcome=success code=none elapsedMs=77
+U2 PASS 06 goal and stable completed quest
+U2 PASS 07 logout/login reload
+U2 PASS 08 offline/reconnect/retry same operation ID; no duplicate
+U2 PASS 09 50 denied cross-account/guest read-query-write-delete attempts
+U2 PASS 10 QA data cleanup verified; B survives A cleanup; Auth retained
+00:23 +1: (tearDownAll)
+U2 QA cleanup verified for both accounts; Auth accounts retained.
+00:27 +1: All tests passed!

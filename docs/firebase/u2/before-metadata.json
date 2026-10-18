@@ -1,0 +1,70 @@
+{
+  "checkedAtUtc": "2026-10-18T12:31:42.485Z",
+  "project": "healthmate-app-20261013",
+  "commit": "fd2f72bbc07c0afe62942e0b62d5e1bf0b71bb12",
+  "firebaseCliVersion": "15.22.4",
+  "database": {
+    "name": "projects/healthmate-app-20261013/databases/(default)",
+    "locationId": "asia-southeast1",
+    "type": "FIRESTORE_NATIVE"
+  },
+  "releaseName": "projects/healthmate-app-20261013/releases/cloud.firestore",
+  "releaseUpdatedAt": "2026-10-13T06:25:21.345792Z",
+  "rulesetName": "projects/healthmate-app-20261013/rulesets/b83d6f60-1e9a-49b3-a3e7-239ccf0d3ee0",
+  "deployedSha256": "0b7a11a28ca4768390e12fca777157acdb269c489e4a59b5c78b8b2c9f87dade",
+  "localSha256": "d33e017ecc4ca63ef1068ec55ab3ff732df0430492e57fcbfee6b4a89b796877",
+  "matchesLocal": false,
+  "collections": {
+    "body_metrics": true,
+    "meal_logs": true,
+    "water_logs": true,
+    "activity_logs": true,
+    "nutrition_targets": false,
+    "favorite_foods": false,
+    "custom_foods": false,
+    "recipes": false,
+    "goals": false,
+    "daily_quests": false,
+    "chat_sessions": false
+  },
+  "indexes": [
+    {
+      "collectionGroup": "water_logs",
+      "state": "READY",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "dateKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "consumedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "activity_logs",
+      "state": "READY",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "dateKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "performedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ]
+}

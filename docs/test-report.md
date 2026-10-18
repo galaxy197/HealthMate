@@ -618,3 +618,221 @@ plugins còn, không tự upgrade. Xem máy thật: số ngày/mục tiêu cũ, 
 keyboard/back/safe-area,4tab, tiếng Việt, sáng/tối/font100/150/200%, offline/retry/
 đổiUID. Cleanup chỉ thử tài khoản tổng hợp trên emulator. Báo cáo tuần cần mạng/
 refresh sau sửa nhật ký; draft chỉ RAM. Dừng C6, chưa tự làm phần khác.
+
+## U1 — Nhật ký/Tiến độ và Firebase review (18/10/2026)
+
+Chỉ U1 theo file PROMPT-Agent-Cai-Thien-HealthMate-UX-Firebase.md. REPO_ROOT là
+checkout HealthMate2 hiện có, main/HEADfd2f72bbc07c0afe62942e0b62d5e1bf0b71bb12,
+working tree sạch lúc đầu. Không checkout/reset/clean/pull đè; U1 chưa commit/push,
+U2/deploy, billing, migration/seed, App Check changes hoặc AI. Flutter3.44.1,
+Dart3.12.1/Java21/Windows; TEMP/TMP D:\HealthMateMaintenanceQA\tmp.
+
+### Kết quả thực chạy
+
+| Lệnh | Kết quả U1 |
+|---|---|
+| Baseline flutter test --no-pub --reporter expanded |349/349pass36s; u1-baseline.log|
+| dart format --output=none --set-exit-if-changed lib test integration_test test_driver |180file0đổi/exit0,0,63s; u1-format-check.log|
+| flutter analyze --no-pub |No issues found43,8s; u1-analyze-final.log|
+| flutter test --no-pub --reporter expanded |370/370pass64s,0skip; u1-tests-final.log|
+| node --test tool/food_catalog.test.cjs |7/7pass273,9ms; u1-catalog.log|
+| tool/test_emulators.ps1 |47/47Rules pass19,1s +14/14Firebase SDK pass24s; u1-emulators.log|
+| tool/test_android_core.ps1 -DeviceId emulator-5560 -CrossDriveBuild |Exit0,10core checkpoints + viewport và Gần đây;164s; u1-android.log|
+| flutter build apk --debug --no-pub --target lib/main.dart --target-platform android-arm64 |Pass39,6s trên copy D; u1-build-arm64.log|
+| node --check tool/inspect_firestore_deployment.cjs |Exit0|
+| tool/inspect_firestore_deployment.ps1 |GET cấu hình/backup thành công, không deploy; u1-firebase-inspection.log và u1-firebase-final.log|
+| git diff --check |Kiểm tra cuối trong u1-diff-check.log|
+
+Log trong build/ (ignored). Số test là kết quả lệnh lượt này, không cộng kết quả
+2test độc lập được nhắc trong prompt hoặc dùng số C6 như kết quả U1.
+
+21test mới u1_ux_test gồm2viewport sáng/tối (fixture đủ target3macro, không cuộn),
+luồng recent ngày/loại bữa/gram/snapshot/1write;2loading/error có dữ liệu cũ bằng
+FutureProvider refresh thật; target lỗi/retry giữ tổng; ngày trống/chưa đặt;
+macro0/excess/UID sheet; weekly logs lỗi không thêm target query;12matrix
+360×800/412×915×scale100/150/200%×sáng/tối, keyboard260dp không che nút Lưu.
+Giữ assertion nghiệp vụ cũ: target lịch sử/late response, mean mẫu số, tuần ranh
+giới, no extra queries/listeners, stale UID, F01/F02/F05/F06/R01, snapshot/copy,
+idempotency/offline/retry, favorites/library/recipe và cleanup.
+
+### UX và ảnh trước/sau
+
+[Gallery kèm ảnh/JSON đã lưu trong repo](ux/u1/README.md), cùng390×844/100%, font
+đóng gói thật, fake repositories/synthetic data: ngày18/10/2026,2bữa195kcal khác
+ngày, target2000kcal/100gP/250gC/60gF,750ml/25phút, cân70→69,5kg. 8ảnh trước/sau,
+sáng/tối, scroll offset0. Trước sửa: addBreakfast1319–1367, chart888–1128;
+sau: addBreakfast497–545, chart362–602; viewport không bị bottom bar che đến748dp.
+Test đo full rect và hitTestable của nút, chart/range/tổng; không ensureVisible
+hoặc cuộn trước assertion viewport đầu. Chữ lớn được đọc/cuộn thay vì ép chiều
+cao/font. Đã mở ảnh sáng/tối và ảnh native để xem bố cục/số/nhãn/biểu đồ.
+
+Luồng Gần đây giữ5bấm,0search,1xác nhận khẩu phần đã có,0xác nhận mới; cuộn1→0.
+Baseline flow được chạy lại trên copy UI/formfd2f72b (6blob đã so,0mismatch),
+không checkout ngược source người dùng. Saved16/10/Bữa sáng/150g195kcal/1write;
+khác quy tắc global+ hôm nay. Các phép đo không được suy thành benchmark người
+dùng hoặc tốc độ mạng. Fixture/ảnh không phải số liệu sức khỏe production.
+
+### Android SDK/repository thật qua backend demo
+
+AVD riêng HealthMateMaintenanceQA/emulator-5560, Android11/API30/x86_64,
+1080×2280/density440/UTC+07, named Firebase app QA, demo-healthmate-rules tại
+10.0.2.2:9099/8080. Đã đọc runner và xác minh AVD/project; không dùng máy/phiên
+người dùng, không clear/wipe hoặc fixture production. QA AVD đã tắt khi xong.
+
+Kịch bản core cũ vẫn đủ10checkpoint: onboarding, target hôm qua1800/hôm nay2000,
+thêm150g195kcal/sửa200g260kcal/copy giữ snapshot và ngày,350ml/25phút/69,5kg,
+tuần thật520kcal từ2ngày trước bữa recipe, CRUD món/công thức/giữ MealLog50kcal,
+offline target2100/retry chỉ2phiên bản/giữ hôm qua, tối chữ200%, logout/A→B và
+permission denied khi B đọc A. AI flagsfalse/service không khởi tạo.
+
+Thêm target đủ100gP/275gC/60gF cho native viewport: addBreakfast584–632dp trong
+body đến685,1dp và hit-test được; chart top386dp, range và tổng hit-test được,
+không cuộn trước đo. Sau core bước8, recent5bấm/khôngsearch/gram200/260kcal/
+ngày hôm nay/Bữa sáng và3MealLog. Cuối tuần tổng830kcal vì đã thêm bữa recipe50
+và recent260, không coi khác fixture520 ban đầu là lỗi tổng.5PNG từ driver ở
+build/u1-android,2ảnh viewport copy vào gallery; không dùng last-screen teardown
+trống làm bằng chứng UI. Đây là Android emulator, không điện thoại thật/cloudE2E.
+
+### Các lượt chưa đạt và cách xử lý
+
+Lượt full đầu337pass/14fail: title cũ, tổng cũ bị gộp, target/daily details đang
+đóng và drag700 cố định làm trượt qua nút mới. Cập nhật finder về journal-screen,
+kiểm tra kcal và từng macro, mở details rồi giữ các assert lịch sử/quyền/query,
+ensureVisible đúng action trong test thao tác (không dùng trước viewport proof).
+Luồng recent mới ban đầu thiếu thao tác xác nhận khẩu phần **đã có** nên nút Lưu
+bị dialog chắn; thêm thao tác đó vào cả trước/sau, không đổi production flow.
+Lượt focused ban đầu còn2fail (recent và label0macro cũ), sau sửa test pass.
+
+Analyze đầu có unused totals và test gọi copyWithPrevious internal; bỏ biến thừa
+và dùng FutureProvider refresh thật để kiểm tra stale data, không ignore lint.
+Harness Android đầu thiếu import MealType; thêm import, chạy lại thành công.
+Một lượt test sau thay helper thiếu import Completer, đã thêm lại dart:async;
+final21UX tests rồi full370pass và analyze sạch. Không xóa test/hạ Rules/assert
+để che lỗi; log first/related và D:\HealthMateMaintenanceQA\u1-android.log giữ
+lỗi trước sửa, lượt pass native là u1-android-second.log (copy thành build/u1-android.log).
+
+AVD SwiftShader có log Impeller/GLES shader active uniforms exceed GL_MAX_FRAGMENT_
+UNIFORM_VECTORS; ảnh thật đã xem có đầy đủ card/chữ/biểu đồ và E2E không có test
+exception. Không sửa engine hoặc bỏ bảo vệ app; chưa xác minh mọi GPU/máy thật.
+KGP warning Firebase plugins còn. App Check placeholder chỉ ở named emulator app;
+production App Check không bị đổi/tắt. Không có kết quả release build trong U1.
+
+### Build, cấu hình và giới hạn
+
+APK thường lib/main.dart debug ARM64 **D:\HealthMateMaintenanceQA\HealthMate-U1-debug-arm64.apk**,
+150690083bytes, SHA256
+cd9796fbc43159db9db001536752d20eb37cf9c596fa86a6c5bc8a708173b4a0.
+APK này khác test target; APK C6 cũ được giữ. Copy source D khớp217file Dart/test/
+asset/Android/Rules/config/script (build/u1-source-parity.json),0mismatch;
+gradle.properties override Kotlin incremental khác ổ chỉ tạm trên QA copy,
+finally đã khôi phục. Không nâng/cài package mới hoặc đổi pubspec/lock.
+
+Ổ C có lúc còn100MB; giữ tmp/build native ở D và chuyển **artifact generated**
+build/app cũ968MB sang D:\HealthMateMaintenanceQA\archived-project-build-app-20261018
+sau xác minh absolute source/destination. Không xóa dữ liệu/cache ngoài công việc,
+không thay source hoặc APK C6 đã bàn giao; C còn khoảng1GB sau chuyển.
+
+Rules/index local không đổi từfd2f72b: SHA256LFtrimd33e017ecc4ca63ef1068ec55ab3ff732df0430492e57fcbfee6b4a89b796877.
+Đã review owner/schema/bounds/timestamps và chạy lại47Rules +14SDK, gồm guest/B
+read/query/write bị chặn và cleanup A giữ B. Không thêm query/listener/schema/index.
+Tool inspect chỉ GET Rules release/source, database metadata và indexes; auth CLI
+ở RAM, output metadata/source/config rollback không có credential hoặc dữ liệu
+sức khỏe. Tool yêu cầu output build mới, không overwrite backup cũ.
+
+Production GET cuối **19:12:59UTC+07,18/10/2026**: healthmate-app-20261013,
+database(default)/asia-southeast1/FIRESTORE_NATIVE, CLI15.22.4. Release update
+2026-10-13T06:25:21.345792Z, rulesetb83d6f60-1e9a-49b3-a3e7-239ccf0d3ee0,
+hash0b7a11a28ca4768390e12fca777157acdb269c489e4a59b5c78b8b2c9f87dade,
+matchesLocalfalse. Vẫn thiếu create/update targets/favorites/custom/recipes/goals/
+quests/chat;2water/activity composite indexes READY, không cần index mới.
+Backups build/u1-firebase-review và u1-firebase-final, diff252thêm/7bỏ so với
+production; không phải diff Rules mới do U1. [Playbook](firebase-deployment-plan.md)
+có commit/hash/đích, exact command chỉ Rules, GET xác minh/rollback và QA sau U2.
+
+**Local U1 đạt / Rules production chưa deploy / E2E production chưa kiểm chứng.**
+Chưa tài khoản QA production được giao, chưa máy thật/Play Integrity/release
+signing. Draft chỉ RAM và báo cáo cần mạng/refresh như core cũ. Giữ AI tắt,
+không tự tạo tài khoản cloud/thử xóa thật. Dừng U1; U2 chỉ sau yêu cầu rõ từ chủ
+sản phẩm. Bảng/lệnh deploy trong playbook là phần chuẩn bị, chưa được thực thi.
+
+## U2 — deploy Rules và kiểm thử production thật (18/10/2026)
+
+Đây là kết quả sau yêu cầu hoàn tất toàn bộ file UX/Firebase, thay trạng thái U2
+còn chờ trong phần lịch sử U1. Người dùng cho phép tạo đúng hai tài khoản QA có
+dữ liệu tổng hợp và chỉ dọn dữ liệu QA. Base main/fd2f72bbc07c0afe62942e0b62d5e1bf0b71bb12;
+giữ working tree U1, chưa stage/commit/push. Không thay app code trong U2.
+
+### Kiểm tra mới thực sự đã chạy
+
+| Lệnh/kiểm tra U2 | Kết quả |
+|---|---|
+| `.\tool\test_emulators.ps1` | 47/47 Rules + 14/14 Firebase SDK, exit 0; SDK 20 giây |
+| `firebase deploy --only firestore:rules --project healthmate-app-20261013` | Exit 0, release chỉ Rules thành công |
+| Inspect GET trước, sau deploy và cuối production QA | Đúng project/default DB; sau deploy/final hash khớp local; hai indexes READY |
+| `.\tool\test_production_qa.ps1 -AllowProductionQa -CredentialsFile <PRIVATE_FILE> -VerifiedDeploymentDirectory <VERIFIED_METADATA>` | Flutter test Chrome/backend production: **1 scenario, 10 checkpoint, 27 giây, pass cả teardown** |
+| `dart format --output=none --set-exit-if-changed lib test integration_test` | 180 file, 0 thay đổi, exit 0 |
+| `flutter analyze --no-pub` (cuối) | No issues found, 6,7 giây, exit 0 |
+
+Analyze đầu báo một unnecessary import dart:async ở harness mới (57,6 giây);
+đã bỏ import thừa rồi chạy analyze sạch. Không sửa/hạ test để che lỗi. Flutter
+370/370, catalog 7/7, Android API30 E2E và build APK là lần chạy **U1** đã ghi ở
+trên, không phải chạy lại trong U2. Không có thay đổi sản phẩm sau lần U1 đó.
+
+### Deploy và khả năng phục hồi
+
+Trước deploy GET lúc 19:31:42 UTC+07: Rules release cũ 13/10/2026, hash
+0b7a11a28ca4768390e12fca777157acdb269c489e4a59b5c78b8b2c9f87dade.
+Backup đầy đủ source/metadata/firebase.rollback.json tại
+`D:\HealthMateMaintenanceQA\u2-before-20261018-193138`; đã so bản copy trước deploy.
+Rules/index source không đổi so với fd2f72b; không thêm diff vô nghĩa.
+
+Release mới 2026-10-18T12:33:45.507953Z (19:33:45 UTC+07), ruleset
+423ff6c8-79b7-4158-ba4f-2de9871a715d. Hash LF-trim deployed/local cùng
+d33e017ecc4ca63ef1068ec55ab3ff732df0430492e57fcbfee6b4a89b796877;
+matchesLocal=true trong hai GET sau deploy và cuối QA. Hai composite water/activity
+vẫn READY. Không deploy indexes hoặc chạy rollback; không đổi App Check/billing.
+[Metadata và log đã lưu](firebase/u2/README.md),
+[lệnh rollback chỉ Rules](firebase-deployment-plan.md).
+
+### SDK E2E production và dữ liệu QA
+
+Chrome headless, Firebase Web SDK thật và repository/model ứng dụng thật; named
+apps A/B/guest tách khỏi default session, Auth persistence NONE, Firestore cache
+không lưu đĩa. Hai QA email cố định có prefix/run; retry cùng credential, không
+tạo tài khoản bổ sung. Credentials lưu ngoài repo với ACL riêng, không in log.
+Harness không có hậu tố _test.dart nên full suite thông thường không gọi cloud.
+Runner và Dart cùng chặn thiếu opt-in, sai prefix/project/hash hoặc credential
+trong repo. Chạy từ QA copy D để artifact test riêng, không phân phối test build.
+
+- Onboarding tổng hợp 18+, lưu/tải lại profile và cân nặng ban đầu.
+- Target ngày cũ/mới, cập nhật hôm nay giữ lịch sử, query range thật.
+- Món riêng, công thức và favorite retry idempotent; bữa 20g từ recipe 80g có
+  50kcal. Sửa/xóa hai nguồn vẫn giữ 50kcal, scale snapshot 40g thành 100kcal;
+  copy sang hôm trước vẫn 50kcal đúng ngày.
+- Nước 250ml, đi bộ 20phút; query server dateKey/orderBy dùng index production.
+- Goal tạo hai lần cùng ID vẫn một bản; Quest hoàn thành không reset khi ensure.
+- Logout/login cùng UID, dữ liệu target/meal đọc lại đúng từ server.
+- Tắt network 3 giây không xác nhận lưu; bật lại, đợi thao tác cũ kết thúc rồi
+  retry cùng operation ID, đúng một bữa 50kcal. Không coi timeout là hủy write.
+- **50** yêu cầu guest/B đọc/query/ghi/xóa vào A nhận permission-denied: profile
+  và 11 collection core, thêm update profile/delete meal. Không chỉ nhìn Rules.
+- Dọn dữ liệu Firestore A, xác minh B vẫn còn profile rồi dọn B. Đọc server xác
+  nhận profile không tồn tại và cả 11 collection rỗng; teardown kiểm tra lại hai
+  tài khoản. **Giữ hai Auth QA**, không thử xóa Auth production.
+
+Không đọc/sửa/xóa hồ sơ thật, seed food_catalog, migration hoặc gọi AI.
+Production SDK log + tổng hợp không credential ở docs/firebase/u2. Raw log và
+credential riêng ở D:\HealthMateMaintenanceQA\u2-production-qa-20261018194000.
+APK thường lib/main.dart U1 giữ nguyên, không chứa QA dart-defines; không rebuild
+Android trong U2 vì source app không đổi và Rules nằm trên backend.
+
+**Local đạt / Rules đã deploy đúng / SDK production E2E đã kiểm chứng.**
+Không suy thành Android UI production, điện thoại thật, Play Integrity, release
+signing hoặc mọi thiết bị/mạng đã đạt. Các giới hạn KGP/GPU/draft RAM ở U1 vẫn
+còn. Hoàn tất file U1/U2 và dừng, không thêm giai đoạn hoặc push ngoài yêu cầu.
+
+Kiểm tra bàn giao lúc 19:45 UTC+07: `git diff --check` sạch, parser PowerShell
+runner không lỗi, scan chính xác QA password trên 37 file text thay đổi/bằng
+chứng không có kết quả khớp (không phải chứng nhận quét mọi loại secret).
+Staged 0; HEAD và origin/main đã biết vẫn fd2f72b; diff Rules/index/dependencies 0.
+APK U1 thường giữ SHA256 cd9796fbc43159db9db001536752d20eb37cf9c596fa86a6c5bc8a708173b4a0.

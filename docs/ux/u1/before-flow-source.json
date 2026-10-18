@@ -1,0 +1,30 @@
+{
+  "BaselineCommit": "fd2f72bbc07c0afe62942e0b62d5e1bf0b71bb12",
+  "Files": [
+    {
+      "Path": "lib/core/widgets/feature_page.dart",
+      "Equal": true
+    },
+    {
+      "Path": "lib/features/journal/presentation/journal_screen.dart",
+      "Equal": true
+    },
+    {
+      "Path": "lib/features/progress/presentation/progress_screen.dart",
+      "Equal": true
+    },
+    {
+      "Path": "lib/features/weekly_reflection/presentation/weekly_reflection_card.dart",
+      "Equal": true
+    },
+    {
+      "Path": "lib/features/nutrition/presentation/meal_form_dialog.dart",
+      "Equal": true
+    },
+    {
+      "Path": "lib/features/nutrition/presentation/meal_log_section.dart",
+      "Equal": true
+    }
+  ],
+  "MismatchCount": 0
+}

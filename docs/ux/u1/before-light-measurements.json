@@ -1,0 +1,16 @@
+{
+  "/journal": {
+    "top": 1319.0,
+    "bottom": 1367.0,
+    "bodyBottom": 748.0,
+    "visible": false,
+    "offset": 0.0
+  },
+  "/progress": {
+    "top": 888.0,
+    "bottom": 1128.0,
+    "bodyBottom": 748.0,
+    "visible": false,
+    "offset": 0.0
+  }
+}
