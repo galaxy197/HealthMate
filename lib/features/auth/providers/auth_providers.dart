@@ -74,8 +74,18 @@ class AuthController extends Notifier<AsyncValue<void>> {
 }
 
 class AccountSecurityController extends Notifier<AsyncValue<void>> {
+  int _generation = 0;
   @override
-  AsyncValue<void> build() => const AsyncData(null);
+  AsyncValue<void> build() {
+    ref.watch(authSessionProvider.select((s) => s.value?.uid));
+    _generation++;
+    return const AsyncData(null);
+  }
+
+  bool _current(int generation, String? uid) =>
+      ref.mounted &&
+      generation == _generation &&
+      ref.read(authSessionProvider).value?.uid == uid;
 
   void clearError() {
     if (!state.isLoading) state = const AsyncData(null);
@@ -83,21 +93,27 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
 
   Future<bool> sendPasswordResetEmail(String email) async {
     if (state.isLoading) return false;
+    final generation = _generation;
+    final uid = ref.read(authSessionProvider).value?.uid;
     state = const AsyncLoading();
     try {
       await ref.read(authRepositoryProvider).sendPasswordResetEmail(email);
-      if (ref.mounted) state = const AsyncData(null);
+      if (!_current(generation, uid)) return false;
+      state = const AsyncData(null);
       return true;
     } on AuthFailure catch (error, stack) {
+      if (!_current(generation, uid)) return false;
       // Do not reveal whether an email is registered.
       if (error.code == 'user-not-found') {
-        if (ref.mounted) state = const AsyncData(null);
+        state = const AsyncData(null);
         return true;
       }
-      if (ref.mounted) state = AsyncError(error, stack);
+      state = AsyncError(error, stack);
       return false;
     } catch (error, stack) {
-      if (ref.mounted) state = AsyncError(_safeFailure(error), stack);
+      if (_current(generation, uid)) {
+        state = AsyncError(_safeFailure(error), stack);
+      }
       return false;
     }
   }
@@ -105,11 +121,16 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
   Future<bool> changePassword({
     required String currentPassword,
     required String newPassword,
-  }) => _perform(() async {
-    final repository = ref.read(authRepositoryProvider);
-    await _reauthenticate(repository, currentPassword);
-    await repository.updatePassword(newPassword);
-  });
+  }) async {
+    final uid = ref.read(authSessionProvider).value?.uid;
+    if (uid == null) return false;
+    return _perform((current) async {
+      final repository = ref.read(authRepositoryProvider);
+      await _reauthenticate(repository, currentPassword, uid);
+      if (!current()) return;
+      await repository.updatePassword(newPassword, expectedUid: uid);
+    });
+  }
 
   Future<bool> deleteAccount(String currentPassword) async {
     if (state.isLoading) return false;
@@ -123,10 +144,13 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
       );
       return false;
     }
+    final generation = _generation;
+    bool current() => _current(generation, user.uid);
     state = const AsyncLoading();
     final repository = ref.read(authRepositoryProvider);
     try {
-      await _reauthenticate(repository, currentPassword);
+      await _reauthenticate(repository, currentPassword, user.uid);
+      if (!current()) return false;
       try {
         await ref
             .read(accountDataRepositoryProvider)
@@ -137,31 +161,42 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
           dataMayBeDeleted: true,
         );
       }
+      if (!current()) return false;
       try {
-        await repository.deleteCurrentUser();
+        // Repository also checks the SDK's current UID, even before the auth
+        // stream has delivered a changed session to Riverpod.
+        await repository.deleteCurrentUser(expectedUid: user.uid);
       } on AuthFailure {
         throw const AccountActionFailure(
           'Dữ liệu HealthMate đã được xóa nhưng tài khoản đăng nhập chưa thể xóa. Hãy thử lại để hoàn tất.',
           dataMayBeDeleted: true,
         );
       }
-      if (ref.mounted) state = const AsyncData(null);
-      return true;
+      if (current()) state = const AsyncData(null);
+      // Successful Auth deletion naturally emits null and resets the provider.
+      return ref.mounted &&
+          (ref.read(authSessionProvider).value?.uid == null || current());
     } catch (error, stack) {
-      if (ref.mounted) state = AsyncError(_safeFailure(error), stack);
+      if (current()) state = AsyncError(_safeFailure(error), stack);
       return false;
     }
   }
 
-  Future<bool> _perform(Future<void> Function() operation) async {
+  Future<bool> _perform(
+    Future<void> Function(bool Function() current) operation,
+  ) async {
     if (state.isLoading) return false;
+    final generation = _generation;
+    final uid = ref.read(authSessionProvider).value?.uid;
+    bool current() => _current(generation, uid);
     state = const AsyncLoading();
     try {
-      await operation();
-      if (ref.mounted) state = const AsyncData(null);
+      await operation(current);
+      if (!current()) return false;
+      state = const AsyncData(null);
       return true;
     } catch (error, stack) {
-      if (ref.mounted) state = AsyncError(_safeFailure(error), stack);
+      if (current()) state = AsyncError(_safeFailure(error), stack);
       return false;
     }
   }
@@ -169,9 +204,10 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
   Future<void> _reauthenticate(
     AuthRepository repository,
     String password,
+    String uid,
   ) async {
     try {
-      await repository.reauthenticateWithPassword(password);
+      await repository.reauthenticateWithPassword(password, expectedUid: uid);
     } on AuthFailure catch (error) {
       if (const {
         'wrong-password',

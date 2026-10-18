@@ -109,12 +109,18 @@ class FirebaseNutritionRepository implements NutritionRepository {
   }
 
   @override
-  Stream<List<MealLog>> watchRecentMeals(String uid, {int limit = 20}) async* {
+  Stream<RecentMealPage> watchRecentMeals(String uid, {int limit = 20}) async* {
     try {
-      await for (final snapshot in _meals(
-        uid,
-      ).orderBy('consumedAt', descending: true).limit(limit).snapshots()) {
-        yield [for (final doc in snapshot.docs) _meal(doc.id, doc.data())];
+      await for (final snapshot
+          in _meals(uid)
+              .orderBy('consumedAt', descending: true)
+              .limit(limit)
+              .snapshots(includeMetadataChanges: true)) {
+        if (snapshot.metadata.hasPendingWrites) continue;
+        yield RecentMealPage(
+          meals: [for (final doc in snapshot.docs) _meal(doc.id, doc.data())],
+          fromCache: snapshot.metadata.isFromCache,
+        );
       }
     } on FirebaseException catch (error) {
       throw NutritionFailure.fromCode(error.code);
@@ -156,16 +162,55 @@ class FirebaseNutritionRepository implements NutritionRepository {
   }
 
   @override
-  Future<String> addMeal({required String uid, required MealDraft draft}) =>
-      _guard(() async {
-        final ref = _meals(uid).doc();
-        await ref.set({
-          ..._mealData(draft),
+  String newMealId() => _firestore.collection('users').doc().id;
+
+  @override
+  Future<String> addMeal({
+    required String uid,
+    required MealDraft draft,
+    String? operationId,
+  }) => _guard(() async {
+    final ref = _meals(uid).doc(operationId);
+    final data = _mealData(draft);
+    if (operationId == null) {
+      await ref.set({
+        ...data,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await _firestore.runTransaction((transaction) async {
+        final previous = await transaction.get(ref);
+        if (previous.exists) {
+          if (!_sameValue(data, {
+            for (final key in data.keys) key: previous.data()?[key],
+          })) {
+            throw const NutritionFailure(
+              'Thao tác trước đã lưu nội dung khác. Hãy đóng form, tải lại bữa và chọn Sửa.',
+            );
+          }
+          return;
+        }
+        transaction.set(ref, {
+          ...data,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
-        return ref.id;
       });
+      final confirmed = await ref.get(const GetOptions(source: Source.server));
+      if (!confirmed.exists ||
+          confirmed.metadata.hasPendingWrites ||
+          confirmed.metadata.isFromCache ||
+          !_sameValue(data, {
+            for (final key in data.keys) key: confirmed.data()?[key],
+          })) {
+        throw const NutritionFailure(
+          'Chưa xác nhận được đúng bữa trên máy chủ; bản nháp vẫn được giữ.',
+        );
+      }
+    }
+    return ref.id;
+  });
 
   @override
   Future<void> updateMeal({
@@ -215,6 +260,18 @@ class FirebaseNutritionRepository implements NutritionRepository {
 
   FoodCatalogItem _food(String id, Map<String, dynamic> data) =>
       FoodCatalogItem(
+        hasNutritionData:
+            [
+              'kcalPer100g',
+              'proteinGPer100g',
+              'carbsGPer100g',
+              'fatGPer100g',
+            ].every(
+              (key) =>
+                  data[key] is num &&
+                  (data[key] as num).isFinite &&
+                  (data[key] as num) >= 0,
+            ),
         id: id,
         name: data['name'] as String? ?? '',
         alternateNames: (data['alternateNames'] as List? ?? const [])
@@ -297,10 +354,24 @@ class FirebaseNutritionRepository implements NutritionRepository {
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {
       return await action();
+    } on NutritionFailure {
+      rethrow;
     } on FirebaseException catch (error) {
       throw NutritionFailure.fromCode(error.code);
     } catch (_) {
       throw NutritionFailure.fromCode('unknown');
     }
   }
+}
+
+bool _sameValue(Object? a, Object? b) {
+  if (a is Map && b is Map) {
+    return a.length == b.length &&
+        a.keys.every((key) => b.containsKey(key) && _sameValue(a[key], b[key]));
+  }
+  if (a is List && b is List) {
+    return a.length == b.length &&
+        a.indexed.every((entry) => _sameValue(entry.$2, b[entry.$1]));
+  }
+  return a == b;
 }

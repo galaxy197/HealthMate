@@ -3,7 +3,9 @@ abstract final class AppRoutes {
   static const journal = '/journal';
   static const quest = '/quest';
   static const chat = '/chat';
+  static const progress = '/progress';
   static const profile = '/profile';
+  static const foodLibrary = '/food-library';
   static const about = '/about';
   static const privacy = '/privacy';
   static const disclaimer = '/disclaimer';

@@ -10,11 +10,14 @@ import '../../features/daily_quest/presentation/quest_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/journal/presentation/journal_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/progress/presentation/progress_screen.dart';
+import '../../features/food_library/presentation/food_library_screen.dart';
 import '../../features/profile/presentation/account_information_screen.dart';
 import '../../features/profile/presentation/onboarding_screen.dart';
 import '../../features/profile/providers/profile_providers.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/route_error_screen.dart';
+import '../config/app_feature_flags.dart';
 import 'app_routes.dart';
 import 'auth_redirect.dart';
 
@@ -22,6 +25,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = _AuthRouterRefresh();
   ref.listen(authSessionProvider, (previous, next) => refresh.refresh());
   ref.listen(userProfileProvider, (previous, next) => refresh.refresh());
+  ref.listen(appFeatureFlagsProvider, (previous, next) => refresh.refresh());
   ref.listen(
     accountSecurityControllerProvider,
     (previous, next) => refresh.refresh(),
@@ -29,12 +33,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: AppRoutes.dashboard,
     refreshListenable: refresh,
-    redirect: (context, state) => authRedirect(
-      ref.read(authSessionProvider),
-      state.uri,
-      ref.read(userProfileProvider),
-      ref.read(accountSecurityControllerProvider),
-    ),
+    redirect: (context, state) {
+      final authDestination = authRedirect(
+        ref.read(authSessionProvider),
+        state.uri,
+        ref.read(userProfileProvider),
+        ref.read(accountSecurityControllerProvider),
+      );
+      if (authDestination != null) return authDestination;
+      if (!ref.read(appFeatureFlagsProvider).chatbotEnabled &&
+          (state.uri.path == AppRoutes.chat ||
+              state.uri.path.startsWith('${AppRoutes.chat}/'))) {
+        return AppRoutes.dashboard;
+      }
+      return null;
+    },
     routes: [
       GoRoute(
         path: AppRoutes.session,
@@ -92,6 +105,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const ProfileScreen(),
               ),
               GoRoute(
+                path: AppRoutes.foodLibrary,
+                builder: (context, state) => const FoodLibraryScreen(),
+              ),
+              GoRoute(
                 path: AppRoutes.about,
                 builder: (context, state) => const AccountInformationScreen(
                   page: AccountInformationPage.about,
@@ -108,6 +125,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const AccountInformationScreen(
                   page: AccountInformationPage.disclaimer,
                 ),
+              ),
+            ],
+          ),
+          // Append to preserve existing Quest/Chat/Profile branch indices.
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.progress,
+                builder: (context, state) => const ProgressScreen(),
               ),
             ],
           ),

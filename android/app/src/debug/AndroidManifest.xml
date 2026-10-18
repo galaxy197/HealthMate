@@ -4,4 +4,6 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Local emulator HTTP only; the release manifest keeps HTTPS defaults. -->
+    <application android:networkSecurityConfig="@xml/emulator_network_security_config" />
 </manifest>

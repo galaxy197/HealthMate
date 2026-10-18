@@ -53,11 +53,12 @@ class _RejectedMeal extends FakeNutritionRepository {
   Future<String> addMeal({
     required String uid,
     required MealDraft draft,
+    String? operationId,
   }) async {
     attempts++;
     if (pending != null) await pending!.future;
     if (attempts == 1) throw const NutritionFailure('Không có quyền ghi.');
-    return super.addMeal(uid: uid, draft: draft);
+    return super.addMeal(uid: uid, draft: draft, operationId: operationId);
   }
 }
 
@@ -85,6 +86,7 @@ Future<void> _openMeal(
   await tester.pumpAndSettle();
   final rice = find.byTooltip('Thêm Cơm trắng chín');
   await tester.ensureVisible(rice);
+  await tester.pumpAndSettle();
   await tester.tap(rice);
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const ValueKey('meal-grams')), '150');
@@ -270,6 +272,7 @@ void main() {
           await tester.pumpAndSettle();
           final edit = find.byTooltip('Sửa khẩu phần');
           await tester.ensureVisible(edit);
+          await tester.pumpAndSettle();
           await tester.tap(edit);
           await tester.pumpAndSettle();
           await tester.enterText(

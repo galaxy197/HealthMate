@@ -1,3 +1,4 @@
+import '../../../core/utils/subscription_stream.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,7 +16,9 @@ final nutritionRepositoryProvider = Provider<NutritionRepository>(
 final foodCatalogProvider = StreamProvider.autoDispose<List<FoodCatalogItem>>((
   ref,
 ) {
-  return ref.watch(nutritionRepositoryProvider).watchFoodCatalog();
+  return subscriptionStream(
+    ref.watch(nutritionRepositoryProvider).watchFoodCatalog(),
+  );
 });
 
 final mealLogsProvider = StreamProvider.autoDispose
@@ -25,23 +28,32 @@ final mealLogsProvider = StreamProvider.autoDispose
         yield const [];
         return;
       }
-      yield* ref
-          .watch(nutritionRepositoryProvider)
-          .watchMealLogs(user.uid, localDate);
+      yield* subscriptionStream(
+        ref
+            .watch(nutritionRepositoryProvider)
+            .watchMealLogs(user.uid, localDate),
+      );
     }, retry: (_, _) => null);
 
+final recentMealsProvider = StreamProvider.autoDispose<RecentMealPage>((
+  ref,
+) async* {
+  final user = ref.watch(authSessionProvider).value;
+  if (user == null) {
+    yield const RecentMealPage(meals: []);
+    return;
+  }
+  yield* subscriptionStream(
+    ref.watch(nutritionRepositoryProvider).watchRecentMeals(user.uid),
+  );
+}, retry: (_, _) => null);
+
 final recentMealItemsProvider =
-    StreamProvider.autoDispose<List<MealItemSnapshot>>((ref) async* {
-      final user = ref.watch(authSessionProvider).value;
-      if (user == null) {
-        yield const [];
-        return;
-      }
-      yield* ref
-          .watch(nutritionRepositoryProvider)
-          .watchRecentMeals(user.uid)
-          .map(recentMealItems);
-    });
+    Provider.autoDispose<AsyncValue<List<MealItemSnapshot>>>(
+      (ref) => ref
+          .watch(recentMealsProvider)
+          .whenData((page) => recentMealItems(page.meals)),
+    );
 
 final nutritionControllerProvider =
     NotifierProvider<NutritionController, AsyncValue<void>>(
@@ -61,11 +73,12 @@ class NutritionController extends Notifier<AsyncValue<void>> {
     if (!state.isLoading) state = const AsyncData(null);
   }
 
-  Future<bool> addMeal(MealDraft draft) => _perform((user) async {
-    await ref
-        .read(nutritionRepositoryProvider)
-        .addMeal(uid: user.uid, draft: draft);
-  });
+  Future<bool> addMeal(MealDraft draft, {String? operationId}) =>
+      _perform((user) async {
+        await ref
+            .read(nutritionRepositoryProvider)
+            .addMeal(uid: user.uid, draft: draft, operationId: operationId);
+      });
 
   Future<bool> updateMeal({required String mealId, required MealDraft draft}) =>
       _perform((user) {

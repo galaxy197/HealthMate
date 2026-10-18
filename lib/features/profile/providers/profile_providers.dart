@@ -1,3 +1,4 @@
+import '../../../core/utils/subscription_stream.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,7 +38,9 @@ final userProfileProvider = StreamProvider<UserProfile?>((ref) async* {
     return;
   }
   await ref.watch(profileBootstrapProvider.future);
-  yield* ref.watch(healthProfileRepositoryProvider).watchProfile(user.uid);
+  yield* subscriptionStream(
+    ref.watch(healthProfileRepositoryProvider).watchProfile(user.uid),
+  );
 }, retry: (retryCount, error) => null);
 
 final bodyMetricsProvider = StreamProvider.autoDispose<List<BodyMetric>>((
@@ -49,7 +52,9 @@ final bodyMetricsProvider = StreamProvider.autoDispose<List<BodyMetric>>((
     return;
   }
   await ref.watch(profileBootstrapProvider.future);
-  yield* ref.watch(healthProfileRepositoryProvider).watchBodyMetrics(user.uid);
+  yield* subscriptionStream(
+    ref.watch(healthProfileRepositoryProvider).watchBodyMetrics(user.uid),
+  );
 }, retry: (retryCount, error) => null);
 
 final latestBodyMetricProvider = StreamProvider.autoDispose
@@ -61,9 +66,11 @@ final latestBodyMetricProvider = StreamProvider.autoDispose
         yield const [];
         return;
       }
-      yield* ref
-          .watch(healthProfileRepositoryProvider)
-          .watchLatestBodyMetric(uid, day);
+      yield* subscriptionStream(
+        ref
+            .watch(healthProfileRepositoryProvider)
+            .watchLatestBodyMetric(uid, day),
+      );
     }, retry: (_, _) => null);
 
 final profileControllerProvider =
@@ -72,8 +79,13 @@ final profileControllerProvider =
     );
 
 class ProfileController extends Notifier<AsyncValue<void>> {
+  int _generation = 0;
   @override
-  AsyncValue<void> build() => const AsyncData(null);
+  AsyncValue<void> build() {
+    ref.watch(authSessionProvider.select((s) => s.value?.uid));
+    _generation++;
+    return const AsyncData(null);
+  }
 
   void clearError() {
     if (!state.isLoading) state = const AsyncData(null);
@@ -131,13 +143,19 @@ class ProfileController extends Notifier<AsyncValue<void>> {
       );
       return false;
     }
+    final generation = _generation;
+    bool current() =>
+        ref.mounted &&
+        generation == _generation &&
+        ref.read(authSessionProvider).value?.uid == user.uid;
     state = const AsyncLoading();
     try {
       await operation(user);
-      if (ref.mounted) state = const AsyncData(null);
+      if (!current()) return false;
+      state = const AsyncData(null);
       return true;
     } catch (error, stack) {
-      if (ref.mounted) {
+      if (current()) {
         state = AsyncError(
           error is ProfileFailure ? error : ProfileFailure.fromCode('unknown'),
           stack,

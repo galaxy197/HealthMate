@@ -1,24 +1,43 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/confirmed_save.dart';
+import '../../food_library/models/food_library_models.dart';
 
 import '../models/nutrition_models.dart';
 import '../models/nutrition_validation.dart';
 
 class CustomFoodDialog extends StatefulWidget {
-  const CustomFoodDialog({super.key});
+  const CustomFoodDialog({
+    this.newLibraryId,
+    this.onSaveToLibrary,
+    this.libraryErrorMessage,
+    super.key,
+  });
+  final String Function()? newLibraryId;
+  final Future<bool> Function(PersonalFood)? onSaveToLibrary;
+  final String? Function()? libraryErrorMessage;
 
   @override
   State<CustomFoodDialog> createState() => _CustomFoodDialogState();
 }
 
-class _CustomFoodDialogState extends State<CustomFoodDialog> {
+class _CustomFoodDialogState extends State<CustomFoodDialog>
+    with ConfirmedSave<MealItemSnapshot, CustomFoodDialog> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _grams = TextEditingController(text: '100');
   final _kcal = TextEditingController();
-  final _protein = TextEditingController(text: '0');
-  final _carbs = TextEditingController(text: '0');
-  final _fat = TextEditingController(text: '0');
+  final _protein = TextEditingController();
+  final _carbs = TextEditingController();
+  final _fat = TextEditingController();
   String? _error;
+  bool _saveToLibrary = false;
+  bool _libraryAttempted = false;
+  late final String? _libraryId;
+  @override
+  void initState() {
+    super.initState();
+    _libraryId = widget.newLibraryId?.call();
+  }
 
   @override
   void dispose() {
@@ -43,7 +62,7 @@ class _CustomFoodDialogState extends State<CustomFoodDialog> {
     return null;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final grams = NutritionValidation.parseDecimal(_grams.text)!;
     final per100g = NutritionTotals(
@@ -63,104 +82,129 @@ class _CustomFoodDialogState extends State<CustomFoodDialog> {
       return;
     }
     final name = _name.text.trim();
-    Navigator.pop(
-      context,
-      MealItemSnapshot(
-        foodId: 'custom-${DateTime.now().microsecondsSinceEpoch}',
-        name: name,
-        grams: grams,
-        nutrition: nutrition,
-        sourceLabel: 'Người dùng nhập · Ước tính',
-        isEstimated: true,
-      ),
+    final snapshot = MealItemSnapshot(
+      foodId: _saveToLibrary
+          ? 'custom:$_libraryId'
+          : 'custom-${DateTime.now().microsecondsSinceEpoch}',
+      name: name,
+      grams: grams,
+      nutrition: nutrition,
+      sourceLabel: 'Người dùng nhập · Ước tính',
+      isEstimated: true,
     );
+    if (_saveToLibrary) {
+      _libraryAttempted = true;
+      final food = PersonalFood(
+        id: _libraryId!,
+        name: name,
+        per100g: per100g,
+        defaultServingGrams: grams,
+      );
+      await saveDraft(snapshot, (_) => widget.onSaveToLibrary!(food));
+    } else {
+      Navigator.pop(context, snapshot);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Món ngoài danh mục'),
-      content: SizedBox(
-        width: 480,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Nhập giá trị trên 100 g từ nhãn thực phẩm hoặc nguồn bạn có. HealthMate sẽ lưu món này với nhãn “Ước tính”.',
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  key: const ValueKey('custom-food-name'),
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Tên món'),
-                  validator: _nameValidator,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  key: const ValueKey('custom-food-grams'),
-                  controller: _grams,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
+    return guardSave(
+      AlertDialog(
+        title: const Text('Món ngoài danh mục'),
+        content: SizedBox(
+          width: 480,
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Nhập giá trị trên 100 g từ nhãn thực phẩm hoặc nguồn bạn có. HealthMate sẽ lưu món này với nhãn “Ước tính”.',
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Khối lượng đã ăn',
-                    suffixText: 'g',
-                  ),
-                  validator: NutritionValidation.grams,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  key: const ValueKey('custom-food-kcal'),
-                  controller: _kcal,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Năng lượng trên 100 g',
-                    suffixText: 'kcal',
-                  ),
-                  validator: (value) => _nutrientValidator(value, max: 10000),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _macroField(_protein, 'Protein', 'protein'),
+                  const SizedBox(height: 16),
+                  if (widget.onSaveToLibrary != null && _libraryId != null)
+                    CheckboxListTile(
+                      key: const ValueKey('save-to-library'),
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Lưu vào Món của tôi để dùng lại'),
+                      subtitle: const Text(
+                        'Mặc định chỉ thêm món vào bản nháp bữa ăn.',
+                      ),
+                      value: _saveToLibrary,
+                      onChanged: _libraryAttempted
+                          ? null
+                          : (value) =>
+                                setState(() => _saveToLibrary = value ?? false),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(child: _macroField(_carbs, 'Carb', 'carbs')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _macroField(_fat, 'Chất béo', 'fat')),
-                  ],
-                ),
-                if (_error != null) ...[
+                  TextFormField(
+                    key: const ValueKey('custom-food-name'),
+                    controller: _name,
+                    decoration: const InputDecoration(labelText: 'Tên món'),
+                    validator: _nameValidator,
+                  ),
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                  TextFormField(
+                    key: const ValueKey('custom-food-grams'),
+                    controller: _grams,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
                     ),
+                    decoration: const InputDecoration(
+                      labelText: 'Khối lượng đã ăn',
+                      suffixText: 'g',
+                    ),
+                    validator: NutritionValidation.grams,
                   ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: const ValueKey('custom-food-kcal'),
+                    controller: _kcal,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Năng lượng trên 100 g',
+                      suffixText: 'kcal',
+                    ),
+                    validator: (value) => _nutrientValidator(value, max: 10000),
+                  ),
+                  const SizedBox(height: 12),
+                  _macroField(_protein, 'Đạm', 'protein'),
+                  const SizedBox(height: 12),
+                  _macroField(_carbs, 'Tinh bột', 'carbs'),
+                  const SizedBox(height: 12),
+                  _macroField(_fat, 'Chất béo', 'fat'),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  saveFeedback(),
+                  if (saveError != null &&
+                      widget.libraryErrorMessage?.call() != null)
+                    Text(widget.libraryErrorMessage!.call()!),
                 ],
-              ],
+              ),
             ),
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            key: const ValueKey('save-custom-food'),
+            onPressed: saving ? null : _submit,
+            child: const Text('Thêm món'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Hủy'),
-        ),
-        FilledButton(
-          key: const ValueKey('save-custom-food'),
-          onPressed: _submit,
-          child: const Text('Thêm món'),
-        ),
-      ],
     );
   }
 

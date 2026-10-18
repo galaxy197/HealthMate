@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/utils/local_date_key.dart';
+import '../../../core/config/app_feature_flags.dart';
 import '../../../shared/providers/local_clock_provider.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../models/chat_models.dart';
@@ -13,6 +14,9 @@ class ChatScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(appFeatureFlagsProvider).chatbotEnabled) {
+      return const SizedBox.shrink();
+    }
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final uid = ref.watch(
       authSessionProvider.select((session) => session.value?.uid),

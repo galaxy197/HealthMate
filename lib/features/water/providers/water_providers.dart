@@ -1,3 +1,4 @@
+import '../../../core/utils/subscription_stream.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,7 +20,9 @@ final waterLogsProvider = StreamProvider.autoDispose
         yield const [];
         return;
       }
-      yield* ref.watch(waterRepositoryProvider).watchLogs(user.uid, dateKey);
+      yield* subscriptionStream(
+        ref.watch(waterRepositoryProvider).watchLogs(user.uid, dateKey),
+      );
     }, retry: (_, _) => null);
 
 final waterControllerProvider =

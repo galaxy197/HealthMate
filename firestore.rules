@@ -353,6 +353,112 @@ service cloud.firestore {
         allow delete: if owns(uid);
       }
 
+      match /custom_foods/{foodId} {
+        function alias(value) { return value is string && value.size()>0 && value.size()<=60; }
+        function validFood() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['name','alternateNames','servingBasis','kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','defaultServingGrams','servingLabel','servingGrams','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
+            && d.name is string && d.name.size()>=2 && d.name.size()<=100
+            && d.alternateNames is list && d.alternateNames.size()<=5
+            && (d.alternateNames.size()<1 || alias(d.alternateNames[0]))
+            && (d.alternateNames.size()<2 || alias(d.alternateNames[1]))
+            && (d.alternateNames.size()<3 || alias(d.alternateNames[2]))
+            && (d.alternateNames.size()<4 || alias(d.alternateNames[3]))
+            && (d.alternateNames.size()<5 || alias(d.alternateNames[4]))
+            && d.servingBasis=='per_100g'
+            && d.kcalPer100g is number && d.kcalPer100g>=0 && d.kcalPer100g<=10000
+            && d.proteinGPer100g is number && d.proteinGPer100g>=0 && d.proteinGPer100g<=1000
+            && d.carbsGPer100g is number && d.carbsGPer100g>=0 && d.carbsGPer100g<=1000
+            && d.fatGPer100g is number && d.fatGPer100g>=0 && d.fatGPer100g<=1000
+            && d.defaultServingGrams is number && d.defaultServingGrams>0 && d.defaultServingGrams<=2000
+            && ((d.servingLabel==null && d.servingGrams==null) || (d.servingLabel is string && d.servingLabel.size()>0 && d.servingLabel.size()<=40 && d.servingGrams is number && d.servingGrams>0 && d.servingGrams<=2000))
+            && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
+            && d.isEstimated is bool && d.schemaVersion is int && d.schemaVersion==1
+            && d.createdAt is timestamp && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validFood() && request.resource.data.createdAt==request.time;
+        allow update: if owns(uid) && validFood() && request.resource.data.createdAt==resource.data.createdAt;
+      }
+
+      match /recipes/{recipeId} {
+        function ingredient(item, fields) {
+          // Regex length checks also enforce string type, reducing repeated
+          // expressions without skipping any ingredient or allowed-field check.
+          let grams=item.grams;
+          let kcal=item.kcal;
+          let p=item.proteinG;
+          let c=item.carbsG;
+          let f=item.fatG;
+          return item.keys().hasOnly(fields)
+            && item.foodId.matches('(?s)^.{1,100}$') && !item.foodId.matches('^recipe:.*')
+            && item.name.matches('(?s)^.{1,100}$')
+            && grams>0 && grams<=2000 && kcal>=0 && kcal<=10000
+            && p>=0 && p<=1000 && c>=0 && c<=1000 && f>=0 && f<=1000
+            && item.sourceLabel.matches('(?s)^.{1,160}$') && item.isEstimated is bool;
+        }
+        function validRecipe() {
+          let d=request.resource.data;
+          let items=d.ingredients;
+          let fields=['foodId','name','grams','kcal','proteinG','carbsG','fatG','sourceLabel','isEstimated'];
+          return d.keys().hasOnly(['name','ingredients','yieldGrams','servingsCount','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
+            && d.name is string && d.name.size()>=2 && d.name.size()<=100
+            && d.yieldGrams is number && d.yieldGrams>0 && d.yieldGrams<=20000
+            && (d.servingsCount==null || (d.servingsCount is number && d.servingsCount>0 && d.servingsCount<=1000))
+            && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
+            && d.isEstimated==true && d.schemaVersion is int && d.schemaVersion==1
+            && d.createdAt is timestamp && d.updatedAt==request.time
+            && items is list && items.size()>0 && items.size()<=6
+            && ingredient(items[0], fields)
+            && (items.size()<2 || ingredient(items[1], fields))
+            && (items.size()<3 || ingredient(items[2], fields))
+            && (items.size()<4 || ingredient(items[3], fields))
+            && (items.size()<5 || ingredient(items[4], fields))
+            && (items.size()<6 || ingredient(items[5], fields));
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validRecipe() && request.resource.data.createdAt==request.time;
+        allow update: if owns(uid) && validRecipe() && request.resource.data.createdAt==resource.data.createdAt;
+      }
+
+      match /favorite_foods/{favoriteId} {
+        function validFavorite() {
+          let d = request.resource.data;
+          return d.keys().hasAll(['sourceKind','sourceId','createdAt','updatedAt','schemaVersion'])
+            && d.keys().hasOnly(['sourceKind','sourceId','createdAt','updatedAt','schemaVersion'])
+            && d.sourceKind in ['catalog','custom','recipe'] && d.sourceId is string && d.sourceId.size()>0 && d.sourceId.size()<=100
+            && !d.sourceId.matches('.*[/].*') && favoriteId == d.sourceKind + '_' + d.sourceId
+            && d.schemaVersion is int && d.schemaVersion==1
+            && d.createdAt is timestamp && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validFavorite() && request.resource.data.createdAt==request.time
+          && ((request.resource.data.sourceKind=='catalog' && exists(/databases/$(database)/documents/food_catalog/$(request.resource.data.sourceId)))
+            || (request.resource.data.sourceKind=='custom' && exists(/databases/$(database)/documents/users/$(uid)/custom_foods/$(request.resource.data.sourceId)))
+            || (request.resource.data.sourceKind=='recipe' && exists(/databases/$(database)/documents/users/$(uid)/recipes/$(request.resource.data.sourceId))));
+        allow update: if owns(uid) && validFavorite() && request.resource.data.createdAt==resource.data.createdAt
+          && request.resource.data.sourceId==resource.data.sourceId && request.resource.data.sourceKind==resource.data.sourceKind;
+      }
+
+      match /nutrition_targets/{dateKey} {
+        function validTarget() {
+          let d = request.resource.data;
+          return d.keys().hasAll(['effectiveFromDateKey','kcalTarget','proteinGTarget','carbsGTarget','fatGTarget','source','schemaVersion','createdAt','updatedAt'])
+            && d.keys().hasOnly(['effectiveFromDateKey','kcalTarget','proteinGTarget','carbsGTarget','fatGTarget','source','schemaVersion','createdAt','updatedAt'])
+            && d.effectiveFromDateKey == dateKey && goalDate(dateKey)
+            && d.kcalTarget is number && d.kcalTarget > 0 && d.kcalTarget <= 20000
+            && ((d.proteinGTarget == null && d.carbsGTarget == null && d.fatGTarget == null)
+              || (d.proteinGTarget is number && d.proteinGTarget >= 0 && d.proteinGTarget <= 5000
+                && d.carbsGTarget is number && d.carbsGTarget >= 0 && d.carbsGTarget <= 5000
+                && d.fatGTarget is number && d.fatGTarget >= 0 && d.fatGTarget <= 5000))
+            && d.source == 'user_manual' && d.schemaVersion is int && d.schemaVersion == 1
+            && d.createdAt is timestamp && d.updatedAt == request.time;
+        }
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validTarget() && request.resource.data.createdAt == request.time;
+        allow update: if owns(uid) && validTarget() && request.resource.data.createdAt == resource.data.createdAt;
+      }
+
       match /goals/{goalId} {
         allow read, delete: if owns(uid);
         allow create: if owns(uid) && validGoal()

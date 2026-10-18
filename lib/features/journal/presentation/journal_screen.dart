@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/config/app_feature_flags.dart';
 import '../../../core/utils/local_date_key.dart';
 import '../../../core/widgets/feature_page.dart';
 import '../../../core/widgets/confirmed_save.dart';
@@ -11,10 +12,15 @@ import '../../activity/presentation/activity_log_dialog.dart';
 import '../../activity/presentation/activity_log_section.dart';
 import '../../activity/providers/activity_providers.dart';
 import '../../food_scanner/presentation/food_scanner_dialog.dart';
+import '../../food_library/presentation/meal_food_sources.dart';
+import '../../food_library/providers/food_library_providers.dart';
+import '../../food_library/models/food_library_models.dart';
 import '../../nutrition/models/nutrition_models.dart';
+import '../../nutrition/models/nutrition_failure.dart';
 import '../../nutrition/presentation/meal_form_dialog.dart';
 import '../../nutrition/presentation/meal_log_section.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
+import '../../nutrition_targets/presentation/nutrition_target_card.dart';
 import '../../water/models/water_log.dart';
 import '../../water/presentation/water_log_dialog.dart';
 import '../../water/presentation/water_log_section.dart';
@@ -37,22 +43,48 @@ class JournalScreen extends ConsumerWidget {
     bool aiAssisted = false,
     DateTime? initialConsumedAt,
     MealLog? duplicateFrom,
+    MealType? initialType,
   }) async {
     final uid = ref.read(authSessionProvider).value?.uid;
+    final operationId = meal == null
+        ? ref.read(nutritionRepositoryProvider).newMealId()
+        : null;
+    final copy = duplicateFrom?.copyDraft(
+      day: initialConsumedAt ?? ref.read(journalDateProvider),
+    );
     final draft = await showDialog<MealDraft>(
       context: context,
       barrierDismissible: false,
       builder: (_) => AccountBoundDialog(
         child: MealFormDialog(
+          libraryErrorMessage: () =>
+              switch (ref.read(foodLibraryControllerProvider).error) {
+                FoodLibraryFailure e => e.message,
+                _ => null,
+              },
+          newLibraryId: () => ref.read(foodLibraryRepositoryProvider).newId(),
+          onSavePersonalFood: (food) => ref
+              .read(foodLibraryControllerProvider.notifier)
+              .save(food, create: true),
+          saveErrorMessage: () =>
+              switch (ref.read(nutritionControllerProvider).error) {
+                NutritionFailure failure => failure.message,
+                _ => null,
+              },
           catalog: catalog,
-          recentItems: ref.read(recentMealItemsProvider).value ?? const [],
+          sourcesBuilder: (add, recent, custom) => MealFoodSources(
+            onCatalog: add,
+            onRecent: recent,
+            onCustom: custom,
+            initialSearch: initialSearch,
+          ),
           meal: meal,
-          initialConsumedAt: initialConsumedAt,
-          initialType: duplicateFrom?.type,
-          initialItems: duplicateFrom?.items ?? const [],
+          initialConsumedAt: copy?.consumedAt ?? initialConsumedAt,
+          initialType: copy?.type ?? initialType,
+          initialItems: copy?.items ?? const [],
           suggestedFood: suggestedFood,
           initialSearch: initialSearch,
-          aiAssisted: aiAssisted,
+          aiAssisted: aiAssisted || copy?.source == MealSource.aiAssisted,
           onSave: (draft) {
             if (!context.mounted ||
                 ref.read(authSessionProvider).value?.uid != uid) {
@@ -60,7 +92,7 @@ class JournalScreen extends ConsumerWidget {
             }
             final controller = ref.read(nutritionControllerProvider.notifier);
             return meal == null
-                ? controller.addMeal(draft)
+                ? controller.addMeal(draft, operationId: operationId)
                 : controller.updateMeal(mealId: meal.id, draft: draft);
           },
         ),
@@ -120,6 +152,7 @@ class JournalScreen extends ConsumerWidget {
     List<FoodCatalogItem> catalog,
     DateTime selectedDate,
   ) async {
+    if (!ref.read(appFeatureFlagsProvider).foodScannerEnabled) return;
     final result = await showDialog<FoodScanChoice>(
       context: context,
       builder: (_) => FoodScannerDialog(catalog: catalog),
@@ -333,7 +366,6 @@ class JournalScreen extends ConsumerWidget {
     final waterAction = ref.watch(waterControllerProvider);
     final activityState = ref.watch(activityLogsProvider(dateKey));
     final activityAction = ref.watch(activityControllerProvider);
-    ref.watch(recentMealItemsProvider);
     final catalog = catalogState.value ?? const <FoodCatalogItem>[];
     final meals = mealsState.value ?? const <MealLog>[];
     ref.listen<JournalQuickAction?>(journalQuickActionProvider, (
@@ -378,8 +410,17 @@ class JournalScreen extends ConsumerWidget {
           waterState: waterState,
           activityState: activityState,
         ),
+        NutritionTargetCard(day: selectedDate, meals: mealsState),
         const SizedBox(height: AppSpacing.md),
         MealLogSection(
+          onAddForType: (type) => _openMealForm(
+            context,
+            ref,
+            catalog,
+            initialType: type,
+            initialConsumedAt: _timeOnSelectedDate(selectedDate),
+          ),
+          showScanner: ref.watch(appFeatureFlagsProvider).foodScannerEnabled,
           catalogState: catalogState,
           mealsState: mealsState,
           catalog: catalog,

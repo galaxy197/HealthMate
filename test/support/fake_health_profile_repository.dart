@@ -62,6 +62,11 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
   OnboardingDraft? lastOnboardingDraft;
 
   UserProfile? get currentProfile => _profile;
+  void emitProfile(UserProfile? profile) {
+    _profile = profile;
+    _profileChanges.add(profile);
+  }
+
   List<BodyMetric> get metrics => List.unmodifiable(_metrics);
 
   @override

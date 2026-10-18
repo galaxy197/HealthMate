@@ -5,8 +5,11 @@ abstract interface class AuthRepository {
   Future<void> signIn({required String email, required String password});
   Future<void> register({required String email, required String password});
   Future<void> sendPasswordResetEmail(String email);
-  Future<void> reauthenticateWithPassword(String password);
-  Future<void> updatePassword(String newPassword);
-  Future<void> deleteCurrentUser();
+  Future<void> reauthenticateWithPassword(
+    String password, {
+    String? expectedUid,
+  });
+  Future<void> updatePassword(String newPassword, {String? expectedUid});
+  Future<void> deleteCurrentUser({String? expectedUid});
   Future<void> signOut();
 }

@@ -349,3 +349,256 @@ gốc và xin đồng ý từng ảnh trước khi gửi; không gửi dữ li�
 Cache native có thể giữ lại dữ liệu trên máy sau logout; app không tự clear
 pending writes. Cấu hình backup Android đã bổ sung, chưa thử device transfer.
 Kết quả **31 Rules + 4 SDK integration** và giới hạn tại [test-report.md](test-report.md).
+
+## Core C1 — 17/10/2026
+
+C1 chỉ thêm cờ tính năng cục bộ và chặn lối vào Chatbot/Scanner, không thêm/sửa
+collection, field, serializer, Rules hoặc indexes. Giữ lịch sử AI và cleanup
+chat_sessions/messages, snapshot dinh dưỡng, quy ước dateKey/timezoneOffset và
+reader legacy consumedAt hiện có. Không chạy migration hoặc sửa dữ liệu server.
+
+Thiết kế dự kiến nutrition_targets (C2), favorite_foods (C3), custom_foods/recipes
+(C4), công thức scale/yield/serving, lịch sử hiệu lực và các ràng buộc test/cleanup:
+[core-scope.md](core-scope.md#schema-dự-kiến-và-kế-hoạch-c2c6-chưa-triển-khai).
+Các collection mới **chưa triển khai**. Mỗi giai đoạn sẽ cập nhật chi tiết schema,
+bounds, Rules và index theo truy vấn thực tế trước khi thêm tính năng.
+
+Rules production đã đọc lại trong C1, vẫn khác source và thiếu match ghi cho
+Goals/Quest/Chat. Local Rules31/31 và SDK6/6 pass trên demo emulator; chưa deploy,
+chưa nghiệm thu production. Không đồng nhất test local với quyền production.
+
+## C2 — Mục tiêu dinh dưỡng theo ngày hiệu lực (thiết kế trước triển khai)
+
+`users/{uid}/nutrition_targets/{effectiveFromDateKey}`:
+- effectiveFromDateKey: ngày lịch địa phương chuẩn yyyy-MM-dd, trùng documentID.
+- kcalTarget: số hữu hạn >0 và <=20000.
+- proteinGTarget/carbsGTarget/fatGTarget: cùngnull hoặc cùng số hữu hạn0..5000g.
+- source=user_manual, schemaVersion=1, createdAt/updatedAt=server timestamp.
+
+Đây là giới hạn kỹ thuật chống payload xấu, không phải khuyến nghị y khoa.
+Query một bản có effectiveFromDateKey<=ngàyD, orderBy giảm dần,limit1; không có
+thì chưa đặt. Dùng single-field index mặc định, chưa cần composite index mới.
+Đọc server để lỗi/offline không bị coi là chưa đặt; không fetch toàn bộ lịch sử.
+
+Form và repository chỉ cho lưu từ ngày hôm nay địa phương trở đi; không sửa/xóa
+phiên bản quá khứ qua UI. Rules kiểm tra ngày hợp lệ, schema/bounds/UID/timestamps;
+Rules không biết múi giờ thiết bị nên không giả vờ chứng thực ngày địa phương
+hiện tại hoặc mức mục tiêu y khoa. Không thêm timezone field vào schema đã chốt.
+Upsert transaction theoIDngày, giữ createdAt, không timeout write giả định đã hủy;
+retry cùngngày không nhân đôi. Không tạo counter/tổng ngày dẫn xuất hoặc thay Goals.
+Lệch năng lượng macro4P+4C+9F so với kcal>5% cần xác nhận giữ giá trị, không tự sửa.
+Thêm nutrition_targets vào cleanup tài khoản và kiểm thử Rules/SDK.
+
+### Kết quả triển khai C2 và xác nhận ghi
+
+Schema nêu trên được triển khai local, chưa deploy. UI dùng chung provider theo
+UID/ngày cho Tổng quan, Nhật ký và Cá nhân, không thêm listener hoặc counter ngày.
+Một query server lấy tối đa1document. Sau lưu, invalidate các ngày đã cache để
+chọn lại đúng phiên bản; Future cũ/UID cũ không cập nhật UI tài khoản mới.
+
+SDK web + disableNetwork trong emulator đã tái hiện transaction hoàn tất và bản
+ghi xuất hiện trên server sau reconnect, trong khi Source.server read bị từ chối.
+Vì vậy repository đọc lại đúng document từ server sau transaction và kiểm tra
+kcal/macros + metadata (không cache/pending) trước khi báo thành công. Nếu thiếu
+xác nhận, bản nháp còn và retry dùng cùng ID ngày; không coi lỗi là rollback.
+Chi phí thêm1đọc sau mỗi lần lưu là để xác nhận nội dung, không phải query lặp
+trong build. createdAt được giữ khi update, updatedAt là server timestamp.
+
+UI không có xóa phiên bản mục tiêu hoặc sửa ngày quá khứ. Rules owner vẫn được
+xóa phục vụ cleanup tài khoản; không coi giới hạn UI là chứng thực ngày/múi giờ
+hoặc quyền quản trị. Không thay đổi hay migration dữ liệu bữa ăn đã có.
+
+## C3 — Thiết kế trước triển khai (17/10/2026)
+
+Thêm users/{uid}/favorite_foods/{catalog_<sourceId>}: sourceKind=catalog,
+sourceId (1..100 ký tự, không có slash), createdAt/updatedAt server timestamp,
+schemaVersion=1. ID ghép nguyên sourceId phân biệt hoa/thường; namespace catalog_
+không va chạm custom_/recipe_ ở C4. C3 chưa cho client tạo nguồn custom/recipe.
+Rules kiểm tra ID/field/type/timestamp/UID và catalog tồn tại khi tạo; owner vẫn
+đọc/xóa yêu thích khi nguồn biến mất. Không cache số dinh dưỡng vào yêu thích.
+
+Chỉ mở nguồn yêu thích trong form và khi chọn tab tương ứng. Query phân trang
+createdAt giảm dần, limit40 rồi tăng40 khi bấm Xem thêm. Không listener toàn lịch
+sử nhật ký; recent giới hạn20bữa, khử món trùng từ snapshot. Metadata cache của
+nguồn gần đây/yêu thích được chuyển tới UI, cache rỗng không bị gọi là chưa có.
+Lưu yêu thích là thao tác set mong muốn=true theoIDổnđịnh, không phải toggle mù;
+bỏ yêu thích ở tab Yêu thích. Thao tác lặp không tạo hai bản.
+
+MealLog không đổi schema. Mỗi form tạo mới/copy cấp operationId một lần, dùng
+create-if-absent transaction; retry cùngpayload là no-op, payload khác cho lỗi rõ
+ràng để tải lại/chủ động sửa, không ghi đè bản đã tạo. Kiểm tra server read-back
+trước success, không timeout write để giả định hủy. Sửa bữa có sẵn vẫn updateIDcũ.
+Copy chỉ mang snapshot/type/source, không mangID/dateKey/offset/createdAt nguồn;
+ngày/offset mới tính từ thời điểm chọn, không cho thời điểm tương lai. Một lần mở
+copy mới có ID riêng. Không migration/gộp MealLogs hoặc nâng giới hạn5món/bản ghi.
+Thêm favorite_foods vào cleanup. Chưa cần composite index mới hoặc deploy.
+
+### C3 — Kết quả triển khai và kiểm chứng
+
+Thiết kế trên đã triển khai local; không tạo collection trên production trong
+lượt này. `FavoriteFood` chỉ giữ tham chiếu catalog, không giữ số dinh dưỡng.
+Chọn thêm từ yêu thích dùng dữ liệu catalog hiện tại; món gần đây/copy dùng snapshot
+đã ghi. Sửa gram scale từ snapshot; không tra lại catalog để thay số lịch sử.
+Catalog thiếu một trong bốn số dinh dưỡng hợp lệ có `hasNutritionData=false` trong
+model đọc local (không thêm field Firestore). UI chặn thêm món đó, không coi số
+mặc định 0 là dữ liệu đã biết. Nguồn mất có hướng dẫn và vẫn bỏ yêu thích được.
+
+Một listener recent giới hạn20bữa dùng chung khi mở nguồn Gần đây, khử trùng lấy
+tối đa8món. Yêu thích query limit40/tăng40 theo thao tác người dùng, không tải tất
+cả ngầm. Đổi UID hủy subscription và bỏ completion cũ. Không thêm daily counter,
+listener trong build hoặc index composite. Các MealLog cùng loại bữa vẫn độc lập;
+tổng nhóm/ngày là phép cộng từ provider ngày đang chọn, cập nhật sau sửa/xóa.
+
+Transaction + Source.server read-back được kiểm tra bằng SDK web/emulator, cả khi
+disableNetwork: transaction có thể đã tới server trong khi read-back bị lỗi.
+Không báo thành công thiếu ack, không coi lỗi là rollback; giữ form và retry cùng
+ID/payload. Retry payload khác báo tải lại/chọn Sửa, không ghi đè bản đã tồn tại.
+Mỗi lần chủ động mở form mới/copy mới có ID mới. Không lưu draft qua đóng app.
+Favorite set=true idempotent giữ createdAt; bỏ yêu thích offline chờ reconnect và
+xác nhận xóa. Cleanup favorite_foods được kiểm tra cùng dữ liệu khác trước xóa Auth,
+đồng thời kiểm tra yêu thích của UID B vẫn còn sau cleanup UID A.
+
+39Rules +9SDK tests pass trên demo-healthmate-rules. GET production read-only
+12:45:30 ngày17/10/2026 UTC+07 xác nhận release vẫn 2026-10-13T06:25:21.345792Z,
+chưa có favorite_foods/nutrition_targets. Không deploy/migration/ghi dữ liệu thật.
+
+## C4 — Thiết kế thư viện món và công thức (17/10/2026)
+
+Bổ sung riêng dưới UID, không sửa schema MealLog hoặc migration lịch sử:
+- custom_foods/{id}: name, alternateNames (tối đa 5 tên, 60 ký tự/tên),
+  servingBasis=per_100g, kcalPer100g/proteinGPer100g/carbsGPer100g/fatGPer100g,
+  defaultServingGrams, servingLabel+servingGrams cùng null hoặc có đủ cặp,
+  sourceLabel, isEstimated, schemaVersion=1, createdAt/updatedAt server timestamp.
+  Tên 2–100 ký tự, kcal/100g 0–10000, mỗi macro 0–1000g; gram >0 và <=2000.
+- recipes/{id}: name, ingredients từ 1 đến 6 dòng snapshot có 9 field giống
+  MealItemSnapshot, yieldGrams >0..20000, servingsCount null hoặc >0..1000,
+  sourceLabel, isEstimated=true, schemaVersion=1, createdAt/updatedAt server.
+  Mỗi nguyên liệu gram >0..2000, kcal 0..10000, mỗi macro 0..1000. Không lồng
+  recipe; tên/nguồn/snapshot giữ độc lập khi catalog/món cá nhân bị sửa/xóa.
+  Giới hạn 6 đồng bộ model/UI/Rules và được kiểm tra ngân sách Rules bằng Emulator.
+- Tổng recipe = tổng snapshot; /100g = tổng*100/yieldGrams. Yield có thể khác
+  tổng nguyên liệu. Gram/phần = yieldGrams/servingsCount; số phần ăn được nhập
+  thập phân, quy về gram rồi mới tạo snapshot. Không cache tổng/per100g dẫn xuất.
+- ID snapshot mới có namespace custom:<id> hoặc recipe:<id>; catalog và snapshot
+  nhập tay cũ không đổi ý nghĩa. Không thêm field bắt buộc vào MealLog.
+- favorite_foods mở sourceKind custom/recipe, ID custom_<id>/recipe_<id>, giữ
+  catalog_<id> cũ. Create chỉ nếu nguồn của đúng UID tồn tại; nguồn mất vẫn đọc/
+  bỏ yêu thích được. Không dùng query trang đầu để kết luận nguồn không tồn tại:
+  favorite private đọc nguồn trực tiếp theo ID, lỗi tách biệt với missing.
+
+Watch thư viện theo createdAt desc, limit40 rồi tăng40 qua hành động rõ ràng.
+Chỉ mở nguồn khi cần, autoDispose và UID-bound. Create có ID ổn định mỗi form;
+transaction create-if-absent và server read-back, retry cùng payload không trùng.
+Edit không tạo lại nguồn đã xóa; createdAt bất biến. Delete chờ xác nhận server.
+Không timeout write để suy ra rollback. Draft chỉ giữ RAM, không qua đóng app.
+Nhập ngoài catalog một lần vẫn là mặc định; lưu Món của tôi là lựa chọn chủ động.
+Khi nguồn thư viện đã lưu mà bữa chưa lưu, hiển thị hai trạng thái riêng.
+Thêm custom_foods/recipes vào cleanup trước Auth; chưa deploy hoặc đổi index.
+Các giới hạn trên là giới hạn kỹ thuật, không phải khuyến nghị dinh dưỡng.
+
+### C4 — Kết quả triển khai và xác nhận ghi
+
+Schema trên đã triển khai local; 47 Rules và 11 SDK tests trên
+`demo-healthmate-rules` pass. Công thức đủ 6 dòng ban đầu vượt ngân sách 1.000
+biểu thức khi gọi lại validator MealLog. Validator recipe hiện dùng allowlist
+field chung, giữ các giá trị số vào biến và regex kiểm tra type/độ dài string;
+kiểm tra đủ cả 6 dòng, không bỏ kiểm tra dòng giữa/cuối. Test cả create/update
+payload tối đa và payload xấu tại dòng 0/2/5 đều có kết quả đúng.
+
+Khẩu phần tạo snapshot vẫn chịu giới hạn MealItem: >0..2000g, kcal <=10000,
+mỗi macro <=1000g. Dialog kiểm tra cả số dinh dưỡng sau quy đổi, không chỉ gram.
+Recipe /100g được tính lại khi đọc; client từ chối kết quả ngoài giới hạn món.
+Các giới hạn này là kỹ thuật, không xác nhận mức ăn hoặc dinh dưỡng y khoa.
+
+Reader library kiểm tra schema/nutrients/timestamps và báo lỗi có kiểm soát thay
+vì thay field thiếu bằng 0. Cache list được ghi nhãn; nguồn private favorite đọc
+server trực tiếp theo UID/kind/ID, không kết luận mất nguồn vì nó ở ngoài trang40.
+Delete không cascade vào snapshot hoặc tự xóa favorite; favorite mất nguồn vẫn
+bỏ được. Library controller invalidate các nguồn đang dùng sau save/delete, không
+thêm kho tổng hợp hoặc listener ở startup. Nút Thêm vào bữa chỉ đổi bản nháp;
+MealLog chỉ ghi sau nút Lưu của form bữa ăn.
+
+Create/retry cùng ID dùng transaction + read-back; khác payload không ghi đè.
+Edit không tự tạo lại nguồn đã xóa. SDK test disableNetwork tái hiện lỗi ack dù
+transaction có thể đã tới server; reconnect/retry vẫn một bản đúng nội dung.
+Delete offline giữ pending tới reconnect và xác nhận server. Đổi UID bỏ completion
+cũ; form account-bound được đóng, không chuyển draft sang tài khoản khác.
+
+Cập nhật cleanup custom_foods/recipes; SDK xác nhận dữ liệu A được xóa trước Auth,
+trong khi món, công thức và yêu thích của B vẫn còn. Không migration, đổi schema
+MealLog, dependency hoặc composite index. Rules production GET read-only lúc
+16:11:23 UTC+07 ngày17/10/2026 vẫn thiếu custom_foods/recipes/favorite_foods/
+nutrition_targets; release vẫn 2026-10-13T06:25:21.345792Z. Chưa deploy.
+
+
+## 2026-10-17 — Core C5: đọc Tiến độ và mục tiêu tuần
+
+Không thêm collection, field, dependency, migration, Rules hoặc composite index
+trong C5. Giữ nguyên schema C1–C4, snapshots, cleanup và quyền owner theo UID.
+Tổng hợp tiếp tục suy ra từ nhật ký qua `weeklyLogsProvider`/`summarizeWeek`,
+không lưu một bản sao tổng kcal hoặc counter ngày trong Firestore.
+
+- Một lần mở/đổi tuần đọc một khoảng lịch địa phương `[Monday, nextMonday)`.
+  MealLog dùng dateKey đã lưu; truy vấn consumedAt nửa mở giữ tương thích dữ liệu
+  cũ thiếu dateKey, khử trùng ID trước tổng hợp. Water/activity dùng dateKey.
+  Cân nặng query measuredAt trong cùng khoảng, không tải toàn bộ lịch sử.
+  Các query nhật ký bị giới hạn bởi tuần, không cắt 100 bản ghi làm thiếu tổng.
+- Mục tiêu dùng `NutritionTargetRepository.loadForRange(uid,startKey,endKey)`,
+  chỉ chấp nhận 1–7 ngày lịch: query `effectiveFromDateKey <= startKey`, desc,
+  limit1; query `effectiveFromDateKey > startKey && < endKey`, asc, limit7.
+  Mỗi ngày hiệu lực có một ID nên tối đa7 phiên bản liên quan cho một tuần.
+  Cùng một field range/order dùng single-field index hiện có; không cần composite.
+  Cả hai đọc Source.server, dùng parser schema/timestamps/validation chung với
+  loadForDay; lỗi/offline/dữ liệu hỏng không biến thành danh sách mục tiêu rỗng.
+- Với mỗi ngày D chọn phiên bản lớn nhất <=D. Không có phiên bản thì chưa đặt;
+  mục tiêu hiệu lực sau D không áp ngược. Không cộng mục tiêu tương lai vào tổng.
+  Thành công khi lưu mục tiêu invalidate cả provider ngày và tuần.
+- Tổng kcal/macros/nước/phút chỉ cộng ngày đã tới. Ghi 0 có chủ ý vẫn tính là có
+  ghi; ngày không có bữa không vào mẫu số trung bình. Tương lai không tính vào
+  số ngày đã tới. Không suy ra lượng ăn thực hoặc tuân thủ từ nhật ký thiếu.
+- WeightChart tự sort timestamp trước lấy12 lần gần nhất, vẽ x theo thời gian
+  thực để giữ khoảng cách ngày trống. Bên dưới có ngày/giờ và số cân; không
+  mô tả thay đổi nếu <2 điểm. Chênh lệch tuần dùng lần cuối trừ lần đầu của tuần,
+  không khẳng định nguyên nhân hoặc xu hướng ngoài khoảng được chọn.
+- Future providers được chia sẻ cho cùng UID/tuần, không mở listener ngày hoặc
+  toàn lịch sử ở Tiến độ. Khi ẩn tab, card nhả subscriptions nhưng giữ lựa chọn
+  tuần; quay lại tải mới. Có giờ tải và refresh thủ công sau sửa nhật ký.
+  Loading khi đổi UID/tuần không tái hiển thị payload cũ. Mục tiêu tải riêng:
+  permission/offline ở mục tiêu không che tổng nhật ký đã tải thành công.
+- Nút+ thêm cân nặng tái dùng FirebaseHealthProfileRepository.addBodyMetric và
+  form hiện có qua ConfirmedSave. Chờ Future xác nhận, chặn gửi lặp, giữ draft
+  khi lỗi; AccountBoundDialog bỏ draft khi đổi UID. Thành công làm mới tuần.
+  Không tạo collection cân nặng thứ hai hoặc tự thêm chỉ số sức khỏe khác.
+
+Rules production chỉ được GET metadata/source để so sánh; không deploy C5.
+Bằng chứng mới nhất và kiểm thử server emulator trong docs/test-report.md phần C5.
+
+## Core C6 — Nghiệm thu và vòng đời tài khoản (17/10/2026)
+
+C6 không thêm collection/field/index, không đổi Rules so với C5 và không chạy
+migration. Giữ snapshot MealLog và quy ước dateKey/UTC offset hiện có.
+
+- BodyMetric mới giữ thời điểm hiện tại thay vì cắt về 00:00; vì vậy lần cân
+  sau onboarding trong cùng ngày được sắp xếp đúng là lần gần nhất. Sửa riêng
+  cân nặng giữ nguyên measuredAt, kể cả giờ/phút/phần lẻ. Khi chọn ngày khác,
+  giữ phần giờ và chặn thời điểm tương lai. Bản ghi cũ không bị viết lại.
+- ProfileController và AccountSecurityController gắn thao tác với UID/generation;
+  kết quả của phiên cũ không ghi trạng thái thành công/lỗi vào phiên mới. Đổi mật
+  khẩu/xóa Auth kiểm tra expectedUid ngay trong FirebaseAuthRepository, trước SDK
+  mutation. Cleanup vẫn xóa dữ liệu UID đã xác thực trước rồi mới xóa Auth; nếu
+  đổi phiên giữa chừng thì dừng bước tiếp theo. Không biến thao tác A thành B.
+- Các subscription repository được hủy khi đổi phiên. Lỗi Future cancel từ
+  async* khi quyền cũ bị thu hồi chỉ được xử lý tại biên hủy subscription;
+  lỗi đọc/ghi của subscription còn hoạt động vẫn được chuyển đầy đủ tới UI.
+  Không thay permission/error thành dữ liệu trống hoặc thành công giả.
+- Form hồ sơ/cân nặng ở Cá nhân chờ server xác nhận, giữ draft khi lỗi và bỏ
+  draft khi đổi UID; không đóng trước khi biết kết quả lưu.
+- E2E dùng named Firebase app, Auth/Firestore Emulator với project cố định
+  demo-healthmate-rules và dữ liệu tổng hợp. Không gọi production main/bootstrap.
+  Debug Android chỉ mở HTTP cho localhost/127.0.0.1/10.0.2.2 để kết nối emulator;
+  release không dùng network_security_config này. Không bỏ App Check production.
+
+Rules production vẫn khác source: GET chỉ đọc 17:04:32 UTC+07 ngày17/10/2026,
+release cập nhật lần cuối 2026-10-13T06:25:21.345792Z; thiếu match của targets,
+favorites và thư viện core (cùng Goals/Quest/Chat trước đó). Hai composite index
+nước/vận động ở trạng thái READY. Không deploy trong C6; production chưa nghiệm thu.

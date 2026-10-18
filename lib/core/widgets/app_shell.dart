@@ -5,6 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../features/journal/providers/journal_date_provider.dart';
 import '../../features/journal/providers/journal_quick_action_provider.dart';
 import '../theme/app_spacing.dart';
+import 'confirmed_save.dart';
+import '../../features/auth/providers/auth_providers.dart';
+import '../../features/profile/presentation/body_metric_form_dialog.dart';
+import '../../features/profile/providers/profile_providers.dart';
+import '../../features/weekly_reflection/providers/weekly_reflection_providers.dart';
+
+import '../config/app_feature_flags.dart';
+
+enum _ExtraAction { weight }
 
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -27,6 +36,13 @@ class AppShell extends ConsumerWidget {
       key: ValueKey('nav-journal'),
     ),
     (
+      branch: 5,
+      label: 'Tiến độ',
+      icon: Icons.insights_outlined,
+      selected: Icons.insights_rounded,
+      key: ValueKey('nav-progress'),
+    ),
+    (
       branch: 4,
       label: 'Cá nhân',
       icon: Icons.person_outline_rounded,
@@ -43,7 +59,7 @@ class AppShell extends ConsumerWidget {
   }
 
   Future<void> _showQuickActions(BuildContext context, WidgetRef ref) async {
-    final action = await showModalBottomSheet<JournalQuickAction>(
+    final action = await showModalBottomSheet<Object>(
       context: context,
       useSafeArea: true,
       showDragHandle: true,
@@ -51,6 +67,38 @@ class AppShell extends ConsumerWidget {
       builder: (_) => const _QuickActionSheet(),
     );
     if (action == null || !context.mounted) return;
+    if (action == _ExtraAction.weight) {
+      final uid = ref.read(authSessionProvider).value?.uid;
+      if (uid == null) return;
+      final repository = ref.read(healthProfileRepositoryProvider);
+      final saved = await showDialog<Object>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AccountBoundDialog(
+          child: BodyMetricFormDialog(
+            onSave: (draft) async {
+              if (ref.read(authSessionProvider).value?.uid != uid) return false;
+              await repository.addBodyMetric(uid: uid, draft: draft);
+              if (!context.mounted ||
+                  ref.read(authSessionProvider).value?.uid != uid) {
+                return false;
+              }
+              ref.invalidate(weeklyLogsProvider);
+              return true;
+            },
+          ),
+        ),
+      );
+      if (saved != null &&
+          context.mounted &&
+          ref.read(authSessionProvider).value?.uid == uid) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Đã thêm lần đo.')));
+      }
+      return;
+    }
+    if (action is! JournalQuickAction) return;
     ref.read(journalDateProvider.notifier).select(DateTime.now());
     navigationShell.goBranch(1);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -168,7 +216,7 @@ class _FloatingNavigationBar extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
-          height: 76,
+          height: 60 + MediaQuery.textScalerOf(context).scale(24),
           child: Row(
             children: [
               for (final destination in destinations.take(2))
@@ -194,17 +242,18 @@ class _FloatingNavigationBar extends StatelessWidget {
                   ),
                 ),
               ),
-              Expanded(
-                child: _NavigationButton(
-                  key: destinations.last.key,
-                  label: destinations.last.label,
-                  icon: currentBranch == destinations.last.branch
-                      ? destinations.last.selected
-                      : destinations.last.icon,
-                  selected: currentBranch == destinations.last.branch,
-                  onTap: () => onSelect(destinations.last.branch),
+              for (final destination in destinations.skip(2))
+                Expanded(
+                  child: _NavigationButton(
+                    key: destination.key,
+                    label: destination.label,
+                    icon: currentBranch == destination.branch
+                        ? destination.selected
+                        : destination.icon,
+                    selected: currentBranch == destination.branch,
+                    onTap: () => onSelect(destination.branch),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -248,9 +297,8 @@ class _NavigationButton extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.fade,
-                softWrap: false,
+                maxLines: 2,
+                textAlign: TextAlign.center,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: color,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
@@ -264,11 +312,11 @@ class _NavigationButton extends StatelessWidget {
   }
 }
 
-class _QuickActionSheet extends StatelessWidget {
+class _QuickActionSheet extends ConsumerWidget {
   const _QuickActionSheet();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(
@@ -290,14 +338,16 @@ class _QuickActionSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          FilledButton.icon(
-            key: const ValueKey('quick-action-scan'),
-            onPressed: () =>
-                Navigator.pop(context, JournalQuickAction.scanFood),
-            icon: const Icon(Icons.document_scanner_outlined),
-            label: const Text('Quét món'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
+          if (ref.watch(appFeatureFlagsProvider).foodScannerEnabled) ...[
+            FilledButton.icon(
+              key: const ValueKey('quick-action-scan'),
+              onPressed: () =>
+                  Navigator.pop(context, JournalQuickAction.scanFood),
+              icon: const Icon(Icons.document_scanner_outlined),
+              label: const Text('Quét món'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           _SheetAction(
             key: const ValueKey('quick-action-meal'),
             icon: Icons.restaurant_menu_rounded,
@@ -315,6 +365,12 @@ class _QuickActionSheet extends StatelessWidget {
             icon: Icons.directions_run_rounded,
             label: 'Thêm vận động',
             onTap: () => Navigator.pop(context, JournalQuickAction.addActivity),
+          ),
+          _SheetAction(
+            key: const ValueKey('quick-action-weight'),
+            icon: Icons.monitor_weight_outlined,
+            label: 'Thêm cân nặng',
+            onTap: () => Navigator.pop(context, _ExtraAction.weight),
           ),
         ],
       ),

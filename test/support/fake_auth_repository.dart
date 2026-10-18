@@ -92,7 +92,10 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> reauthenticateWithPassword(String password) async {
+  Future<void> reauthenticateWithPassword(
+    String password, {
+    String? expectedUid,
+  }) async {
     events?.add('reauthenticate');
     reauthenticateCalls++;
     lastPassword = password;
@@ -101,7 +104,7 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> updatePassword(String newPassword) async {
+  Future<void> updatePassword(String newPassword, {String? expectedUid}) async {
     events?.add('update-password');
     updatePasswordCalls++;
     lastNewPassword = newPassword;
@@ -110,7 +113,7 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> deleteCurrentUser() async {
+  Future<void> deleteCurrentUser({String? expectedUid}) async {
     events?.add('delete-auth');
     deleteUserCalls++;
     await _operation();

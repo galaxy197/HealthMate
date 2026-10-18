@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/providers/local_clock_provider.dart';
 import '../../../core/config/ai_access_policy.dart';
+import '../../../core/config/app_feature_flags.dart';
 import '../../../core/errors/operation_diagnostics.dart';
 import '../../activity/providers/activity_providers.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -20,9 +21,22 @@ import '../models/chat_models.dart';
 final chatRepositoryProvider = Provider<ChatRepository>(
   (ref) => FirebaseChatRepository(FirebaseFirestore.instance),
 );
-final knowledgeServiceProvider = Provider<KnowledgeService>(
-  (ref) => FirebaseKnowledgeService(),
-);
+final knowledgeServiceProvider = Provider<KnowledgeService>((ref) {
+  if (!ref.watch(appFeatureFlagsProvider).chatbotEnabled) {
+    return const _DisabledKnowledgeService();
+  }
+  return FirebaseKnowledgeService();
+});
+
+class _DisabledKnowledgeService implements KnowledgeService {
+  const _DisabledKnowledgeService();
+
+  @override
+  Stream<String> explain(KnowledgeTopic topic) => Stream.error(
+    const ChatFailure('Trò chuyện đang tạm tắt trong bản core.'),
+  );
+}
+
 final journalChatContextProvider = Provider<JournalChatContext>(
   (ref) => JournalChatContext(
     nutrition: ref.watch(nutritionRepositoryProvider),
@@ -91,11 +105,12 @@ class ChatController extends Notifier<ChatState> {
 
   @override
   ChatState build() {
+    final enabled = ref.watch(appFeatureFlagsProvider).chatbotEnabled;
     ref.watch(authSessionProvider.select((session) => session.value?.uid));
     final generation = ++_generation;
     ref.onDispose(_abort);
     Future.microtask(() {
-      if (_valid(generation)) loadSessions();
+      if (enabled && _valid(generation)) loadSessions();
     });
     _resetRequest();
     return const ChatState();
@@ -125,6 +140,7 @@ class ChatController extends Notifier<ChatState> {
   }
 
   Future<void> loadSessions() async {
+    if (!ref.read(appFeatureFlagsProvider).chatbotEnabled) return;
     if (state.busy) return;
     final generation = _generation;
     state = state.change(phase: ChatPhase.loading);
@@ -141,6 +157,7 @@ class ChatController extends Notifier<ChatState> {
   }
 
   Future<void> openSession(String id) async {
+    if (!ref.read(appFeatureFlagsProvider).chatbotEnabled) return;
     if (state.busy) return;
     _resetRequest();
     final generation = ++_generation;
@@ -192,6 +209,7 @@ class ChatController extends Notifier<ChatState> {
     DateTime selectedDate, {
     KnowledgeTopic? topic,
   }) async {
+    if (!ref.read(appFeatureFlagsProvider).chatbotEnabled) return false;
     if (state.busy || state.full || state.pendingSave) return false;
     final text = topic?.label ?? question.trim();
     if (text.isEmpty || text.length > ChatLimits.inputCharacters) {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:typed_data';
 
 import '../../../core/config/ai_access_policy.dart';
+import '../../../core/config/app_feature_flags.dart';
 import '../models/ai_food_suggestion.dart';
 import '../data/food_image_picker.dart';
 
@@ -13,7 +14,17 @@ final foodImagePickerProvider = Provider<FoodImagePicker>(
 );
 
 final foodScannerServiceProvider = Provider<FoodScannerService>(
-  (ref) => _CheckedFoodScannerService(check: () => ref.read(aiAccessProvider)),
+  (ref) => _CheckedFoodScannerService(
+    check: () {
+      if (!ref.read(appFeatureFlagsProvider).foodScannerEnabled) {
+        return const AiAccess(
+          allowed: false,
+          message: 'Quét món đang tạm tắt trong bản core.',
+        );
+      }
+      return ref.read(aiAccessProvider);
+    },
+  ),
 );
 
 class _CheckedFoodScannerService implements FoodScannerService {

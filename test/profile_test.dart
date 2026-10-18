@@ -96,7 +96,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final editButton = find.byKey(const ValueKey('edit-metric-metric-1'));
-    await tester.scrollUntilVisible(editButton, 250);
+    await Scrollable.ensureVisible(tester.element(editButton), alignment: .5);
     await tester.pumpAndSettle();
     await tester.tap(editButton);
     await tester.pumpAndSettle();
@@ -109,7 +109,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final deleteButton = find.byKey(const ValueKey('delete-metric-metric-1'));
-    await tester.scrollUntilVisible(deleteButton, 250);
+    await Scrollable.ensureVisible(tester.element(deleteButton), alignment: .5);
     await tester.pumpAndSettle();
     await tester.tap(deleteButton);
     await tester.pumpAndSettle();

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:healthmate/core/router/app_router.dart';
@@ -91,6 +92,7 @@ Future<void> _open(
 }) async {
   final container = await pumpApp(
     tester,
+    featureFlags: const AppFeatureFlags(foodScannerEnabled: true),
     foodImagePicker: picker,
     foodScannerService: scanner,
     nutritionRepository: nutrition,

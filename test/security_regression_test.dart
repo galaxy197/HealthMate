@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/core/config/ai_access_policy.dart';
 import 'package:healthmate/core/router/app_router.dart';
@@ -231,6 +232,10 @@ void main() {
           profile: _profile(DateTime(2010)),
         ),
         knowledgeService: ai,
+        featureFlags: const AppFeatureFlags(
+          chatbotEnabled: true,
+          foodScannerEnabled: true,
+        ),
       );
       final subscription = container.listen(chatControllerProvider, (_, _) {});
       addTearDown(subscription.close);

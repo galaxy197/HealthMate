@@ -40,6 +40,10 @@ class FoodCatalogItem {
     required this.sourceLabel,
     required this.isEstimated,
     this.updatedAt,
+    this.hasNutritionData = true,
+    this.defaultServingGrams = 100,
+    this.servingLabel,
+    this.servingGrams,
   });
 
   final String id;
@@ -52,8 +56,17 @@ class FoodCatalogItem {
   final String sourceLabel;
   final bool isEstimated;
   final DateTime? updatedAt;
+  final bool hasNutritionData;
+  final double defaultServingGrams;
+  final String? servingLabel;
+  final double? servingGrams;
 
-  NutritionTotals forGrams(double grams) => per100g.scale(grams / 100);
+  NutritionTotals forGrams(double grams) {
+    if (!hasNutritionData) {
+      throw const FormatException('Món thiếu dữ liệu dinh dưỡng.');
+    }
+    return per100g.scale(grams / 100);
+  }
 }
 
 enum MealType {
@@ -198,6 +211,34 @@ class MealLog {
     items: items,
     source: source,
   );
+
+  MealDraft copyDraft({required DateTime day, DateTime? now}) {
+    final clock = (now ?? DateTime.now()).toLocal();
+    final date = localDateOnly(day);
+    if (date.isAfter(localDateOnly(clock))) {
+      throw const FormatException('Ngày sao chép không thể ở tương lai.');
+    }
+    final sourceTime = consumedAt.toLocal();
+    final candidate = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      sourceTime.hour,
+      sourceTime.minute,
+    );
+    return MealDraft(
+      type: type,
+      consumedAt: candidate.isAfter(clock) ? clock : candidate,
+      items: List.unmodifiable(items),
+      source: source,
+    );
+  }
+}
+
+class RecentMealPage {
+  const RecentMealPage({required this.meals, this.fromCache = false});
+  final List<MealLog> meals;
+  final bool fromCache;
 }
 
 List<MealItemSnapshot> recentMealItems(

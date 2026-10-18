@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/core/router/app_router.dart';
 import 'package:healthmate/core/router/app_routes.dart';
@@ -250,15 +251,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'journal');
 
-    expect(find.textContaining('Danh mục có 2 món'), findsOneWidget);
+    expect(find.textContaining('Chọn Thêm ở bữa để bắt đầu'), findsOneWidget);
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add-meal')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'meal form');
+    await tester.ensureVisible(find.byKey(const ValueKey('food-search')));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('food-search')), 'cơm');
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'search');
+    await tester.ensureVisible(find.byTooltip('Thêm Cơm trắng chín'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Thêm Cơm trắng chín'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'grams dialog');
@@ -266,6 +271,17 @@ void main() {
     await tester.tap(find.text('Xác nhận'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'portion added');
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('selected-meal-item-0')),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(MealFormDialog),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     expect(find.textContaining('195 kcal'), findsWidgets);
     await tester.tap(find.byKey(const ValueKey('save-meal')));
     await tester.pumpAndSettle();
@@ -278,7 +294,10 @@ void main() {
   testWidgets('Food Scanner result still opens the meal confirmation form', (
     tester,
   ) async {
-    final container = await pumpApp(tester);
+    final container = await pumpApp(
+      tester,
+      featureFlags: const AppFeatureFlags(foodScannerEnabled: true),
+    );
     container.read(appRouterProvider).go(AppRoutes.journal);
     await tester.pumpAndSettle();
 

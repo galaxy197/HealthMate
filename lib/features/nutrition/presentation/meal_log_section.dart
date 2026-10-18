@@ -14,7 +14,9 @@ class MealLogSection extends StatelessWidget {
     required this.meals,
     required this.action,
     required this.onAdd,
+    this.onAddForType,
     required this.onScan,
+    this.showScanner = false,
     required this.onEdit,
     this.onDuplicate,
     required this.onDelete,
@@ -29,7 +31,9 @@ class MealLogSection extends StatelessWidget {
   final List<MealLog> meals;
   final AsyncValue<void> action;
   final VoidCallback? onAdd;
+  final ValueChanged<MealType>? onAddForType;
   final VoidCallback? onScan;
+  final bool showScanner;
   final ValueChanged<MealLog> onEdit;
   final ValueChanged<MealLog>? onDuplicate;
   final ValueChanged<MealLog> onDelete;
@@ -39,7 +43,7 @@ class MealLogSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final loadError = catalogState.error ?? mealsState.error;
+    final loadError = mealsState.error;
     final totals = totalMealNutrition(meals);
     final integer = NumberFormat.decimalPattern('vi_VN');
     final decimal = NumberFormat('0.0', 'vi_VN');
@@ -70,18 +74,20 @@ class MealLogSection extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                FilledButton.tonal(
-                  key: const ValueKey('scan-food'),
-                  onPressed: onScan,
-                  child: const Row(
-                    children: [
-                      Icon(Icons.camera_alt_outlined),
-                      SizedBox(width: AppSpacing.sm),
-                      Expanded(child: Text('Quét món')),
-                    ],
+                if (showScanner) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  FilledButton.tonal(
+                    key: const ValueKey('scan-food'),
+                    onPressed: onScan,
+                    child: const Row(
+                      children: [
+                        Icon(Icons.camera_alt_outlined),
+                        SizedBox(width: AppSpacing.sm),
+                        Expanded(child: Text('Quét món')),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
             if (action.isLoading) ...[
@@ -122,7 +128,7 @@ class MealLogSection extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
             ],
-            if (catalogState.isLoading || mealsState.isLoading)
+            if (mealsState.isLoading)
               const Row(
                 children: [
                   SizedBox.square(
@@ -150,27 +156,64 @@ class MealLogSection extends StatelessWidget {
                   ),
                 ],
               )
-            else if (meals.isEmpty)
-              Text(
-                catalog.isEmpty
-                    ? 'Danh mục chưa có dữ liệu. Bạn vẫn có thể nhập món ngoài danh mục. Chưa có bữa ăn nào trong ngày này.'
-                    : 'Danh mục có ${catalog.length} món. Chưa có bữa ăn nào trong ngày này.',
-              )
             else ...[
-              if (catalog.isEmpty)
+              if (meals.isEmpty)
+                Text(
+                  catalog.isEmpty &&
+                          !catalogState.hasError &&
+                          !catalogState.isLoading
+                      ? 'Danh mục chưa có dữ liệu. Bạn vẫn có thể nhập món ngoài danh mục. Chưa có bữa ăn nào trong ngày này.'
+                      : 'Chưa có bữa ăn nào trong ngày này. Chọn Thêm ở bữa để bắt đầu.',
+                ),
+              if (catalogState.hasError)
                 const Text(
                   'Danh mục chưa tải được; các bữa đã ghi vẫn hiển thị bên dưới.',
                 ),
-              ...meals.map(
-                (meal) => _MealTile(
-                  meal: meal,
-                  onEdit: () => onEdit(meal),
-                  onDuplicate: onDuplicate == null
-                      ? null
-                      : () => onDuplicate!(meal),
-                  onDelete: () => onDelete(meal),
+              for (final type in MealType.values) ...[
+                const Divider(),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    Text(
+                      type.label,
+                      style: theme.textTheme.titleMedium,
+                      key: ValueKey('meal-group-${type.name}'),
+                    ),
+                    Text(
+                      '${integer.format(totalMealNutrition(meals.where((meal) => meal.type == type)).kcal.round())} kcal · ${meals.where((meal) => meal.type == type).length} bản ghi',
+                    ),
+                    TextButton.icon(
+                      key: ValueKey('add-meal-${type.name}'),
+                      onPressed:
+                          action.isLoading ||
+                              (onAddForType == null && onAdd == null)
+                          ? null
+                          : () => onAddForType != null
+                                ? onAddForType!(type)
+                                : onAdd?.call(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Thêm'),
+                    ),
+                  ],
                 ),
-              ),
+                if (!meals.any((meal) => meal.type == type))
+                  const Text('Chưa có ghi nhận cho bữa này.'),
+                ...meals
+                    .where((meal) => meal.type == type)
+                    .map(
+                      (meal) => _MealTile(
+                        meal: meal,
+                        onEdit: () => onEdit(meal),
+                        onDuplicate: onDuplicate == null
+                            ? null
+                            : () => onDuplicate!(meal),
+                        onDelete: () => onDelete(meal),
+                      ),
+                    ),
+              ],
             ],
           ],
         ),

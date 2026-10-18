@@ -780,3 +780,176 @@ test('weekly range queries keep local date boundaries, legacy meals and UID isol
       where('dateKey', '>=', '2026-10-12'), where('dateKey', '<', '2026-10-19'))));
   }
 });
+
+const targetData = (key = '2026-10-17') => ({
+  effectiveFromDateKey: key, kcalTarget: 1800, proteinGTarget: null,
+  carbsGTarget: null, fatGTarget: null, source: 'user_manual', schemaVersion: 1,
+  createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+});
+
+test('nutrition targets owner create/update/read/query use stable date ID and immutable createdAt', async () => {
+  const db = environment.authenticatedContext('alice').firestore();
+  const ref = doc(db, 'users/alice/nutrition_targets/2026-10-17');
+  await assertSucceeds(setDoc(ref, targetData()));
+  const createdAt = (await getDoc(ref)).data().createdAt;
+  await assertSucceeds(updateDoc(ref, { kcalTarget: 1900, proteinGTarget: 0, carbsGTarget: 0, fatGTarget: 0, updatedAt: serverTimestamp() }));
+  const found = await assertSucceeds(getDocs(query(collection(db, 'users/alice/nutrition_targets'),
+    where('effectiveFromDateKey', '<=', '2026-10-18'), orderBy('effectiveFromDateKey','desc'), limit(1))));
+  if (found.size !== 1 || found.docs[0].data().kcalTarget !== 1900 || !createdAt.isEqual(found.docs[0].data().createdAt)) throw new Error('Target update/readback mismatch');
+  await assertFails(updateDoc(ref, { createdAt: Timestamp.fromMillis(1), updatedAt: serverTimestamp() }));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test('nutrition targets reject guests and another UID on document and collection paths', async () => {
+  const alice = environment.authenticatedContext('alice').firestore();
+  await setDoc(doc(alice,'users/alice/nutrition_targets/2026-10-17'),targetData());
+  for (const db of [environment.authenticatedContext('bob').firestore(), environment.unauthenticatedContext().firestore()]) {
+    const ref = doc(db,'users/alice/nutrition_targets/2026-10-17');
+    await assertFails(getDoc(ref));
+    await assertFails(getDocs(collection(db,'users/alice/nutrition_targets')));
+    await assertFails(getDocs(query(collection(db,'users/alice/nutrition_targets'),where('effectiveFromDateKey','<=','2026-10-18'),orderBy('effectiveFromDateKey','desc'),limit(1))));
+    await assertFails(setDoc(ref,targetData()));
+    await assertFails(updateDoc(ref,{kcalTarget:1900,updatedAt:serverTimestamp()}));
+    await assertFails(deleteDoc(ref));
+  }
+});
+
+test('nutrition targets reject bad schema, dates, ranges, partial macros and non-finite numbers', async () => {
+  const db = environment.authenticatedContext('alice').firestore();
+  const ref = doc(db,'users/alice/nutrition_targets/2026-10-17');
+  for (const patch of [
+    {kcalTarget:0}, {kcalTarget:-1}, {kcalTarget:20001}, {kcalTarget:NaN}, {kcalTarget:Infinity}, {kcalTarget:'1800'},
+    {proteinGTarget:1}, {proteinGTarget:0,carbsGTarget:0,fatGTarget:-1},
+    {proteinGTarget:5001,carbsGTarget:0,fatGTarget:0}, {proteinGTarget:NaN,carbsGTarget:0,fatGTarget:0},
+    {proteinGTarget:0,carbsGTarget:Infinity,fatGTarget:0}, {proteinGTarget:0,carbsGTarget:0,fatGTarget:'0'},
+    {effectiveFromDateKey:'2026-10-18'}, {source:'ai'}, {schemaVersion:2}, {secretExtra:'bad'},
+    {createdAt:Timestamp.fromMillis(1)}, {updatedAt:Timestamp.fromMillis(1)},
+  ]) await assertFails(setDoc(ref,{...targetData(),...patch}));
+  for (const key of ['2026-02-30','2026-13-01','bad-date']) await assertFails(setDoc(doc(db,`users/alice/nutrition_targets/${key}`),targetData(key)));
+  const missing = targetData(); delete missing.fatGTarget;
+  await assertFails(setDoc(ref,missing));
+});
+
+test('nutrition target updates cannot smuggle invalid fields and upper technical bounds are accepted', async () => {
+  const db = environment.authenticatedContext('alice').firestore();
+  const ref = doc(db,'users/alice/nutrition_targets/2026-10-17');
+  await assertSucceeds(setDoc(ref,{...targetData(),kcalTarget:20000,proteinGTarget:5000,carbsGTarget:5000,fatGTarget:5000}));
+  for (const patch of [{kcalTarget:Infinity}, {effectiveFromDateKey:'2026-10-18'}, {fatGTarget:null}, {injected:true}]) {
+    await assertFails(updateDoc(ref,{...patch,updatedAt:serverTimestamp()}));
+  }
+});
+
+async function seedFavoriteCatalog() {
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(),'food_catalog/c3-rice'),{name:'Cơm fixture'});
+  });
+}
+const favoriteData = () => ({sourceKind:'catalog',sourceId:'c3-rice',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),schemaVersion:1});
+
+test('favorite catalog references support owner CRUD and stable ID with immutable timestamps',async()=>{
+  await seedFavoriteCatalog();
+  const db=environment.authenticatedContext('alice').firestore();
+  const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
+  await assertSucceeds(setDoc(ref,favoriteData()));
+  const before=(await getDoc(ref)).data();
+  await assertSucceeds(updateDoc(ref,{updatedAt:serverTimestamp()}));
+  const page=await assertSucceeds(getDocs(query(collection(db,'users/alice/favorite_foods'),orderBy('createdAt','desc'),limit(40))));
+  if(page.size!==1 || !page.docs[0].data().createdAt.isEqual(before.createdAt)) throw new Error('Favorite identity/timestamp changed');
+  await assertFails(updateDoc(ref,{createdAt:Timestamp.fromMillis(1),updatedAt:serverTimestamp()}));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test('favorites block unauthenticated and cross UID document/collection/query/write/delete access',async()=>{
+  await seedFavoriteCatalog();
+  const alice=environment.authenticatedContext('alice').firestore();
+  await setDoc(doc(alice,'users/alice/favorite_foods/catalog_c3-rice'),favoriteData());
+  for(const db of [environment.authenticatedContext('bob').firestore(),environment.unauthenticatedContext().firestore()]){
+    const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
+    await assertFails(getDoc(ref)); await assertFails(getDocs(collection(db,'users/alice/favorite_foods')));
+    await assertFails(getDocs(query(collection(db,'users/alice/favorite_foods'),orderBy('createdAt','desc'),limit(40))));
+    await assertFails(setDoc(ref,favoriteData())); await assertFails(updateDoc(ref,{updatedAt:serverTimestamp()})); await assertFails(deleteDoc(ref));
+  }
+});
+
+test('favorites reject missing catalog, mismatched source identity and bad schema',async()=>{
+  await seedFavoriteCatalog();
+  const db=environment.authenticatedContext('alice').firestore();
+  const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
+  for(const patch of [{sourceKind:'custom'},{sourceKind:'recipe'},{sourceId:'bad/food'},{sourceId:''},{sourceId:'x'.repeat(101)},
+    {schemaVersion:2},{createdAt:Timestamp.fromMillis(1)},{updatedAt:Timestamp.fromMillis(1)},{kcal:0}]){
+    await assertFails(setDoc(ref,{...favoriteData(),...patch}));
+  }
+  const missing=favoriteData();delete missing.sourceId;await assertFails(setDoc(ref,missing));
+  await assertFails(setDoc(doc(db,'users/alice/favorite_foods/wrong-id'),favoriteData()));
+  await assertFails(setDoc(doc(db,'users/alice/favorite_foods/catalog_unknown'),{...favoriteData(),sourceId:'unknown'}));
+});
+
+test('favorites remain removable after catalog deletion without granting catalog writes',async()=>{
+  await seedFavoriteCatalog();
+  const db=environment.authenticatedContext('alice').firestore();
+  const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
+  await setDoc(ref,favoriteData());
+  await assertFails(deleteDoc(doc(db,'food_catalog/c3-rice')));
+  await environment.withSecurityRulesDisabled(context=>deleteDoc(doc(context.firestore(),'food_catalog/c3-rice')));
+  await assertSucceeds(getDoc(ref));await assertSucceeds(deleteDoc(ref));
+});
+
+const personalFoodData = (patch={})=>({name:'Món cá nhân fixture',alternateNames:['món riêng','fixture','một','hai','ba'],servingBasis:'per_100g',kcalPer100g:130,proteinGPer100g:2.69,carbsGPer100g:28.17,fatGPer100g:.28,defaultServingGrams:150,servingLabel:'bát',servingGrams:150,sourceLabel:'Emulator fixture',isEstimated:true,schemaVersion:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),...patch});
+const recipeData = (patch={})=>({name:'Công thức fixture',ingredients:Array.from({length:6},()=>mealItem()),yieldGrams:600,servingsCount:2.5,sourceLabel:'Emulator fixture',isEstimated:true,schemaVersion:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),...patch});
+for(const [name,fixture] of [['custom_foods',personalFoodData],['recipes',recipeData]]) {
+  test(`C4 ${name} owner CRUD maximum payload and immutable createdAt`,async()=>{
+    const db=environment.authenticatedContext('alice').firestore(); const ref=doc(db,`users/alice/${name}/c4-test`);
+    await assertSucceeds(setDoc(ref,fixture()));
+    const first=await assertSucceeds(getDoc(ref));
+    await assertSucceeds(getDocs(query(collection(db,`users/alice/${name}`),orderBy('createdAt','desc'),limit(40))));
+    await assertSucceeds(updateDoc(ref,{name:'Đổi tên',updatedAt:serverTimestamp()}));
+    if(!(await getDoc(ref)).data().createdAt.isEqual(first.data().createdAt)) throw Error('createdAt changed');
+    await assertFails(updateDoc(ref,{createdAt:Timestamp.fromMillis(0),updatedAt:serverTimestamp()}));
+    await assertFails(updateDoc(ref,{secret:true,updatedAt:serverTimestamp()}));
+    await assertSucceeds(deleteDoc(ref));
+  });
+  test(`C4 ${name} blocks guests and UID B on document collection query and writes`,async()=>{
+    const alice=environment.authenticatedContext('alice').firestore();await setDoc(doc(alice,`users/alice/${name}/c4-test`),fixture());
+    for(const db of [environment.unauthenticatedContext().firestore(),environment.authenticatedContext('bob').firestore()]) {
+      const ref=doc(db,`users/alice/${name}/c4-test`);
+      await assertFails(getDoc(ref)); await assertFails(getDocs(collection(db,`users/alice/${name}`)));
+      await assertFails(getDocs(query(collection(db,`users/alice/${name}`),orderBy('createdAt','desc'),limit(40))));
+      await assertFails(setDoc(ref,fixture())); await assertFails(updateDoc(ref,{name:'B',updatedAt:serverTimestamp()}));await assertFails(deleteDoc(ref));
+    }
+  });
+}
+test('C4 personal food rejects missing nutrients malformed servings alias middle/end and non finite fields',async()=>{
+  const db=environment.authenticatedContext('alice').firestore();const ref=doc(db,'users/alice/custom_foods/invalid');
+  for(const patch of [{kcalPer100g:-1},{kcalPer100g:Infinity},{fatGPer100g:NaN},{carbsGPer100g:'0'},{proteinGPer100g:1001},{defaultServingGrams:0},{defaultServingGrams:2001},{servingGrams:null},{servingLabel:null},{servingGrams:-1},{servingLabel:'x'.repeat(41)},{alternateNames:['ok',5]},{alternateNames:['ok','ok','ok','ok',false]},{alternateNames:Array(6).fill('a')},{name:'x'},{schemaVersion:2}]) await assertFails(setDoc(ref,personalFoodData(patch)));
+  const missing=personalFoodData();delete missing.fatGPer100g;await assertFails(setDoc(ref,missing));
+  await assertSucceeds(setDoc(ref,personalFoodData({servingLabel:null,servingGrams:null,proteinGPer100g:0,carbsGPer100g:0,fatGPer100g:0})));
+});
+test('C4 recipes validate all six rows including middle and last without rule budget overflow',async()=>{
+  const db=environment.authenticatedContext('alice').firestore();const ref=doc(db,'users/alice/recipes/maximum');
+  await assertSucceeds(setDoc(ref,recipeData()));
+  for(const index of [0,2,5]) {
+    for(const patch of [{grams:0},{kcal:-1},{fatG:NaN},{carbsG:'1'},{foodId:'recipe:nested'},{name:5},{secret:'no'}]) {
+      const items=Array.from({length:6},()=>mealItem());items[index]=mealItem(patch);await assertFails(setDoc(ref,recipeData({ingredients:items})));
+    }
+    const items=Array.from({length:6},()=>mealItem());delete items[index].proteinG;await assertFails(setDoc(ref,recipeData({ingredients:items})));
+  }
+});
+test('C4 recipe bounds empty overflow zero yield missing count and invalid numeric inputs',async()=>{
+  const db=environment.authenticatedContext('alice').firestore();const ref=doc(db,'users/alice/recipes/invalid');
+  for(const patch of [{ingredients:[]},{ingredients:Array.from({length:7},()=>mealItem())},{yieldGrams:0},{yieldGrams:-1},{yieldGrams:Infinity},{yieldGrams:20001},{servingsCount:0},{servingsCount:NaN},{servingsCount:1001},{isEstimated:false},{schemaVersion:'1'},{name:''}]) await assertFails(setDoc(ref,recipeData(patch)));
+  const missing=recipeData();delete missing.servingsCount;await assertFails(setDoc(ref,missing));
+  await assertSucceeds(setDoc(ref,recipeData({servingsCount:null,yieldGrams:20000})));
+});
+test('C4 favorite custom and recipe require own source, stable namespace and remain removable after source deletion',async()=>{
+  const alice=environment.authenticatedContext('alice').firestore();const bob=environment.authenticatedContext('bob').firestore();
+  for(const [kind,col,fixture] of [['custom','custom_foods',personalFoodData],['recipe','recipes',recipeData]]) {
+    const source=doc(alice,`users/alice/${col}/c4-source`);await setDoc(source,fixture());
+    const data={sourceKind:kind,sourceId:'c4-source',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),schemaVersion:1};
+    const favorite=doc(alice,`users/alice/favorite_foods/${kind}_c4-source`);
+    await assertSucceeds(setDoc(favorite,data));
+    await assertFails(setDoc(doc(bob,`users/bob/favorite_foods/${kind}_c4-source`),data));
+    await assertFails(setDoc(doc(alice,`users/alice/favorite_foods/catalog_c4-source`),data));
+    await deleteDoc(source);await assertSucceeds(getDoc(favorite));await assertSucceeds(deleteDoc(favorite));
+    await assertFails(setDoc(favorite,data));
+  }
+});

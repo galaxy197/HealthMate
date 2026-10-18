@@ -13,6 +13,10 @@ class FirebaseAccountDataRepository implements AccountDataRepository {
     'activity_logs',
     'goals',
     'daily_quests',
+    'nutrition_targets',
+    'favorite_foods',
+    'custom_foods',
+    'recipes',
   ];
 
   final FirebaseFirestore _firestore;

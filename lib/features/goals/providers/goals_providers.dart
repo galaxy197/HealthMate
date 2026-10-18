@@ -1,3 +1,4 @@
+import '../../../core/utils/subscription_stream.dart';
 import '../../../core/errors/operation_diagnostics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +34,9 @@ final goalsProvider = StreamProvider.autoDispose<List<TrackingGoal>>((ref) {
   final user = ref.watch(authSessionProvider).value;
   return user == null
       ? Stream.value(const [])
-      : ref.watch(goalsRepositoryProvider).watchGoals(user.uid);
+      : subscriptionStream(
+          ref.watch(goalsRepositoryProvider).watchGoals(user.uid),
+        );
 }, retry: (_, _) => null);
 
 final dailyQuestProvider = StreamProvider.autoDispose
@@ -41,7 +44,9 @@ final dailyQuestProvider = StreamProvider.autoDispose
       final user = ref.watch(authSessionProvider).value;
       return user == null
           ? Stream.value(null)
-          : ref.watch(goalsRepositoryProvider).watchQuest(user.uid, key);
+          : subscriptionStream(
+              ref.watch(goalsRepositoryProvider).watchQuest(user.uid, key),
+            );
     }, retry: (_, _) => null);
 
 // Read the current quest first. A saved quest needs no regeneration, even when

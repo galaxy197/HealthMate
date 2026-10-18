@@ -8,6 +8,9 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../profile/presentation/weight_chart.dart';
+import '../../../core/utils/local_date_key.dart';
+import '../../nutrition_targets/models/nutrition_target.dart';
+import '../../nutrition_targets/providers/nutrition_target_providers.dart';
 import '../models/weekly_reflection.dart';
 import '../providers/weekly_reflection_providers.dart';
 
@@ -31,7 +34,12 @@ enum _ChartMetric {
 }
 
 class WeeklyReflectionCard extends ConsumerStatefulWidget {
-  const WeeklyReflectionCard({required this.today, super.key});
+  const WeeklyReflectionCard({
+    required this.today,
+    this.progressMode = false,
+    super.key,
+  });
+  final bool progressMode;
   final DateTime today;
   @override
   ConsumerState<WeeklyReflectionCard> createState() =>
@@ -43,7 +51,21 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
   int _offset = 0;
   _ChartMetric _metric = _ChartMetric.kcal;
   @override
+  void initState() {
+    super.initState();
+    _expanded = widget.progressMode;
+  }
+
+  void _refresh(DateTime start) {
+    ref.invalidate(weeklyLogsProvider(start));
+    if (widget.progressMode) {
+      ref.invalidate(weeklyNutritionTargetsProvider(start));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final current = weekStart(widget.today);
     final start = DateTime(
       current.year,
@@ -59,7 +81,9 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
         children: [
           InkWell(
             key: const ValueKey('open-weekly-reflection'),
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: widget.progressMode
+                ? null
+                : () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
               child: Row(
@@ -68,11 +92,12 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
-                      'Nhìn lại tuần',
+                      widget.progressMode ? 'Tuần của bạn' : 'Nhìn lại tuần',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
-                  Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                  if (!widget.progressMode)
+                    Icon(_expanded ? Icons.expand_less : Icons.expand_more),
                 ],
               ),
             ),
@@ -112,6 +137,7 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
             const SizedBox(height: AppSpacing.md),
             state!.when(
               skipLoadingOnRefresh: false,
+              skipLoadingOnReload: false,
               skipError: false,
               loading: () => const Padding(
                 padding: EdgeInsets.all(24),
@@ -124,7 +150,7 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                   ),
                   TextButton(
                     key: const ValueKey('retry-week'),
-                    onPressed: () => ref.invalidate(weeklyLogsProvider(start)),
+                    onPressed: () => _refresh(start),
                     child: const Text('Thử lại báo cáo'),
                   ),
                 ],
@@ -140,16 +166,18 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                     ),
                     TextButton.icon(
                       key: const ValueKey('refresh-week'),
-                      onPressed: () =>
-                          ref.invalidate(weeklyLogsProvider(start)),
+                      onPressed: () => _refresh(start),
                       icon: const Icon(Icons.refresh),
                       label: const Text('Tải lại báo cáo'),
                     ),
-                    if (!reflection.hasLogs)
+                    if (!reflection.hasLogs) ...[
                       const Text(
                         'Chưa có nhật ký bữa ăn, nước hoặc vận động trong tuần này.',
-                      )
-                    else ...[
+                      ),
+                      Text(
+                        'Trong ${reflection.eligibleDays} ngày đã tới: 0 ngày ghi bữa ăn, 0 ngày ghi nước, 0 ngày ghi vận động.',
+                      ),
+                    ] else ...[
                       _ReflectionSummary(reflection: reflection),
                       const SizedBox(height: AppSpacing.lg),
                       DropdownButtonFormField<_ChartMetric>(
@@ -162,12 +190,19 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                           for (final metric in _ChartMetric.values)
                             DropdownMenuItem(
                               value: metric,
-                              child: Text(metric.label),
+                              child: Text(
+                                metric.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                         ],
                         onChanged: (value) => setState(() => _metric = value!),
                       ),
                       const SizedBox(height: AppSpacing.md),
+                      const Text(
+                        'Có thể vuốt ngang biểu đồ khi cỡ chữ lớn. Xem chi tiết bên dưới để phân biệt 0 đã ghi, chưa ghi và chưa tới ngày.',
+                      ),
                       if (reflection.days.any(_metric.recorded))
                         _WeekChart(reflection: reflection, metric: _metric)
                       else
@@ -196,7 +231,7 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const Text(
-                        'Biểu đồ tối đa 12 lần cân gần nhất trong tuần.',
+                        'Biểu đồ tối đa 12 lần cân gần nhất trong tuần; các điểm cách nhau theo ngày đo.',
                       ),
                       WeightChart(
                         metrics: reflection.metrics.reversed.toList(),
@@ -206,6 +241,14 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                             ? 'Mới có một lần cân; chưa đủ để mô tả thay đổi.'
                             : 'Chênh lệch lần cuối so với lần đầu: ${NumberFormat('+0.#;-0.#', 'vi').format(reflection.weightChange)} kg. Không suy diễn nguyên nhân từ số đo.',
                       ),
+                    ],
+                    for (final metric in reflection.metrics)
+                      Text(
+                        '${DateFormat('dd/MM/yyyy HH:mm').format(metric.measuredAt)} · ${NumberFormat('0.#', 'vi').format(metric.weightKg)} kg',
+                      ),
+                    if (widget.progressMode) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      _DailyTargets(start: start, reflection: reflection),
                     ],
                     const SizedBox(height: AppSpacing.md),
                     const Text(
@@ -276,11 +319,14 @@ class _WeekChart extends StatelessWidget {
               constraints.maxWidth,
               300 * MediaQuery.textScalerOf(context).scale(1),
             ),
-            height: 240,
-            child: BarChart(
-              key: const ValueKey('weekly-chart'),
-              duration: Duration.zero,
-              dataForChart(theme, maxY),
+            height: 264,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: BarChart(
+                key: const ValueKey('weekly-chart'),
+                duration: Duration.zero,
+                dataForChart(theme, maxY),
+              ),
             ),
           ),
         ),
@@ -341,4 +387,86 @@ class _WeekChart extends StatelessWidget {
         ),
     ],
   );
+}
+
+// Loaded once for the selected week, never a query per day.
+class _DailyTargets extends ConsumerWidget {
+  const _DailyTargets({required this.start, required this.reflection});
+  final DateTime start;
+  final WeeklyReflection reflection;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(weeklyNutritionTargetsProvider(start));
+    final n = NumberFormat('0.#', 'vi');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Dinh dưỡng và mục tiêu từng ngày',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const Text(
+          'Biểu đồ phía trên chỉ thể hiện số đã ghi. Mục tiêu dưới đây lấy theo ngày hiệu lực, không áp ngược mục tiêu mới.',
+        ),
+        state.when(
+          skipLoadingOnReload: false,
+          skipLoadingOnRefresh: false,
+          loading: () => const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Chưa tải được mục tiêu tuần. Tổng nhật ký phía trên vẫn là dữ liệu đã tải; chưa thể so sánh mục tiêu.',
+              ),
+              TextButton(
+                key: const ValueKey('retry-week-targets'),
+                onPressed: () =>
+                    ref.invalidate(weeklyNutritionTargetsProvider(start)),
+                child: const Text('Thử lại mục tiêu'),
+              ),
+            ],
+          ),
+          data: (targets) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final day in reflection.days) ...[
+                const Divider(height: 24),
+                Text(
+                  DateFormat('EEEE, dd/MM/yyyy', 'vi').format(day.date),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                Text(
+                  day.isFuture
+                      ? 'Chưa tới ngày · không tính vào tổng hoặc số ngày thiếu ghi.'
+                      : day.mealCount == 0
+                      ? 'Chưa ghi bữa ăn · chưa có số liệu lượng ăn.'
+                      : '${n.format(day.nutrition.kcal)} kcal đã ghi · Đạm ${n.format(day.nutrition.proteinG)} g · Tinh bột ${n.format(day.nutrition.carbsG)} g · Béo ${n.format(day.nutrition.fatG)} g',
+                ),
+                _TargetText(
+                  target: targetForDate(targets, localDateKey(day.date)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TargetText extends StatelessWidget {
+  const _TargetText({required this.target});
+  final NutritionTarget? target;
+  @override
+  Widget build(BuildContext context) {
+    final t = target;
+    if (t == null) return const Text('Chưa đặt mục tiêu cho ngày này.');
+    final n = NumberFormat('0.#', 'vi');
+    return Text(
+      'Mục tiêu: ${n.format(t.kcalTarget)} kcal · ${t.proteinGTarget == null ? 'Chưa đặt macro' : 'Đạm ${n.format(t.proteinGTarget)} g · Tinh bột ${n.format(t.carbsGTarget)} g · Béo ${n.format(t.fatGTarget)} g'}',
+    );
+  }
 }

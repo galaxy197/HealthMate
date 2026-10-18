@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/core/router/app_router.dart';
+import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:healthmate/core/router/app_routes.dart';
 import 'package:healthmate/shared/providers/theme_mode_provider.dart';
 
@@ -30,9 +31,12 @@ void main() {
   });
 
   testWidgets(
-    'visible navigation opens three core routes and keeps hidden routes',
+    'visible navigation opens three core routes and keeps opt-in hidden routes',
     (tester) async {
-      final container = await pumpApp(tester);
+      final container = await pumpApp(
+        tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
+      );
       for (final destination in [
         (
           key: const ValueKey('nav-journal'),

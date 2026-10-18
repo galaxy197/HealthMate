@@ -48,6 +48,7 @@ void main() {
           action: const AsyncData(null),
           onAdd: () => addCalls++,
           onScan: () => scanCalls++,
+          showScanner: true,
           onEdit: (_) => editCalls++,
           onDelete: (_) => deleteCalls++,
           onRetry: () => retryCalls++,

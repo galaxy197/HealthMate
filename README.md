@@ -4,12 +4,52 @@
 Android là nền tảng chính;
 web phục vụ xem và kiểm tra giao diện trong quá trình phát triển.
 
-## Phạm vi hiện tại — Giai đoạn 10
+## Phạm vi hiện tại — Core C6
+
+Bản mặc định tập trung vào dinh dưỡng, cân nặng, nước và vận động cơ bản.
+Chatbot và Food Scanner **tạm tắt** bằng hai cờ cục bộ
+`HEALTHMATE_ENABLE_CHATBOT=false`, `HEALTHMATE_ENABLE_FOOD_SCANNER=false`.
+Không cần truyền define khi chạy bản core. Mã nguồn, dependency, cấu hình Firebase/
+App Check và lịch sử AI được giữ; không chạy probe/smoke AI cloud trong C1.
+Các mô tả AI bên dưới là luồng đã bảo toàn cho bản bật cờ, không phải tính năng
+đang mở trong bản core. Bật lại AI cần yêu cầu riêng và không bỏ qua kiểm tra tuổi,
+consent, App Check hoặc điều kiện backend.
+
+Phạm vi, gap, schema dự kiến, kiểm thử và kế hoạch C2–C6:
+[`docs/core-scope.md`](docs/core-scope.md). C2 bổ sung mục tiêu kcal/macros do bạn
+tự nhập, có ngày hiệu lực, mở từ Tổng quan/Cá nhân. Nhật ký so sánh mục tiêu đúng
+ngày đang chọn; không tự tính BMR/TDEE hoặc viết lại mục tiêu ngày trước.
+C3 chia nhật ký thành Sáng/Trưa/Tối/Phụ, có tổng và nút thêm từng bữa. Form có
+Tìm món/Gần đây/Yêu thích; yêu thích catalog lưu riêng theo tài khoản. Sao chép mở
+bản nháp sửa ngày/giờ/bữa/gram, giữ snapshot và dùng cùng ID khi retry để tránh trùng.
+Vẫn tối đa 5 món/bản ghi và giữ nhập món ngoài danh mục một lần.
+C4 thêm Thư viện món ở Cá nhân, hai nguồn Món của tôi/Công thức trong form bữa ăn,
+CRUD riêng theo UID và yêu thích cả ba nguồn. Công thức có tối đa 6 nguyên liệu
+catalog/món cá nhân, snapshot độc lập, khối lượng thành phẩm và số phần tùy chọn;
+nhập gram hoặc phần có quy đổi rõ ràng. Không tự thay nhật ký khi sửa/xóa nguồn.
+Lưu món ngoài catalog vào thư viện là lựa chọn chủ động; bữa vẫn cần xác nhận riêng.
+C5 bổ sung tab **Tiến độ**: chọn tuần từ Thứ Hai, tổng kcal/macros, số ngày có ghi,
+trung bình chỉ trên ngày ghi bữa, nước/phút vận động và cân nặng theo ngày đo.
+Mục tiêu từng ngày lấy theo phiên bản hiệu lực; đổi mục tiêu mới không áp ngược
+về ngày cũ. Chưa ghi khác với ghi 0 và ngày tương lai; dưới 2 lần cân chưa mô tả
+thay đổi. Tải báo cáo từ máy chủ khi mở/đổi tuần, có giờ tải và nút tải lại sau
+khi sửa nhật ký. Lỗi mục tiêu không che tổng nhật ký đã tải thành công.
+Rules cho nutrition_targets/favorite_foods/custom_foods/recipes đã kiểm thử local;
+GET Rules production ngày17/10/2026 vẫn thiếu các match này. Cần review và yêu cầu
+deploy riêng. C6 đã nghiệm thu local: 349 Flutter tests, 47 Rules tests, 14 Firebase
+SDK tests, 10/10 chặng E2E Android API30 trên AVD QA/backend emulator và APK debug
+ARM64 từ lib/main.dart. Production và điện thoại thật chưa nghiệm thu; chưa có
+bản release ký phát hành. Báo cáo, ảnh và giới hạn ở docs/test-report.md phần C6.
+C6 sửa vòng đời subscription khi đổi UID, chặn thao tác Auth trễ nhắm nhầm tài
+khoản, giữ draft hồ sơ/cân nặng khi lưu lỗi và giữ đúng thời điểm lần cân mới.
 
 - Material 3, màu sắc, typography, spacing và widget dùng chung.
 - Giao diện tiếng Việt, chế độ sáng/tối/theo thiết bị.
-- Thanh điều hướng hiển thị Tổng quan, Nhật ký và Cá nhân; route Quest/Chat
-  vẫn được giữ. Mở mục tiêu/nhiệm vụ và trò chuyện từ trang Cá nhân.
+- Thanh điều hướng hiển thị Tổng quan, Nhật ký, Tiến độ và Cá nhân; route Quest/Chat
+  vẫn được giữ. Mục tiêu/nhiệm vụ mở từ Cá nhân. Khi cờ Chat tắt, menu Chat ẩn
+  và `/chat` chuyển về Tổng quan sau Auth/onboarding. Nút `+` có bữa ăn, nước,
+  vận động và cân nặng; Quét món chỉ xuất hiện ở bản bật cờ Scanner. Thêm cân nặng
+  mặc định ngày hôm nay, cho chọn ngày đo cũ và giữ form nếu chưa lưu được.
 - Điều hướng bằng `go_router`, giữ trạng thái từng tab; Riverpod quản lý router
   và lựa chọn theme. Lựa chọn theme được lưu trên thiết bị.
 - Thanh điều hướng dưới trên điện thoại, thanh bên khi rộng từ 840 logical pixels.
@@ -110,7 +150,6 @@ flutter run -d chrome
 dart format --output=none --set-exit-if-changed lib test
 flutter analyze
 flutter test
-flutter test integration_test/firebase_ai_smoke_test.dart -d <android-device-id> --dart-define=HEALTHMATE_APP_CHECK_DEBUG_TOKEN=<registered-debug-token>
 flutter build web
 flutter build apk --debug
 ```
@@ -123,8 +162,10 @@ Test Nutrition bao phủ công thức khẩu phần, parser Gemini và luồng t
 Test Daily Logs bao phủ date key, validation, tổng hợp và luồng CRUD nước/vận động.
 Scanner có test chọn ảnh/hủy/lỗi/timeout/consent/xác nhận; Chat có test nguồn dữ
 liệu, streaming, retry, đổi UID và không gửi nhật ký tới AI. Integration test
-Android gọi Firebase AI Logic thật chỉ được chạy khi có thiết bị và App Check;
-không coi việc có file test là bằng chứng đã chạy.
+Android gọi Firebase AI Logic thật là kiểm tra tùy chọn cho đợt AI riêng khi có
+thiết bị và App Check; **không chạy trong bản core đã tắt AI**. Test hồi quy AI
+trong suite dùng fake và bật cờ riêng; không coi việc có file test là bằng chứng
+đã chạy dịch vụ thật.
 Kết quả thực tế và giới hạn môi trường được ghi tại
 [`docs/implementation-progress.md`](docs/implementation-progress.md).
 Kết quả kiểm tra Giai đoạn 10 và giới hạn: [`docs/test-report.md`](docs/test-report.md).
@@ -250,6 +291,10 @@ EXIF/GPS gốc, nhưng không loại được thông tin cá nhân xuất hiện
 
 ## Kịch bản demo và kiểm tra trên Android thật
 
+Với bản core C1, thực hiện các bước Auth/hồ sơ, nhật ký, cân nặng, mục tiêu và
+tổng hợp tuần bên dưới; bỏ qua thao tác Chat/Scanner. Không bật hai cờ chỉ để
+hoàn tất kịch bản AI cũ. Nghiệm thu Android core đầy đủ thuộc C6.
+
 1. Dùng tài khoản kiểm thử của người từ 18 tuổi; thử đăng ký, hoàn tất thiết lập,
    đóng/mở lại app, đăng xuất/đăng nhập. Người dùng cũ thiếu thông tin được yêu
    cầu bổ sung; dữ liệu cũ được giữ nguyên. Ngày sinh là thông tin tự khai,
@@ -351,6 +396,43 @@ Báo cáo tuần là lượt đọc một lần từ server, có giờ tải và
 Cần mạng khi mở/làm mới; nếu một nguồn lỗi thì không hiển thị tổng thiếu. Sau
 khi sửa nhật ký, mở lại hoặc tải lại báo cáo. Khi phần báo cáo đóng thì không
 truy vấn tuần. Không thêm package, collection, index hoặc Rules mới.
+
+## Nghiệm thu Android core bằng backend local (C6)
+
+`integration_test/core_acceptance_test.dart` mở UI thật với Firebase repositories
+thật, dùng named Firebase app `healthmate-core-c6-qa` và project cố định
+`demo-healthmate-rules`. Không gọi main/bootstrap production, không dùng tài khoản
+thật và không gọi AI. Có driver lưu PNG tại `build/c6-android` và checkpoint log.
+Script chỉ chấp nhận AVD riêng tên **HealthMateMaintenanceQA**, từ chối điện thoại
+và AVD khác. Auth/Firestore Emulator dùng cổng9099/8080, Android truy cập10.0.2.2.
+
+```powershell
+# Khởi động AVD QA riêng đã cài SDK/image; lấy serial từ flutter devices.
+$env:TEMP = 'D:\HealthMateMaintenanceQA\tmp'
+$env:TMP = $env:TEMP
+.\tool\test_android_core.ps1 -DeviceId emulator-5560
+```
+
+Nếu project và pub cache ở hai ổ Windows khác nhau, thêm `-CrossDriveBuild`.
+Script tạm đặt `kotlin.incremental=false` trong phiên build và khôi phục bytes
+của gradle.properties cùng biến môi trường khi kết thúc, không sửa setting toàn
+máy. Cần Flutter, Android SDK/AVD, Java21 và Firebase CLI đã có; không cần billing
+hoặc Firebase production để chạy bài này. Debug manifest chỉ cho HTTP trên
+10.0.2.2/127.0.0.1/localhost; release không có cấu hình debug này.
+
+Trên máy hiện tại C ít dung lượng nên bản sao QA/build ở
+`D:\HealthMateMaintenanceQA\c6-workspace`; source chính vẫn ở repository gốc.
+Khi dùng bản sao phải đồng bộ thay đổi và đối chiếu hash source trước nghiệm thu;
+không lấy một bản checkout cũ thiếu working tree C1–C5. Không copy build/.git/cache
+hoặc xóa app có dữ liệu thật để thử nghiệm. APK integration test dùng riêng cho
+AVD, không dùng nó làm APK bàn giao; build bình thường với `--target lib/main.dart`.
+
+Luồng E2E: đăng ký/onboarding → mục tiêu và ngày cũ → bữa/gram/copy ngày khác →
+nước/vận động/cân nặng → tuần → món riêng/công thức/khẩu phần → sửa/xóa nguồn,
+MealLog vẫn giữ snapshot → offline/draft/retry → sáng/tối/chữ lớn → logout/UID B.
+Rules/SDK và cleanup A/B chạy riêng bằng `tool/test_emulators.ps1`; không chạy
+hai script cùng lúc vì cùng dùng project/cổng emulator. Chi tiết kết quả thực tế,
+ảnh, APK, giới hạn production và thiết bị trong docs/test-report.md phần C6.
 
 ## Tài liệu đã đối chiếu
 

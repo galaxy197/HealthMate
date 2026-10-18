@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../nutrition/models/nutrition_models.dart';
 import '../../../core/config/ai_access_policy.dart';
+import '../../../core/config/app_feature_flags.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../data/food_scanner_service.dart';
 import '../models/ai_food_suggestion.dart';
@@ -51,6 +52,7 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
   }
 
   Future<void> _pick(ImageSource source) async {
+    if (!ref.read(appFeatureFlagsProvider).foodScannerEnabled) return;
     if (_picking || _loading) return;
     final uid = ref.read(authSessionProvider).value?.uid;
     if (uid == null) {
@@ -93,6 +95,7 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
       ref.read(authSessionProvider).value?.uid == uid;
 
   Future<void> _analyze() async {
+    if (!ref.read(appFeatureFlagsProvider).foodScannerEnabled) return;
     final bytes = _bytes;
     final mime = _mimeType;
     if (bytes == null ||
@@ -173,6 +176,18 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ref.watch(appFeatureFlagsProvider).foodScannerEnabled) {
+      return AlertDialog(
+        title: const Text('Quét món đang tạm tắt'),
+        content: const Text('Bạn vẫn có thể thêm bữa ăn thủ công từ Nhật ký.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+        ],
+      );
+    }
     ref.listen(authSessionProvider.select((session) => session.value?.uid), (
       previous,
       next,

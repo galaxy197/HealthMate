@@ -14,7 +14,14 @@ class WeightChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (metrics.isEmpty) return const SizedBox.shrink();
-    final ordered = metrics.take(12).toList(growable: false).reversed.toList();
+    final sorted = [...metrics]
+      ..sort((a, b) => b.measuredAt.compareTo(a.measuredAt));
+    final ordered = sorted.take(12).toList().reversed.toList();
+    // Timestamp distance preserves gaps on sparse weeks (ordinal x did not).
+    final origin = ordered.first.measuredAt;
+    double xOf(DateTime time) =>
+        time.difference(origin).inMilliseconds / Duration.millisecondsPerDay;
+    final span = xOf(ordered.last.measuredAt);
     final weights = ordered.map((metric) => metric.weightKg);
     final minimum = weights.reduce(math.min);
     final maximum = weights.reduce(math.max);
@@ -27,79 +34,93 @@ class WeightChart extends StatelessWidget {
     return Semantics(
       label:
           'Biểu đồ cân nặng từ ${number.format(ordered.first.weightKg)} đến ${number.format(ordered.last.weightKg)} kilogram',
-      child: SizedBox(
-        key: const ValueKey('weight-chart'),
-        height: 220,
-        child: LineChart(
-          LineChartData(
-            minX: 0,
-            maxX: math.max(1, ordered.length - 1).toDouble(),
-            minY: minY,
-            maxY: maxY,
-            gridData: FlGridData(
-              drawVerticalLine: false,
-              horizontalInterval: math.max(1, (maxY - minY) / 4),
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: math.max(
+              constraints.maxWidth,
+              280 * MediaQuery.textScalerOf(context).scale(1),
             ),
-            borderData: FlBorderData(show: false),
-            titlesData: FlTitlesData(
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 42,
-                  getTitlesWidget: (value, meta) => SideTitleWidget(
-                    meta: meta,
-                    child: Text(
-                      number.format(value),
-                      style: theme.textTheme.labelSmall,
+            key: const ValueKey('weight-chart'),
+            height: 220,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: math.max(1, span).toDouble(),
+                minY: minY,
+                maxY: maxY,
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  horizontalInterval: math.max(1, (maxY - minY) / 4),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 42,
+                      getTitlesWidget: (value, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          number.format(value),
+                          style: theme.textTheme.labelSmall,
+                        ),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      interval: math.max(1, (span / 3).ceilToDouble()),
+                      getTitlesWidget: (value, meta) {
+                        if (value < 0 || value > span) {
+                          return const SizedBox.shrink();
+                        }
+                        return SideTitleWidget(
+                          meta: meta,
+                          child: Text(
+                            date.format(
+                              origin.add(
+                                Duration(
+                                  milliseconds:
+                                      (value * Duration.millisecondsPerDay)
+                                          .round(),
+                                ),
+                              ),
+                            ),
+                            style: theme.textTheme.labelSmall,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 32,
-                  interval: ordered.length <= 5
-                      ? 1
-                      : (ordered.length / 4).ceilToDouble(),
-                  getTitlesWidget: (value, meta) {
-                    final index = value.round();
-                    if (index < 0 || index >= ordered.length) {
-                      return const SizedBox.shrink();
-                    }
-                    return SideTitleWidget(
-                      meta: meta,
-                      child: Text(
-                        date.format(ordered[index].measuredAt),
-                        style: theme.textTheme.labelSmall,
-                      ),
-                    );
-                  },
-                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: [
+                      for (final entry in ordered.indexed)
+                        FlSpot(xOf(entry.$2.measuredAt), entry.$2.weightKg),
+                    ],
+                    isCurved: false,
+                    color: theme.colorScheme.primary,
+                    barWidth: 3,
+                    dotData: const FlDotData(show: true),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ],
               ),
             ),
-            lineBarsData: [
-              LineChartBarData(
-                spots: [
-                  for (final entry in ordered.indexed)
-                    FlSpot(entry.$1.toDouble(), entry.$2.weightKg),
-                ],
-                isCurved: ordered.length > 2,
-                color: theme.colorScheme.primary,
-                barWidth: 3,
-                dotData: const FlDotData(show: true),
-                belowBarData: BarAreaData(
-                  show: true,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                ),
-              ),
-            ],
           ),
         ),
       ),

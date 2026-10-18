@@ -16,6 +16,7 @@ import '../../activity/models/activity_log.dart';
 import '../../activity/providers/activity_providers.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
+import '../../nutrition_targets/presentation/nutrition_target_card.dart';
 import '../../profile/models/body_metric.dart';
 import '../../profile/providers/profile_providers.dart';
 import '../../water/models/water_log.dart';
@@ -100,6 +101,8 @@ class DashboardScreen extends ConsumerWidget {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: AppSpacing.md),
+        NutritionTargetCard(day: today, meals: mealsState),
+        const SizedBox(height: AppSpacing.md),
         if (hasError) ...[
           _LoadErrorCard(onRetry: () => _retry(ref, today)),
           const SizedBox(height: AppSpacing.md),
@@ -140,6 +143,13 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
         const SizedBox(height: AppSpacing.lg),
+        OutlinedButton.icon(
+          key: const ValueKey('open-progress'),
+          onPressed: () => context.go(AppRoutes.progress),
+          icon: const Icon(Icons.insights_outlined),
+          label: const Text('Xem tiến độ tuần'),
+        ),
+        const SizedBox(height: AppSpacing.md),
         DashboardGoalsCard(
           today: today,
           meals: mealsState,

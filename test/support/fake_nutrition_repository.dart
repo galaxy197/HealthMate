@@ -53,6 +53,9 @@ class FakeNutritionRepository implements NutritionRepository {
   int activeDayListeners = 0;
   Object? dayError;
   Object? rangeError;
+  Object? recentError;
+  bool recentFromCache = false;
+  int recentWatchCalls = 0;
   Completer<void>? rangePending;
 
   List<MealLog> get meals => List.unmodifiable(_meals);
@@ -85,12 +88,22 @@ class FakeNutritionRepository implements NutritionRepository {
   }
 
   @override
-  Stream<List<MealLog>> watchRecentMeals(String uid, {int limit = 20}) =>
+  Stream<RecentMealPage> watchRecentMeals(String uid, {int limit = 20}) =>
       Stream.multi((controller) {
+        recentWatchCalls++;
         void emit() {
+          if (recentError != null) {
+            controller.addError(recentError!);
+            return;
+          }
           final meals = [..._meals]
             ..sort((a, b) => b.consumedAt.compareTo(a.consumedAt));
-          controller.add(meals.take(limit).toList(growable: false));
+          controller.add(
+            RecentMealPage(
+              meals: meals.take(limit).toList(growable: false),
+              fromCache: recentFromCache,
+            ),
+          );
         }
 
         if (emitImmediately) emit();
@@ -115,12 +128,20 @@ class FakeNutritionRepository implements NutritionRepository {
   }
 
   @override
+  String newMealId() => (++_operationCounter).toString().padLeft(20, '0');
+  int _operationCounter = 0;
+  final operationIds = <String?>[];
+
+  @override
   Future<String> addMeal({
     required String uid,
     required MealDraft draft,
+    String? operationId,
   }) async {
     addCalls++;
-    final id = 'meal-$addCalls';
+    operationIds.add(operationId);
+    final id = operationId ?? 'meal-$addCalls';
+    if (_meals.any((meal) => meal.id == id)) return id;
     _meals.add(_toLog(id, draft));
     _emit();
     return id;

@@ -37,10 +37,13 @@ class FirebaseAuthRepository implements AuthRepository {
       _run(() => _auth.sendPasswordResetEmail(email: email.trim()));
 
   @override
-  Future<void> reauthenticateWithPassword(String password) => _run(() async {
-    final user = _auth.currentUser;
-    final email = user?.email;
-    if (user == null || email == null || email.isEmpty) {
+  Future<void> reauthenticateWithPassword(
+    String password, {
+    String? expectedUid,
+  }) => _run(() async {
+    final user = _requireCurrentUser(expectedUid);
+    final email = user.email;
+    if (email == null || email.isEmpty) {
       throw const AuthFailure(
         'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.',
         code: 'no-current-user',
@@ -54,22 +57,31 @@ class FirebaseAuthRepository implements AuthRepository {
   });
 
   @override
-  Future<void> updatePassword(String newPassword) =>
-      _run(() async => _requireCurrentUser().updatePassword(newPassword));
+  Future<void> updatePassword(String newPassword, {String? expectedUid}) =>
+      _run(
+        () async =>
+            _requireCurrentUser(expectedUid).updatePassword(newPassword),
+      );
 
   @override
-  Future<void> deleteCurrentUser() =>
-      _run(() async => _requireCurrentUser().delete());
+  Future<void> deleteCurrentUser({String? expectedUid}) =>
+      _run(() async => _requireCurrentUser(expectedUid).delete());
 
   @override
   Future<void> signOut() => _run(_auth.signOut);
 
-  User _requireCurrentUser() {
+  User _requireCurrentUser([String? expectedUid]) {
     final user = _auth.currentUser;
     if (user == null) {
       throw const AuthFailure(
         'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.',
         code: 'no-current-user',
+      );
+    }
+    if (expectedUid != null && user.uid != expectedUid) {
+      throw const AuthFailure(
+        'Phiên đăng nhập đã thay đổi. Hãy thực hiện lại từ tài khoản hiện tại.',
+        code: 'user-mismatch',
       );
     }
     return user;

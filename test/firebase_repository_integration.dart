@@ -2,6 +2,8 @@
 // Keep this at test/ root for the Windows web runner's path handling.
 // Run only with the demo Auth + Firestore emulators; see docs/test-report.md.
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,12 +13,22 @@ import 'package:firebase_auth_web/firebase_auth_web.dart';
 import 'package:cloud_firestore_web/cloud_firestore_web.dart';
 import 'package:healthmate/core/utils/local_date_key.dart';
 import 'package:healthmate/features/auth/data/firebase_auth_repository.dart';
+import 'package:healthmate/features/auth/models/auth_failure.dart';
 import 'package:healthmate/features/auth/data/firebase_account_data_repository.dart';
 import 'package:healthmate/features/profile/data/firebase_health_profile_repository.dart';
 import 'package:healthmate/features/profile/models/onboarding_draft.dart';
+import 'package:healthmate/features/profile/models/body_metric.dart';
+import 'package:healthmate/features/weekly_reflection/models/weekly_reflection.dart';
 import 'package:healthmate/features/profile/models/health_goal.dart';
 import 'package:healthmate/features/nutrition/data/firebase_nutrition_repository.dart';
 import 'package:healthmate/features/nutrition/models/nutrition_models.dart';
+import 'package:healthmate/features/nutrition/models/nutrition_failure.dart';
+import 'package:healthmate/features/food_library/data/firebase_favorite_food_repository.dart';
+import 'package:healthmate/features/food_library/data/firebase_food_library_repository.dart';
+import 'package:healthmate/features/food_library/models/food_library_models.dart';
+import 'package:healthmate/features/food_library/models/favorite_food.dart';
+import 'package:healthmate/features/nutrition_targets/data/firebase_nutrition_target_repository.dart';
+import 'package:healthmate/features/nutrition_targets/models/nutrition_target.dart';
 import 'package:healthmate/features/water/data/firebase_water_repository.dart';
 import 'package:healthmate/features/water/models/water_log.dart';
 import 'package:healthmate/features/activity/data/firebase_activity_repository.dart';
@@ -92,6 +104,37 @@ void main() {
     await auth.signOut();
     await app.delete();
   });
+
+  Future<void> seedC3Catalog(
+    String id, {
+    double kcal = 130,
+    bool corrupt = false,
+  }) async {
+    // Emulator-only owner token; never use this against a non-demo project/host.
+    final fields = <String, dynamic>{
+      'name': {'stringValue': 'Cơm fixture C3'},
+      'servingBasis': {'stringValue': 'per_100g'},
+      'unit': {'stringValue': 'g'},
+      'category': {'stringValue': 'Fixture'},
+      'sourceLabel': {'stringValue': 'Emulator synthetic fixture'},
+      'isEstimated': {'booleanValue': true},
+      'kcalPer100g': {'doubleValue': kcal},
+      'proteinGPer100g': {'doubleValue': 2.69},
+      'carbsGPer100g': {'doubleValue': 28.17},
+      if (!corrupt) 'fatGPer100g': {'doubleValue': .28},
+    };
+    final response = await http.patch(
+      Uri.parse(
+        'http://127.0.0.1:8080/v1/projects/$projectId/databases/(default)/documents/food_catalog/$id',
+      ),
+      headers: {
+        'Authorization': 'Bearer owner',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'fields': fields}),
+    );
+    expect(response.statusCode, 200);
+  }
 
   test(
     'real Flutter repositories persist and reload onboarding, logs, goal, quest and chat',
@@ -455,6 +498,848 @@ void main() {
   );
 
   test(
+    'C3 favorites and copied meals preserve source, idempotency and ownership with real repositories',
+    () async {
+      await seedC3Catalog('c3-rice');
+      await seedC3Catalog('c3-corrupt', corrupt: true);
+      final catalog = await nutrition.watchFoodCatalog().firstWhere(
+        (items) => items.any((food) => food.id == 'c3-corrupt'),
+      );
+      expect(
+        catalog.singleWhere((food) => food.id == 'c3-rice').hasNutritionData,
+        isTrue,
+      );
+      expect(
+        catalog.singleWhere((food) => food.id == 'c3-corrupt').hasNutritionData,
+        isFalse,
+      );
+      final favorites = FirebaseFavoriteFoodRepository(db);
+      await favorites.setFavorite(alice, 'c3-rice', true);
+      final favoriteRef = db.doc('users/$alice/favorite_foods/catalog_c3-rice');
+      final createdAt = (await favoriteRef.get(
+        const GetOptions(source: Source.server),
+      )).data()!['createdAt'];
+      await favorites.setFavorite(alice, 'c3-rice', true);
+      final page = await favorites
+          .watch(alice)
+          .firstWhere((page) => !page.fromCache);
+      expect(
+        page.items.where((food) => food.sourceId == 'c3-rice'),
+        hasLength(1),
+      );
+      expect(
+        (await favoriteRef.get(
+          const GetOptions(source: Source.server),
+        )).data()!['createdAt'],
+        createdAt,
+      );
+      await favorites.setFavorite(alice, 'c3-rice', false);
+      expect(
+        (await favoriteRef.get(const GetOptions(source: Source.server))).exists,
+        isFalse,
+      );
+      await favorites.setFavorite(alice, 'c3-rice', true);
+      await authentication.signOut();
+      await authentication.signIn(email: bobEmail, password: password);
+      await favorites.setFavorite(bob, 'c3-rice', true);
+      await expectLater(
+        db
+            .doc('users/$alice/favorite_foods/catalog_c3-rice')
+            .get(const GetOptions(source: Source.server)),
+        throwsA(isA<FirebaseException>()),
+      );
+      await authentication.signOut();
+      await authentication.signIn(email: aliceEmail, password: password);
+
+      final sourceDay = DateTime(day.year, day.month, day.day - 1);
+      final copiedDay = DateTime(day.year, day.month, day.day - 2);
+      final snapshot = MealItemSnapshot.fromCatalog(
+        catalog.singleWhere((food) => food.id == 'c3-rice'),
+        150,
+      );
+      final sourceId = await nutrition.addMeal(
+        uid: alice,
+        draft: MealDraft(
+          type: MealType.dinner,
+          consumedAt: sourceDay,
+          items: [snapshot],
+          source: MealSource.manual,
+        ),
+      );
+      final source = (await nutrition.loadRange(
+        alice,
+        sourceDay,
+        day,
+      )).singleWhere((meal) => meal.id == sourceId);
+      final sourceBefore =
+          (await db
+                  .doc('users/$alice/meal_logs/$sourceId')
+                  .get(const GetOptions(source: Source.server)))
+              .data();
+      await seedC3Catalog('c3-rice', kcal: 260);
+      final draft = source.copyDraft(day: copiedDay);
+      final stable = nutrition.newMealId();
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: stable);
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: stable);
+      var copied = (await nutrition.loadRange(alice, copiedDay, sourceDay));
+      expect(copied.where((meal) => meal.id == stable), hasLength(1));
+      expect(copied.singleWhere((meal) => meal.id == stable).totals.kcal, 195);
+      expect(
+        copied.singleWhere((meal) => meal.id == stable).dateKey,
+        localDateKey(copiedDay),
+      );
+      expect(
+        copied.singleWhere((meal) => meal.id == stable).timezoneOffsetMinutes,
+        draft.timezoneOffsetMinutes,
+      );
+      final changed = MealDraft(
+        type: draft.type,
+        consumedAt: draft.consumedAt,
+        items: [snapshot.withGrams(100)],
+        source: draft.source,
+      );
+      await expectLater(
+        nutrition.addMeal(uid: alice, draft: changed, operationId: stable),
+        throwsA(isA<NutritionFailure>()),
+      );
+      await nutrition.updateMeal(uid: alice, mealId: stable, draft: changed);
+      copied = await nutrition.loadRange(alice, copiedDay, sourceDay);
+      expect(copied.singleWhere((meal) => meal.id == stable).totals.kcal, 130);
+      final another = await nutrition.addMeal(
+        uid: alice,
+        draft: draft,
+        operationId: nutrition.newMealId(),
+      );
+      expect(another, isNot(stable));
+      await nutrition.deleteMeal(uid: alice, mealId: stable);
+      copied = await nutrition.loadRange(alice, copiedDay, sourceDay);
+      expect(copied.where((meal) => meal.id == stable), isEmpty);
+      expect(copied.singleWhere((meal) => meal.id == another).totals.kcal, 195);
+      expect(
+        (await db
+                .doc('users/$alice/meal_logs/$sourceId')
+                .get(const GetOptions(source: Source.server)))
+            .data(),
+        sourceBefore,
+      );
+    },
+  );
+
+  test(
+    'C3 unconfirmed offline writes retry without duplicate meals or favorites',
+    () async {
+      final favorites = FirebaseFavoriteFoodRepository(db);
+      await favorites.setFavorite(alice, 'c3-rice', false);
+      final id = nutrition.newMealId();
+      final draft = MealDraft(
+        type: MealType.snack,
+        consumedAt: DateTime(day.year, day.month, day.day - 3, 9, 15),
+        items: [
+          MealItemSnapshot(
+            foodId: 'historical-rice',
+            name: 'Snapshot không có catalog',
+            grams: 150,
+            nutrition: const NutritionTotals(
+              kcal: 195,
+              proteinG: 4.035,
+              carbsG: 42.255,
+              fatG: .42,
+            ),
+            sourceLabel: 'Emulator snapshot fixture',
+            isEstimated: true,
+          ),
+        ],
+        source: MealSource.manual,
+      );
+      await db.disableNetwork();
+      try {
+        await expectLater(
+          favorites.setFavorite(alice, 'c3-rice', true),
+          throwsA(isA<FavoriteFoodFailure>()),
+        );
+        await expectLater(
+          nutrition.addMeal(uid: alice, draft: draft, operationId: id),
+          throwsA(isA<NutritionFailure>()),
+        );
+      } finally {
+        await db.enableNetwork();
+      }
+      // A failed acknowledgment is not proof of rollback. Retrying the desired
+      // operation must work whether the transaction reached the server or not.
+      await favorites.setFavorite(alice, 'c3-rice', true);
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: id);
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: id);
+      expect(
+        (await db
+                .collection('users/$alice/favorite_foods')
+                .get(const GetOptions(source: Source.server)))
+            .docs,
+        hasLength(1),
+      );
+      final meals = await nutrition.loadRange(
+        alice,
+        DateTime(day.year, day.month, day.day - 3),
+        DateTime(day.year, day.month, day.day - 2),
+      );
+      expect(meals, hasLength(1));
+      expect(meals.single.id, id);
+      expect(meals.single.totals.kcal, 195);
+      await db.disableNetwork();
+      bool completed = false;
+      final removal = favorites
+          .setFavorite(alice, 'c3-rice', false)
+          .then((_) => completed = true);
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(completed, isFalse);
+      } finally {
+        await db.enableNetwork();
+      }
+      await removal;
+      expect(
+        (await db
+                .doc('users/$alice/favorite_foods/catalog_c3-rice')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        isFalse,
+      );
+      await favorites.setFavorite(alice, 'c3-rice', true);
+    },
+  );
+
+  test(
+    'C4 real library CRUD, fractional portions and frozen meal/ingredient snapshots survive source changes',
+    () async {
+      final library = FirebaseFoodLibraryRepository(db);
+      final favorites = FirebaseFavoriteFoodRepository(db);
+      final food = PersonalFood(
+        id: 'c4-personal',
+        name: 'Cơm riêng fixture',
+        per100g: const NutritionTotals(
+          kcal: 130,
+          proteinG: 2.69,
+          carbsG: 28.17,
+          fatG: .28,
+        ),
+        defaultServingGrams: 150,
+        servingLabel: 'bát',
+        servingGrams: 150,
+        alternateNames: ['cơm riêng'],
+      );
+      await library.save(alice, food, create: true);
+      await library.save(alice, food, create: true);
+      final ref = db.doc('users/$alice/custom_foods/${food.id}');
+      final createdAt = (await ref.get(
+        const GetOptions(source: Source.server),
+      )).data()!['createdAt'];
+      final loaded =
+          await library.load(alice, FoodSourceKind.custom, food.id)
+              as PersonalFood;
+      expect(loaded.asFood().servingGrams, 150);
+      expect(loaded.asFood().forGrams(150).kcal, 195);
+      expect(
+        (await library
+                .watch(alice, FoodSourceKind.custom)
+                .firstWhere((page) => !page.fromCache))
+            .items,
+        hasLength(1),
+      );
+      final recipe = FoodRecipe(
+        id: 'c4-recipe',
+        name: 'Công thức sáu nguyên liệu',
+        ingredients: List.generate(
+          6,
+          (_) => MealItemSnapshot.fromCatalog(loaded.asFood(), 100),
+        ),
+        yieldGrams: 450,
+        servingsCount: 2.5,
+      );
+      await library.save(alice, recipe, create: true);
+      await library.save(alice, recipe, create: true);
+      final reloaded =
+          await library.load(alice, FoodSourceKind.recipe, recipe.id)
+              as FoodRecipe;
+      expect(reloaded.ingredients, hasLength(6));
+      expect(reloaded.totals.kcal, 780);
+      expect(reloaded.portionGrams, 180);
+      final halfPortion = MealItemSnapshot.fromCatalog(
+        reloaded.asFood(),
+        reloaded.portionGrams! * .5,
+      );
+      expect(halfPortion.grams, 90);
+      expect(halfPortion.nutrition.kcal, 156);
+      final mealId = nutrition.newMealId();
+      final mealDraft = MealDraft(
+        type: MealType.dinner,
+        consumedAt: DateTime(day.year, day.month, day.day - 4, 18),
+        items: [
+          MealItemSnapshot.fromCatalog(loaded.asFood(), 150),
+          halfPortion,
+        ],
+        source: MealSource.manual,
+      );
+      await nutrition.addMeal(
+        uid: alice,
+        draft: mealDraft,
+        operationId: mealId,
+      );
+      final mealRef = db.doc('users/$alice/meal_logs/$mealId');
+      final historical = (await mealRef.get(
+        const GetOptions(source: Source.server),
+      )).data();
+      expect(historical!['totalKcal'], 351);
+      await favorites.setFavorite(
+        alice,
+        food.id,
+        true,
+        sourceKind: FoodSourceKind.custom,
+      );
+      await favorites.setFavorite(
+        alice,
+        recipe.id,
+        true,
+        sourceKind: FoodSourceKind.recipe,
+      );
+      final favoritePage = await favorites
+          .watch(alice)
+          .firstWhere((page) => !page.fromCache && page.items.length >= 3);
+      expect(
+        favoritePage.items.map((item) => item.id),
+        containsAll(['custom_c4-personal', 'recipe_c4-recipe']),
+      );
+      await library.save(
+        alice,
+        PersonalFood(
+          id: food.id,
+          name: 'Cơm đổi nguồn',
+          per100g: const NutritionTotals(
+            kcal: 260,
+            proteinG: 5.38,
+            carbsG: 56.34,
+            fatG: .56,
+          ),
+        ),
+        create: false,
+      );
+      expect(
+        (await ref.get(
+          const GetOptions(source: Source.server),
+        )).data()!['createdAt'],
+        createdAt,
+      );
+      expect(
+        (await library.load(alice, FoodSourceKind.recipe, recipe.id)
+                as FoodRecipe)
+            .totals
+            .kcal,
+        780,
+      );
+      await library.save(
+        alice,
+        FoodRecipe(
+          id: recipe.id,
+          name: 'Công thức sửa yield',
+          ingredients: recipe.ingredients,
+          yieldGrams: 900,
+          servingsCount: 3,
+        ),
+        create: false,
+      );
+      expect(
+        (await mealRef.get(const GetOptions(source: Source.server))).data(),
+        historical,
+      );
+      await library.delete(alice, FoodSourceKind.custom, food.id);
+      await library.delete(alice, FoodSourceKind.recipe, recipe.id);
+      expect(await library.load(alice, FoodSourceKind.custom, food.id), isNull);
+      expect(
+        await library.load(alice, FoodSourceKind.recipe, recipe.id),
+        isNull,
+      );
+      expect(
+        (await mealRef.get(const GetOptions(source: Source.server))).data(),
+        historical,
+      );
+      await favorites.setFavorite(
+        alice,
+        food.id,
+        false,
+        sourceKind: FoodSourceKind.custom,
+      );
+      await favorites.setFavorite(
+        alice,
+        recipe.id,
+        false,
+        sourceKind: FoodSourceKind.recipe,
+      );
+      await expectLater(
+        library.save(alice, food, create: false),
+        throwsA(isA<FoodLibraryFailure>()),
+        reason: 'editing a deleted source must not silently recreate it',
+      );
+      await library.save(alice, food, create: true);
+      await library.save(alice, recipe, create: true);
+      await favorites.setFavorite(
+        alice,
+        food.id,
+        true,
+        sourceKind: FoodSourceKind.custom,
+      );
+      await authentication.signIn(email: bobEmail, password: password);
+      await library.save(bob, food, create: true);
+      await library.save(bob, recipe, create: true);
+      await favorites.setFavorite(
+        bob,
+        recipe.id,
+        true,
+        sourceKind: FoodSourceKind.recipe,
+      );
+      for (final kind in [FoodSourceKind.custom, FoodSourceKind.recipe]) {
+        final id = kind == FoodSourceKind.custom ? food.id : recipe.id;
+        await expectLater(
+          library.load(alice, kind, id),
+          throwsA(isA<FoodLibraryFailure>()),
+        );
+        await expectLater(
+          library.save(
+            alice,
+            kind == FoodSourceKind.custom ? food : recipe,
+            create: false,
+          ),
+          throwsA(isA<FoodLibraryFailure>()),
+        );
+        await expectLater(
+          library.delete(alice, kind, id),
+          throwsA(isA<FoodLibraryFailure>()),
+        );
+      }
+      await authentication.signIn(email: aliceEmail, password: password);
+    },
+  );
+
+  test(
+    'C4 offline unconfirmed library writes keep the same ID; retries do not duplicate or overwrite another payload',
+    () async {
+      final library = FirebaseFoodLibraryRepository(db);
+      final food = PersonalFood(
+        id: library.newId(),
+        name: 'Món retry fixture',
+        per100g: const NutritionTotals(
+          kcal: 100,
+          proteinG: 10,
+          carbsG: 10,
+          fatG: 2,
+        ),
+      );
+      final recipe = FoodRecipe(
+        id: library.newId(),
+        name: 'Công thức retry fixture',
+        ingredients: [MealItemSnapshot.fromCatalog(food.asFood(), 150)],
+        yieldGrams: 120,
+        servingsCount: 1.5,
+      );
+      for (final entry in <LibraryEntry>[food, recipe]) {
+        await db.disableNetwork();
+        try {
+          await expectLater(
+            library.load(alice, entry.kind, entry.id),
+            throwsA(isA<FoodLibraryFailure>()),
+          );
+          await expectLater(
+            library.save(alice, entry, create: true),
+            throwsA(isA<FoodLibraryFailure>()),
+          );
+        } finally {
+          await db.enableNetwork();
+        }
+        await library.save(alice, entry, create: true);
+        await library.save(alice, entry, create: true);
+        expect(
+          (await library.load(alice, entry.kind, entry.id))!.toData(),
+          entry.toData(),
+        );
+      }
+      await expectLater(
+        library.save(
+          alice,
+          PersonalFood(
+            id: food.id,
+            name: 'Changed draft',
+            per100g: food.per100g,
+          ),
+          create: true,
+        ),
+        throwsA(isA<FoodLibraryFailure>()),
+      );
+      expect(
+        (await db
+                .collection('users/$alice/custom_foods')
+                .get(const GetOptions(source: Source.server)))
+            .docs,
+        hasLength(2),
+      );
+      expect(
+        (await db
+                .collection('users/$alice/recipes')
+                .get(const GetOptions(source: Source.server)))
+            .docs,
+        hasLength(2),
+      );
+      await db.disableNetwork();
+      bool completed = false;
+      final deletion = library
+          .delete(alice, food.kind, food.id)
+          .then((_) => completed = true);
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(completed, isFalse);
+      } finally {
+        await db.enableNetwork();
+      }
+      await deletion;
+      expect(await library.load(alice, food.kind, food.id), isNull);
+    },
+  );
+
+  test(
+    'C2 targets preserve effective history and retry the same ID after an unknown acknowledgement',
+    () async {
+      final targets = FirebaseNutritionTargetRepository(db);
+      final key = localDateKey(day);
+      final next = localDateKey(DateTime(day.year, day.month, day.day + 1));
+      final later = localDateKey(DateTime(day.year, day.month, day.day + 2));
+      final first = NutritionTarget(
+        effectiveFromDateKey: key,
+        kcalTarget: 1800,
+      );
+      await targets.save(alice, first);
+      final reference = db.doc('users/$alice/nutrition_targets/$key');
+      final createdAt = (await reference.get(
+        const GetOptions(source: Source.server),
+      )).data()!['createdAt'];
+      await targets.save(
+        alice,
+        NutritionTarget(
+          effectiveFromDateKey: next,
+          kcalTarget: 2000,
+          proteinGTarget: 100,
+          carbsGTarget: 250,
+          fatGTarget: 60,
+        ),
+      );
+      expect(
+        await targets.loadForDay(
+          alice,
+          localDateKey(DateTime(day.year, day.month, day.day - 1)),
+        ),
+        isNull,
+      );
+      expect((await targets.loadForDay(alice, key))!.kcalTarget, 1800);
+      expect((await targets.loadForDay(alice, next))!.kcalTarget, 2000);
+      await targets.save(alice, first);
+      expect(
+        (await reference.get(
+          const GetOptions(source: Source.server),
+        )).data()!['createdAt'],
+        createdAt,
+      );
+      expect(
+        (await db.collection('users/$alice/nutrition_targets').get()).size,
+        2,
+      );
+      await expectLater(
+        targets.save(
+          alice,
+          NutritionTarget(
+            effectiveFromDateKey: localDateKey(
+              DateTime(day.year, day.month, day.day - 1),
+            ),
+            kcalTarget: 1800,
+          ),
+        ),
+        throwsA(isA<NutritionTargetFailure>()),
+        reason: 'C2 rejects writes to a past effective date',
+      );
+      await db.disableNetwork();
+      try {
+        await expectLater(
+          targets.loadForDay(alice, key),
+          throwsA(isA<NutritionTargetFailure>()),
+          reason: 'C2 offline reads must fail instead of returning no target',
+        );
+        await expectLater(
+          targets.save(
+            alice,
+            NutritionTarget(effectiveFromDateKey: later, kcalTarget: 1900),
+          ),
+          throwsA(isA<NutritionTargetFailure>()),
+          reason: 'C2 offline transaction must not acknowledge a write',
+        );
+      } finally {
+        await db.enableNetwork();
+      }
+      expect(
+        (await db
+                .doc('users/$alice/nutrition_targets/$later')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        isTrue,
+        reason:
+            'Web emulator transaction reached server while normal reads were disabled; failure is an unconfirmed acknowledgement, not rollback.',
+      );
+      await targets.save(
+        alice,
+        NutritionTarget(effectiveFromDateKey: later, kcalTarget: 1900),
+      );
+      await targets.save(
+        alice,
+        NutritionTarget(effectiveFromDateKey: later, kcalTarget: 1900),
+      );
+      expect(
+        (await db.collection('users/$alice/nutrition_targets').get()).size,
+        3,
+      );
+      expect((await targets.loadForDay(alice, later))!.kcalTarget, 1900);
+    },
+  );
+
+  test(
+    'C5 real repositories save weights and aggregate a sparse week across New Year',
+    () async {
+      final start = DateTime(2025, 12, 29), end = DateTime(2026, 1, 5);
+      for (final entry in [(start, 150.0), (DateTime(2026, 1, 1), 450.0)]) {
+        await nutrition.addMeal(
+          uid: alice,
+          draft: MealDraft(
+            type: MealType.lunch,
+            source: MealSource.manual,
+            consumedAt: entry.$1,
+            items: [
+              MealItemSnapshot(
+                foodId: 'c5-emulator-fixture',
+                name: 'Món kiểm thử emulator',
+                grams: 100,
+                nutrition: NutritionTotals(
+                  kcal: entry.$2,
+                  proteinG: entry.$2 / 15,
+                  carbsG: entry.$2 / 7.5,
+                  fatG: entry.$2 / 50,
+                ),
+                sourceLabel: 'Synthetic emulator fixture',
+                isEstimated: true,
+              ),
+            ],
+          ),
+        );
+      }
+      await water.add(
+        uid: alice,
+        draft: WaterLogDraft(amountMl: 250, consumedAt: DateTime(2025, 12, 31)),
+      );
+      await activities.add(
+        uid: alice,
+        draft: ActivityLogDraft(
+          type: ActivityType.walking,
+          durationMinutes: 20,
+          performedAt: DateTime(2026, 1, 1),
+        ),
+      );
+      for (final entry in [
+        (DateTime(2025, 12, 28), 80.0),
+        (DateTime(2026, 1, 2), 69.5),
+        (start, 70.0),
+      ]) {
+        await profiles.addBodyMetric(
+          uid: alice,
+          draft: BodyMetricDraft(
+            weightKg: entry.$2,
+            measuredAt: entry.$1,
+            note: 'Synthetic emulator fixture',
+          ),
+        );
+      }
+      final range = await (
+        nutrition.loadRange(alice, start, end),
+        water.loadRange(alice, start, end),
+        activities.loadRange(alice, start, end),
+        profiles.loadBodyMetricsRange(alice, start, end),
+      ).wait;
+      final report = summarizeWeek(
+        start,
+        DateTime(2026, 1, 2),
+        WeekLogs(
+          meals: range.$1,
+          water: range.$2,
+          activities: range.$3,
+          metrics: range.$4,
+          loadedAt: DateTime.now(),
+        ),
+      );
+      expect(report.nutrition.kcal, 600);
+      expect(report.nutrition.proteinG, 40);
+      expect(report.nutrition.carbsG, 80);
+      expect(report.nutrition.fatG, 12);
+      expect(report.waterMl, 250);
+      expect(report.activityMinutes, 20);
+      expect(report.mealDays, 2);
+      expect(report.averageKcalPerRecordedDay, 300);
+      expect(report.eligibleDays, 5);
+      expect(report.metrics.map((m) => m.weightKg), [70, 69.5]);
+      expect(report.metrics.map((m) => localDateKey(m.measuredAt)), [
+        '2025-12-29',
+        '2026-01-02',
+      ]);
+      expect(report.weightChange, -.5);
+      await authentication.signOut();
+      try {
+        await authentication.signIn(email: bobEmail, password: password);
+        await expectLater(
+          profiles.loadBodyMetricsRange(alice, start, end),
+          throwsA(anything),
+        );
+      } finally {
+        await authentication.signOut();
+        await authentication.signIn(email: aliceEmail, password: password);
+      }
+    },
+  );
+
+  test(
+    'C5 bounded weekly targets carry history, reject cross-UID/offline and keep past versions',
+    () async {
+      final targets = FirebaseNutritionTargetRepository(db);
+      String keyAt(int offset) =>
+          localDateKey(DateTime(day.year, day.month, day.day + offset));
+      // Future dates avoid writing any past target; only demo emulator data.
+      final begin = keyAt(14), end = keyAt(21);
+      await targets.save(
+        alice,
+        NutritionTarget(effectiveFromDateKey: keyAt(12), kcalTarget: 1750),
+      );
+      await targets.save(
+        alice,
+        NutritionTarget(
+          effectiveFromDateKey: keyAt(16),
+          kcalTarget: 1950,
+          proteinGTarget: 90,
+          carbsGTarget: 220,
+          fatGTarget: 55,
+        ),
+      );
+      await targets.save(
+        alice,
+        NutritionTarget(effectiveFromDateKey: end, kcalTarget: 2500),
+      );
+      final versions = await targets.loadForRange(alice, begin, end);
+      expect(versions.map((t) => t.effectiveFromDateKey), [
+        keyAt(12),
+        keyAt(16),
+      ]);
+      expect(targetForDate(versions, begin)!.kcalTarget, 1750);
+      expect(targetForDate(versions, keyAt(15))!.kcalTarget, 1750);
+      expect(targetForDate(versions, keyAt(16))!.proteinGTarget, 90);
+      await targets.save(
+        alice,
+        NutritionTarget(effectiveFromDateKey: keyAt(16), kcalTarget: 2050),
+      );
+      final changed = await targets.loadForRange(alice, begin, end);
+      expect(targetForDate(changed, keyAt(15))!.kcalTarget, 1750);
+      expect(targetForDate(changed, keyAt(16))!.kcalTarget, 2050);
+      final beforeFirst = await targets.loadForRange(
+        alice,
+        keyAt(-14),
+        keyAt(-7),
+      );
+      expect(beforeFirst, isEmpty);
+      await expectLater(
+        targets.loadForRange(alice, begin, keyAt(22)),
+        throwsA(isA<NutritionTargetFailure>()),
+      );
+      await expectLater(
+        targets.loadForRange(alice, end, begin),
+        throwsA(isA<NutritionTargetFailure>()),
+      );
+      await expectLater(
+        targets.loadForRange(alice, '2026-02-30', end),
+        throwsA(isA<NutritionTargetFailure>()),
+      );
+      await db.disableNetwork();
+      try {
+        await expectLater(
+          targets.loadForRange(alice, begin, end),
+          throwsA(isA<NutritionTargetFailure>()),
+        );
+      } finally {
+        await db.enableNetwork();
+      }
+      await authentication.signOut();
+      try {
+        await authentication.signIn(email: bobEmail, password: password);
+        await expectLater(
+          targets.loadForRange(alice, begin, end),
+          throwsA(isA<NutritionTargetFailure>()),
+        );
+        expect(await targets.loadForRange(bob, begin, end), isEmpty);
+      } finally {
+        await authentication.signOut();
+        await authentication.signIn(email: aliceEmail, password: password);
+      }
+      // Reader rejects malformed target versions; never substitutes zeros.
+      final bad = db.doc('users/$alice/nutrition_targets/${keyAt(20)}');
+      final response = await http.patch(
+        Uri.parse(
+          'http://127.0.0.1:8080/v1/projects/$projectId/databases/(default)/documents/${bad.path}',
+        ),
+        headers: {
+          'Authorization': 'Bearer owner',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'fields': {
+            'effectiveFromDateKey': {'stringValue': keyAt(20)},
+            'kcalTarget': {'doubleValue': 999},
+          },
+        }),
+      );
+      expect(response.statusCode, 200);
+      await expectLater(
+        targets.loadForRange(alice, begin, end),
+        throwsA(isA<NutritionTargetFailure>()),
+      );
+    },
+  );
+
+  test(
+    'C6 Auth SDK rejects an unexpected UID before reauth, password update or deletion',
+    () async {
+      expect(auth.currentUser!.uid, alice);
+      for (final operation in [
+        () => authentication.reauthenticateWithPassword(
+          password,
+          expectedUid: bob,
+        ),
+        () => authentication.updatePassword(
+          'Never-applied-C6-password-123!',
+          expectedUid: bob,
+        ),
+        () => authentication.deleteCurrentUser(expectedUid: bob),
+      ]) {
+        await expectLater(
+          operation(),
+          throwsA(
+            isA<AuthFailure>().having((e) => e.code, 'code', 'user-mismatch'),
+          ),
+        );
+        expect(auth.currentUser!.uid, alice);
+      }
+      await authentication.reauthenticateWithPassword(
+        password,
+        expectedUid: alice,
+      );
+    },
+  );
+
+  test(
     'reauthenticated password change and account cleanup remove data before Auth',
     () async {
       await authentication.reauthenticateWithPassword(password);
@@ -475,6 +1360,10 @@ void main() {
         'activity_logs',
         'goals',
         'daily_quests',
+        'nutrition_targets',
+        'favorite_foods',
+        'custom_foods',
+        'recipes',
         'chat_sessions',
       ]) {
         expect(
@@ -498,6 +1387,36 @@ void main() {
       }
       await authentication.deleteCurrentUser();
       expect(auth.currentUser, isNull);
+      await authentication.signIn(email: bobEmail, password: password);
+      expect(
+        (await db
+                .doc('users/$bob/custom_foods/c4-personal')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        isTrue,
+      );
+      expect(
+        (await db
+                .doc('users/$bob/recipes/c4-recipe')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        isTrue,
+      );
+      expect(
+        (await db
+                .doc('users/$bob/favorite_foods/recipe_c4-recipe')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        isTrue,
+      );
+      expect(
+        (await db
+                .doc('users/$bob/favorite_foods/catalog_c3-rice')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        isTrue,
+      );
+      await authentication.signOut();
     },
   );
 }

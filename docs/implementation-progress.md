@@ -1355,3 +1355,208 @@ Xem [báo cáo bảo trì](maintenance-2026-10-17.md) để biết từng file v
   không stage/commit/push/PR hoặc production deploy/migration/billing.
 - Người dùng đã yêu cầu tắt laptop sau khi hoàn thành: chỉ hẹn shutdown bình thường,
   không ép đóng chương trình có nội dung chưa lưu.
+
+## 17/10/2026 — C1: nền tảng và chuyển sang phạm vi core
+
+Yêu cầu C1 theo file `Sửa` của chủ sản phẩm thay thứ tự tính năng cũ trong đợt core.
+Đầu mối hiện hành: [core-scope.md](core-scope.md), không ghi đè lịch sử ở trên.
+
+- **Local đạt:** hai feature flags build cục bộ mặc địnhfalse cho Chatbot/Scanner;
+  ẩn menu Cá nhân/CTA Nhật ký/quick action; chặn /chat/deep link/return link sau
+  Auth/onboarding; giữ branch0–4, Profile4 và Quest hiện có.
+- Không khởi tạo ngầm AI qua UI/điều hướng; controller Chat tắt không đọc lịch sử,
+  checked service Scanner và knowledge service từ chối trước Firebase AI. Giữ code,
+  dependency, Firebase/App Check, lịch sử Chat, snapshot AI và cleanup tài khoản.
+- Giữ core CRUD/snapshot/pending/UID/dateKey+legacy, không đổi database/schema/index,
+  không thêm mục tiêu kcal/macros, thư viện hoặc tab Tiến độ rỗng.
+- File chính: app_feature_flags.dart mới; app_router/app_shell, Profile/Journal/
+  MealLogSection, quick action; Chat/Scanner UI/provider gates; core_scope_test mới,
+  helper và fixture hồi quy; README/database-design/test-report và tài liệu core.
+- Kiểm tra mới: baseline176/176; cuối201/201Flutter, Node7/7, Rules31/31+SDK6/6
+  demo emulator; format147file/0thay đổi, analyze sạch10,7s; debugAPK x64build11,8s.
+  18tổ hợp UI và3ảnh đã xem, Auth/cold link/Back/noAI init; không gọi cloudAI.
+- **Production chưa nghiệm thu:** đọc lại release11:59 UTC+07,17/10/2026;
+  vẫn thiếu match ghi Goals/Quest/Chat, updateTime2026-10-13T06:25:21.345792Z.
+  Cần review và yêu cầu deploy riêng, hướng dẫn project cụ thể ở core-scope.md.
+- Không có Android kết nối: chưa E2E điện thoại, chỉ build, không cài/xóa app.
+  Cảnh báoKGP còn; không nâng package/Gradle trong C1.
+- HEAD giữ86238197a9f8e24a2222da2da9e74164c35844ea; không stage/commit/push/deploy,
+  billing, migration hoặc sửa dữ liệu production. Không tự làm C2–C6.
+- Tiếp theo đề xuất **C2 — mục tiêu kcal/macros có lịch sử hiệu lực theo ngày**.
+
+## 17/10/2026 — C2: mục tiêu kcal/macros theo ngày hiệu lực
+
+**Local đạt; production chưa nghiệm thu/chưa được cấp ghi collection mới.**
+Chi tiết tại [core-scope.md](core-scope.md), schema tại database-design.md.
+
+- Thêm feature nutrition_targets theoUID, IDyyyy-MM-dd, queryserver<=ngàyD giảm
+  dầnlimit1; lịch sử không áp ngược. Kcal và đủ 3 macro hoặc cùngnull,0được giữ,
+  bounds hữu hạn, cảnh báo lệch4P+4C+9F>5% cần xác nhận; không tự tínhBMR/TDEE.
+- Form từ Tổng quan/Cá nhân, hôm nay/tương lai, nạp đúng phiên bản khi đổi ngày;
+  so sánh Tổng quan/Nhật ký đã ghi/mục tiêu/còn/vượt. Lỗi/loading không thành0
+  hay chưa đặt. Giữ form/pending/error, chốngdouble tap và completionUIDcũ.
+- Repositorytransaction cùng ID, giữcreatedAt, serverread-back trước success;
+  SDKđã tái hiện write có thể tới server dù normal reads bịdisableNetwork.
+  Retry không nhân đôi; không coi lỗi ack là rollback.
+- Ruleslocal nutrition_targets vớischema/UID/bounds/timestamps và cleanup account
+  đã cập nhật, không đổiindexes/dependency/config hoặc dữ liệu cũ.
+- File chính mới: models/data/providers/presentation dướifeatures/nutrition_targets;
+  targetcard ghépDashboard/Journal/Profile; Rules/cleanup;33testsC2, fake/helper,
+  thêm1SDK và4Rules tests; README/core-scope/database-design/test-report.
+- Kiểm tra mới: baseline201; cuối234/234Flutter,35/35Rules+7/7SDK demo,
+  7/7Nodecatalog; format155 file/0 thay đổi, analyze sạch11,6s,APKdebugx64build18,0s.
+  Matrix18 UI và3 ảnh xem bằng mắt, keyboardmôphỏng; chưaE2Eđiệnthoại.
+- ProductionGET12:23UTC+07 ngày17/10: RulesupdateTime2026-10-13T06:25:21.345792Z,
+  thiếu quyền ghi nutrition_targets/Goals/Quest/Chat. Cầnreview và yêu cầu deploy riêng;
+  hướng dẫn lệnh với project cụ thể trong core-scope, chưa chạy deploy.
+- HEAD86238197a9f8e24a2222da2da9e74164c35844ea; giữ C1 chưa commit,
+  không stage/commit/push/deploy/billing/migration. AI vẫn tắt; không làm C3–C6.
+- Tiếp theo đề xuất **C3 — nhật ký nhanh, yêu thích catalog và sao chép bữa**.
+
+## Core C3 — Nhật ký nhanh, yêu thích và sao chép (17/10/2026)
+
+- **Local đạt** trong phạm vi unit/widget, Rules, SDK emulator và build. Chỉ làm C3;
+  giữ toàn bộ C1/C2 chưa commit trên main, HEAD `86238197a9f8e24a2222da2da9e74164c35844ea`.
+- Nhật ký chia Sáng/Trưa/Tối/Phụ, mỗi nhóm có tổng kcal, số bản ghi và nút Thêm
+  đúng ngày/loại. MealLog vẫn độc lập; sửa/xóa cập nhật tổng nhóm, ngày và macro.
+  Lỗi catalog không che nhật ký đã tải.
+- Form có Tìm món/Gần đây/Yêu thích. Recent cập nhật live, giới hạn 20 bữa/8 món;
+  favorite catalog riêng theo UID, ID ổn định, tải 40 rồi tăng 40 theo yêu cầu.
+  Có loading/error/retry/cache, xử lý nguồn mất, pending và đổi tài khoản.
+  Không thay dữ liệu thiếu bằng 0 kcal hoặc tạo các nguồn C4 chưa hoạt động.
+- Copy mở draft giữ snapshot/source; cho sửa ngày/giờ/loại/gram. Hủy không ghi.
+  ID cấp một lần mỗi form; transaction create-if-absent và server read-back.
+  Retry cùng payload không nhân đôi; payload khác báo tải lại/chọn Sửa. Vẫn tối đa
+  5 món/bản ghi, gram chuẩn và nhập món ngoài catalog một lần. Draft chỉ giữ RAM.
+- Mới features/food_library, core_journal_test.dart và fake favorite. Sửa nutrition
+  model/repository/provider/form/section, JournalScreen, Rules, account cleanup,
+  SDK/Rules tests, helper và tài liệu. Schema favorite chỉ gồm tham chiếu catalog,
+  timestamps và schemaVersion dưới UID; cleanup đã có test tài khoản A/B.
+  Không đổi schema MealLog, indexes, package hoặc cấu hình backend.
+- Baseline 234/234; kết quả cuối: 270/270 Flutter, 39/39 Rules + 9/9 SDK trên
+  demo-healthmate-rules, 7/7 catalog. Format 162 file, không còn thay đổi; analyze
+  sạch; APK debug android-x64 build thành công. Thời gian chạy cuối và bằng chứng
+  nằm trong docs/test-report.md. Có 18 tổ hợp UI và 3 ảnh đã xem, keyboard mô phỏng.
+- `flutter devices` chỉ có Windows/Chrome/Edge, chưa E2E Android hoặc cài APK.
+  Không uninstall/clear app hay thay session người dùng. Cảnh báo KGP đã có còn.
+- **Production chưa đạt**: GET Rules read-only lúc 12:45:30 UTC+07 xác nhận release
+  vẫn ngày 13/10/2026, chưa có favorite_foods/nutrition_targets/Goals/Quest/Chat.
+  Cần review và yêu cầu deploy Rules riêng, sau đó QA Android bằng tài khoản thử.
+- Không stage/commit/push/deploy/billing/migration hoặc gọi AI; AI vẫn tắt.
+  Dừng C3. Tiếp theo chỉ đề xuất **C4 — món cá nhân và công thức**, chưa thực hiện.
+
+## Core C4 — Món cá nhân, công thức và khẩu phần (17/10/2026)
+
+- **Local đạt** unit/widget/Rules/SDK Emulator/build. Chỉ C4 trên main,
+  HEAD `86238197a9f8e24a2222da2da9e74164c35844ea`, giữ toàn bộ C1–C3 chưa commit.
+  Baseline mới270/270 Flutter pass19s, không lấy kết quả C3 làm baseline thay thế.
+- Thư viện từ Cá nhân, Món của tôi/Công thức trong form bữa. CRUD món cá nhân đủ
+  bốn chất/100g, nguồn, tên khác, gram mặc định và cặp tên/gram khẩu phần tùy chọn.
+  Nhập một lần giữ mặc định; lưu thư viện là lựa chọn chủ động và có ID ổn định.
+- Recipe gồm1–6 snapshot catalog/món cá nhân, không lồng recipe. Yield có thể khác
+  tổng nguyên liệu, số phần thập phân; cộng snapshot và scale theo yield, không
+  cache tổng dẫn xuất. Dialog gram/phần kiểm tra cả số dinh dưỡng sau quy đổi.
+- Sửa/xóa nguồn giữ MealLog và ingredient snapshot. Yêu thích cả3namespace, đọc
+  nguồn private trực tiếp theo UID/ID, phân biệt lỗi/cache/missing; nguồn mất vẫn
+  bỏ favorite được. Không đổi schema MealLog, giới hạn5món hoặc lịch sử cũ.
+- Create retry cùngID/payload không trùng; server read-back trước ack. Edit không
+  tự tạo lại nguồn đã xóa, delete chờ xác nhận. Form pending/error giữ draft RAM;
+  logout/đổi UID đóng form và bỏ completion cũ. Library đã lưu nhưng bữa lỗi được
+  báo riêng; retry bữa không tạo thêm món thư viện. Macro thiếu không tự thành0.
+- Mới food_library_models, library repository/provider, library screen/forms,
+  portion dialog/nutrition text, test/food_library_test.dart và fake library.
+  Sửa favorite stack, Sources, Journal/nutrition forms/model, Profile/router,
+  Rules/cleanup, SDK/Rules/fake/helper/regression tests và tài liệu hiện có.
+- Thêm custom_foods/recipes dưới UID, mở favorite sourceKind; Rules exact fields,
+  bounds/type/timestamps/createdAt và mọi dòng. Payload6 ban đầu vượt ngân sách
+  Rules; đã tối ưu validator,47/47 Rules pass gồm dòng giữa/cuối và vượt giới hạn.
+  Cleanup SDK xóa hai collection mới của A trước Auth, giữ dữ liệu B.
+- Cuối308/308 Flutter pass39s, analyze sạch7,4s;47/47Rules+11/11SDK pass19s;
+  7/7catalog; format172file không còn đổi; APKdebugandroid-x64 build45,5s.
+  18tổ hợpUI cho hai form/6dòng/nhập một lần/keyboard;4ảnh đã xem. Lỗi test ban đầu
+  errno112 do C thiếu chỗ đã xử lý bằng TEMP/TMP trên D rồi chạy lại đầy đủ.
+- ProductionGET read-only16:11:23UTC+07: Rules vẫn13/10/2026, thiếu custom_foods/
+  recipes/favorite_foods/nutrition_targets/Goals/Quest/Chat. **Production chưa đạt**,
+  cần review và yêu cầu deploy riêng. Không Android trong flutterdevices, chưa
+  E2E máy thật/ARM/release; KGP warning đã có còn. Không clear/uninstall/session thật.
+- Không stage/commit/push/deploy/billing/migration/cloudAI hoặc nâng dependency.
+  AI vẫn tắt. Chi tiết file/kết quả tại core-scope.md phầnC4 và test-report.md.
+- DừngC4; chỉ đề xuất **C5 — Tiến độ, cân nặng và tổng hợp tuần**, chưa thực hiện.
+
+
+## 2026-10-17 — Core C5: Tiến độ, cân nặng và tổng hợp tuần
+
+- Hoàn thành C5 local; main/HEAD86238197 không đổi, C1–C4 uncommitted được giữ.
+  Baseline mới308/308pass33s. Không chuyển sang C6, commit/push/deploy/migration.
+- Thêm ProgressScreen/route branch5,4tab + nút thêm bữa/nước/vận động/cân nặng;
+  giữ Profile4/Quest2/Chat3 và Auth/onboarding. Tổng quan có link Tiến độ.
+- Dùng WeeklyReflectionCard, weeklyLogsProvider/summarizeWeek và nguồn cân hiện
+  có; tổng/macros/số ngày/mẫu số đúng, tương lai không thành thiếu ghi. WeightChart
+  sort/spacing timestamp, chi tiết ngày đo, ít hơn2điểm không mô tả thay đổi.
+- Mục tiêu tuần2range query bounded, parser chung, chọn đúng phiên bản cho từng
+  ngày. Loading/error/retry riêng không che tổng logs. Giữ tuần khi đổi tab nhưng
+  nhả data consumer lúc ẩn; không listener ngày hoặc toàn lịch sử ở Progress.
+- BodyMetricFormDialog có callback ConfirmedSave cho nút+; error giữ draft,
+  pending chặn gửi lặp, AccountBoundDialog bỏ draft khi logout/đổiUID và refresh
+  tuần khi thành công. Không thêm schema/Rules/index/package trong C5.
+- File chính: progress/presentation/progress_screen mới; router/shell/dashboard,
+  weekly_reflection_card, weight_chart/body_metric_form_dialog, nutrition_targets
+  repository/provider; progress_test mới và core_scope/dashboard/profile/SDK/fake
+  target tests. README/database-design/core-scope/test-report cập nhật.
+- Cuối337/337Flutterpass41s; analyze sạch7,1s; format174file0đổi ở check;
+  47/47Rules+13/13SDKpass21s;7/7catalog; APKdebugandroid-x64build21,6s;
+  diff--check sạch.29test C5 mới,18tổ hợp layout; SDK có cân nặng/nhật ký thật qua
+  năm mới, target history/ownership/offline/corrupt data. Không có Android kết nối.
+- Full đầu lỗi test tìm vùng cuộn mơ hồ; đổi ensureVisible đúng nút, giữ assert.
+  SDK mới đầu sai tham số fixture, đã sửa; các lượt cuối đủ337/13pass, không skip.
+- Production GET read-only16:33:55UTC+07,17/10/2026, Rules release13/10/2026 vẫn
+  thiếu nutrition_targets/favorite_foods/custom_foods/recipes/Goals/Quest/Chat.
+  Production chưa đạt, chưa deploy. Chi tiết/hash/giới hạn trong core-scope C5.
+- Cần review/deploy được yêu cầu riêng rồi QA Android (ngày/tuần/mục tiêu cũ,
+  offline/UID, chữ lớn/sáng tối, bàn phím/safe area). TEMP/TMP dùng D, không clear/
+  uninstall/session thật. KGP warning cũ còn; chưa ARM/release/Android E2E.
+- Đề xuất tiếp **C6 — Nghiệm thu bản core trên Android và chuẩn bị bàn giao**;
+  chưa thực hiện. AI vẫn tắt.
+
+## Core C6 — Nghiệm thu Android và bàn giao (17/10/2026)
+
+- **Local đạt**, production chưa nghiệm thu. Main/HEAD86238197 giữ nguyên;
+  bảo toàn working tree C1–C5. Không stage/commit/push/deploy/migration/billing/AI.
+- Sửa core phát hiện khi nghiệm thu: form Cá nhân giữ draft hồ sơ/cân khi lỗi,
+  chờ ack và gắn UID; Profile/AccountSecurity controllers bỏ completion phiên cũ;
+  SDK Auth kiểm tra expectedUid trước reauth/đổi mật khẩu/xóa. Cleanup vẫn xóa
+  data trước Auth sau; test cũ về lỗi giữa chừng được giữ.
+- Lần cân mới giữ giờ hiện tại, chỉnh cân không làm mất timestamp cũ. Sửa lỗi
+  native sau onboarding cùng ngày cân mới không được coi là gần nhất.
+- subscriptionStream sở hữu lỗi Future hủy stream khi logout, không bỏ lỗi đọc/
+  ghi đang hoạt động. Áp dụng tại provider của các repository streaming liên quan.
+- File chính: auth data/providers, profile providers/3form-screen, core/utils/
+  subscription_stream.dart; nutrition/water/activity/goals/library/favorite
+  providers; test/core_acceptance_regression_test.dart (12test mới), SDK test
+  expectedUid, integration_test/core_acceptance_test.dart, test_driver và
+  tool/test_android_core.ps1. Android debug network config chỉ cho HTTP localhost/
+  10.0.2.2, không đổi release/main manifest. README/core-scope/database/test-report
+  cập nhật. Không thay schema/Rules/index/dependency so với C5.
+- Kết quả mới: baseline337pass34s; format178file0đổi; analyze sạch10,8s;
+  Flutter349/349pass37s; catalog7/7pass; Rules47/47 + SDK14/14pass (SDK22s).
+- Native Android API30/x86_64, AVD riêngHealthMateMaintenanceQA/UTC+07:
+  10/10checkpoints E2E pass137s, repository Firebase thật qua emulator demo.
+  Luồng đủ hồ sơ → target → thêm/sửa/copy bữa → nước/vận động/cân → tuần → đổi
+  target/giữ lịch sử → libraryCRUD/giữ MealLog → offline/retry → logout/UID B.
+  B bị chặn đọc A; AI không khởi tạo. Bốn PNG + log trong build/c6-android.
+- Build normal lib/main.dart debug ARM64 pass24,8s; APK ở
+  D:\HealthMateMaintenanceQA\HealthMate-core-debug-arm64.apk. Copy QA trên D khớp
+  SHA256 của213file nguồn/asset/test/config với repo; gradle.properties tạm tắt
+  incremental do khác ổ C/D đã khôi phục nguyên byte. Không cài máy thật.
+  TEMP/TMP ở D do C còn ít dung lượng; QA AVD được tắt sau kiểm tra.
+- Read-only production Rules17:04:32UTC+07: release13/10/2026 chưa đổi, thiếu
+  targets/favorites/custom/recipes/Goals/Quest/Chat; water/activity indexes READY.
+  Không deploy, không CRUD dữ liệu thật. Scan155file không thấy pattern private
+  key/service-account/OAuth/GitHub token (giới hạn scan ghi rõ trong test-report).
+- Chưa release signing/Play Integrity/điện thoại thật/process-death. Kiểm tra phụ
+  release merged manifest offline không chạy hết vì thiếu Flutter release cache;
+  KGP warning Firebase plugins còn. Không hạ dependency để giấu cảnh báo.
+- Bước tiếp chỉ đề xuất: review backend và yêu cầu deploy riêng, rồi QA tài khoản
+  thử trên máy thật (ngày/mục tiêu cũ, lưu/offline/UID, keyboard/safe-area, font
+  100/150/200%, sáng/tối/vuốt chart). Chi tiết bằng chứng và lỗi đã sửa tại
+  docs/test-report.md/core-scope.md phần C6. Dừng C6, không mở giai đoạn khác.

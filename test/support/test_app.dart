@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/app.dart';
+import 'package:healthmate/features/food_library/providers/favorite_food_providers.dart';
+import 'fake_favorite_food_repository.dart';
+import 'fake_food_library_repository.dart';
+import 'package:healthmate/features/food_library/providers/food_library_providers.dart';
+import 'package:healthmate/features/nutrition_targets/providers/nutrition_target_providers.dart';
+import 'package:healthmate/features/nutrition_targets/data/nutrition_target_repository.dart';
+import 'fake_nutrition_target_repository.dart';
+import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:healthmate/features/auth/providers/auth_providers.dart';
 import 'package:healthmate/features/chatbot/providers/chat_providers.dart';
 import 'package:healthmate/features/food_scanner/data/food_image_picker.dart';
@@ -47,6 +55,11 @@ Future<ProviderContainer> pumpApp(
   DateTime Function()? dashboardNowSource,
   DateTime Function()? goalsNow,
   bool settle = true,
+  AppFeatureFlags featureFlags = const AppFeatureFlags(),
+  GlobalKey? captureKey,
+  NutritionTargetRepository? targetRepository,
+  FakeFavoriteFoodRepository? favoriteRepository,
+  FakeFoodLibraryRepository? libraryRepository,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -67,8 +80,19 @@ Future<ProviderContainer> pumpApp(
   final goals = goalsRepository ?? FakeGoalsRepository();
   final accountData = accountDataRepository ?? FakeAccountDataRepository();
   final themeStore = themePreferenceStore ?? FakeThemePreferenceStore();
+  final favorites = favoriteRepository ?? FakeFavoriteFoodRepository();
+  final library = libraryRepository ?? FakeFoodLibraryRepository();
   final container = ProviderContainer(
     overrides: [
+      foodLibraryRepositoryProvider.overrideWithValue(library),
+      favoriteFoodRepositoryProvider.overrideWithValue(favorites),
+      localClockProvider.overrideWith(
+        (ref) => ref.watch(currentLocalTimeProvider)(),
+      ),
+      nutritionTargetRepositoryProvider.overrideWithValue(
+        targetRepository ?? FakeNutritionTargetRepository(),
+      ),
+      appFeatureFlagsProvider.overrideWithValue(featureFlags),
       authRepositoryProvider.overrideWithValue(auth),
       if (foodImagePicker != null)
         foodImagePickerProvider.overrideWithValue(foodImagePicker),
@@ -105,6 +129,8 @@ Future<ProviderContainer> pumpApp(
   );
   addTearDown(() async {
     container.dispose();
+    await favorites.dispose();
+    await library.dispose();
     await auth.dispose();
     await healthProfile.dispose();
     await nutrition.dispose();
@@ -115,7 +141,9 @@ Future<ProviderContainer> pumpApp(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const HealthMateApp(),
+      child: captureKey == null
+          ? const HealthMateApp()
+          : RepaintBoundary(key: captureKey, child: const HealthMateApp()),
     ),
   );
   if (settle) await tester.pumpAndSettle();

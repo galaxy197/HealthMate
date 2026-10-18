@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/core/router/app_router.dart';
@@ -235,6 +236,7 @@ void main() {
       );
       final container = await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         chatRepository: repo,
         knowledgeService: ai,
         nutritionRepository: nutrition,
@@ -280,6 +282,7 @@ void main() {
       final ai = FakeKnowledgeService()..pending = stream;
       final container = await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         chatRepository: repo,
         knowledgeService: ai,
       );
@@ -326,6 +329,7 @@ void main() {
         ..error = const ChatFailure('Đã chạm hạn mức.');
       final container = await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         chatRepository: repo,
         knowledgeService: ai,
       );
@@ -364,6 +368,7 @@ void main() {
       final ai = FakeKnowledgeService()..pending = stream;
       final container = await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         chatRepository: repo,
         knowledgeService: ai,
       );
@@ -400,6 +405,7 @@ void main() {
       final repo = FakeChatRepository();
       final container = await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         repository: auth,
         nutritionRepository: nutrition,
         chatRepository: repo,
@@ -431,6 +437,7 @@ void main() {
       final ai = FakeKnowledgeService()..pending = stream;
       final container = await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         chatRepository: repo,
         knowledgeService: ai,
       );
@@ -460,6 +467,7 @@ void main() {
       ..rangeError = StateError('offline');
     final container = await pumpApp(
       tester,
+      featureFlags: const AppFeatureFlags(chatbotEnabled: true),
       chatRepository: repo,
       nutritionRepository: nutrition,
     );
@@ -487,7 +495,11 @@ void main() {
     'history failure can reload, failed save retries, repeated send is blocked and session is bounded',
     (tester) async {
       final repo = FakeChatRepository()..failLoad = true;
-      final container = await pumpApp(tester, chatRepository: repo);
+      final container = await pumpApp(
+        tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
+        chatRepository: repo,
+      );
       container.read(appRouterProvider).go(AppRoutes.chat);
       await tester.pumpAndSettle();
       final controller = container.read(chatControllerProvider.notifier);
@@ -524,6 +536,7 @@ void main() {
       final ai = FakeKnowledgeService()..pending = stream;
       final container = await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         chatRepository: repo,
         knowledgeService: ai,
       );
@@ -554,6 +567,7 @@ void main() {
       final ai = FakeKnowledgeService();
       await pumpApp(
         tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
         size: const Size(360, 760),
         textScale: 1.5,
         initialThemeMode: ThemeMode.dark,
@@ -590,6 +604,7 @@ void main() {
         final ai = FakeKnowledgeService();
         final container = await pumpApp(
           tester,
+          featureFlags: const AppFeatureFlags(chatbotEnabled: true),
           size: const Size(320, 640),
           textScale: scale,
           knowledgeService: ai,

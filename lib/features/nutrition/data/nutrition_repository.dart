@@ -5,12 +5,17 @@ abstract interface class NutritionRepository {
 
   Stream<List<MealLog>> watchMealLogs(String uid, DateTime localDate);
 
-  Stream<List<MealLog>> watchRecentMeals(String uid, {int limit = 20});
+  Stream<RecentMealPage> watchRecentMeals(String uid, {int limit = 20});
+  String newMealId();
 
   /// One-shot local-date range [start, end), including legacy meals.
   Future<List<MealLog>> loadRange(String uid, DateTime start, DateTime end);
 
-  Future<String> addMeal({required String uid, required MealDraft draft});
+  Future<String> addMeal({
+    required String uid,
+    required MealDraft draft,
+    String? operationId,
+  });
 
   Future<void> updateMeal({
     required String uid,

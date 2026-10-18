@@ -3,8 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
+import '../../../core/config/app_feature_flags.dart';
+import '../../../core/utils/local_date_key.dart';
+import '../../../shared/providers/local_clock_provider.dart';
+import '../../nutrition_targets/presentation/nutrition_target_card.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/feature_page.dart';
+import '../../../core/widgets/confirmed_save.dart';
 import '../../../shared/providers/theme_mode_provider.dart';
 import '../../auth/models/auth_failure.dart';
 import '../../auth/models/account_action_failure.dart';
@@ -80,6 +85,16 @@ class ProfileScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(bodyMetricsProvider),
         ),
         const SizedBox(height: AppSpacing.xl),
+        NutritionTargetCard(day: localDateOnly(ref.watch(localClockProvider))),
+        Card(
+          child: ListTile(
+            key: const ValueKey('open-food-library'),
+            leading: const Icon(Icons.menu_book_outlined),
+            title: const Text('Thư viện món của tôi'),
+            subtitle: const Text('Món cá nhân, công thức và khẩu phần'),
+            onTap: () => context.push(AppRoutes.foodLibrary),
+          ),
+        ),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -149,14 +164,16 @@ class ProfileScreen extends ConsumerWidget {
                 onTap: () => context.go(AppRoutes.quest),
               ),
               const Divider(height: 1),
-              ListTile(
-                key: const ValueKey('open-chat'),
-                leading: const Icon(Icons.forum_outlined),
-                title: const Text('Trò chuyện cùng HealthMate'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => context.go(AppRoutes.chat),
-              ),
-              const Divider(height: 1),
+              if (ref.watch(appFeatureFlagsProvider).chatbotEnabled) ...[
+                ListTile(
+                  key: const ValueKey('open-chat'),
+                  leading: const Icon(Icons.forum_outlined),
+                  title: const Text('Trò chuyện cùng HealthMate'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.go(AppRoutes.chat),
+                ),
+                const Divider(height: 1),
+              ],
               ListTile(
                 key: const ValueKey('open-about'),
                 leading: const Icon(Icons.info_outline_rounded),
@@ -216,15 +233,28 @@ class ProfileScreen extends ConsumerWidget {
     WidgetRef ref,
     UserProfile profile,
   ) async {
-    final draft = await showDialog<UserProfileDraft>(
+    final uid = ref.read(authSessionProvider).value?.uid;
+    if (uid == null || uid != profile.uid) return;
+    final saved = await showDialog<UserProfileDraft>(
       context: context,
-      builder: (context) => ProfileFormDialog(profile: profile),
+      barrierDismissible: false,
+      builder: (_) => AccountBoundDialog(
+        child: ProfileFormDialog(
+          profile: profile,
+          onSave: (draft) async {
+            if (ref.read(authSessionProvider).value?.uid != uid) return false;
+            return ref
+                .read(profileControllerProvider.notifier)
+                .updateProfile(draft);
+          },
+        ),
+      ),
     );
-    if (draft == null || !context.mounted) return;
-    final saved = await ref
-        .read(profileControllerProvider.notifier)
-        .updateProfile(draft);
-    if (saved && context.mounted) _showSaved(context, 'Đã cập nhật hồ sơ.');
+    if (saved != null &&
+        context.mounted &&
+        ref.read(authSessionProvider).value?.uid == uid) {
+      _showSaved(context, 'Đã cập nhật hồ sơ.');
+    }
   }
 
   Future<void> _editMetric(
@@ -232,16 +262,30 @@ class ProfileScreen extends ConsumerWidget {
     WidgetRef ref, {
     BodyMetric? metric,
   }) async {
-    final draft = await showDialog<BodyMetricDraft>(
+    final uid = ref.read(authSessionProvider).value?.uid;
+    if (uid == null) return;
+    final saved = await showDialog<BodyMetricDraft>(
       context: context,
-      builder: (context) => BodyMetricFormDialog(metric: metric),
+      barrierDismissible: false,
+      builder: (_) => AccountBoundDialog(
+        child: BodyMetricFormDialog(
+          metric: metric,
+          onSave: (draft) async {
+            if (ref.read(authSessionProvider).value?.uid != uid) return false;
+            final controller = ref.read(profileControllerProvider.notifier);
+            return metric == null
+                ? controller.addBodyMetric(draft)
+                : controller.updateBodyMetric(
+                    metricId: metric.id,
+                    draft: draft,
+                  );
+          },
+        ),
+      ),
     );
-    if (draft == null || !context.mounted) return;
-    final controller = ref.read(profileControllerProvider.notifier);
-    final saved = metric == null
-        ? await controller.addBodyMetric(draft)
-        : await controller.updateBodyMetric(metricId: metric.id, draft: draft);
-    if (saved && context.mounted) {
+    if (saved != null &&
+        context.mounted &&
+        ref.read(authSessionProvider).value?.uid == uid) {
       _showSaved(
         context,
         metric == null ? 'Đã thêm lần đo.' : 'Đã cập nhật lần đo.',
@@ -254,27 +298,34 @@ class ProfileScreen extends ConsumerWidget {
     WidgetRef ref,
     BodyMetric metric,
   ) async {
+    final uid = ref.read(authSessionProvider).value?.uid;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa lần đo?'),
-        content: Text(
-          'Lần đo ${metric.weightKg.toStringAsFixed(1)} kg sẽ bị xóa khỏi lịch sử.',
+      builder: (dialogContext) => AccountBoundDialog(
+        child: AlertDialog(
+          title: const Text('Xóa lần đo?'),
+          content: Text(
+            'Lần đo ${metric.weightKg.toStringAsFixed(1)} kg sẽ bị xóa khỏi lịch sử.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Giữ lại'),
+            ),
+            FilledButton(
+              key: const ValueKey('confirm-delete-metric'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Xóa'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Giữ lại'),
-          ),
-          FilledButton(
-            key: const ValueKey('confirm-delete-metric'),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Xóa'),
-          ),
-        ],
       ),
     );
-    if (confirmed != true || !context.mounted) return;
+    if (confirmed != true ||
+        !context.mounted ||
+        ref.read(authSessionProvider).value?.uid != uid) {
+      return;
+    }
     final deleted = await ref
         .read(profileControllerProvider.notifier)
         .deleteBodyMetric(metric.id);

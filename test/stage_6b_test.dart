@@ -138,6 +138,9 @@ void main() {
       find.byKey(const ValueKey('custom-food-kcal')),
       '220',
     );
+    for (final field in ['protein', 'carbs', 'fat']) {
+      await tester.enterText(find.byKey(ValueKey('custom-food-$field')), '0');
+    }
     await tester.tap(find.byKey(const ValueKey('save-custom-food')));
     await tester.pumpAndSettle();
 
@@ -177,6 +180,8 @@ void main() {
     expect(nutrition.meals, hasLength(2));
     expect(nutrition.meals.last.dateKey, localDateKey(today));
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -1500));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('quick-water-250')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('quick-water-250')));
     await tester.pumpAndSettle();

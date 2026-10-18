@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/core/widgets/metric_tile.dart';
 import 'package:healthmate/features/activity/models/activity_log.dart';
@@ -100,9 +101,14 @@ void main() {
 
   for (final scale in [1.0, 1.5]) {
     testWidgets(
-      'floating navigation and four quick actions fit text scale $scale',
+      'opt-in scanner navigation and five quick actions fit text scale $scale',
       (tester) async {
-        await pumpApp(tester, textScale: scale, dashboardNow: now);
+        await pumpApp(
+          tester,
+          textScale: scale,
+          dashboardNow: now,
+          featureFlags: const AppFeatureFlags(foodScannerEnabled: true),
+        );
 
         await tester.tap(find.byKey(const ValueKey('nav-journal')));
         await tester.pumpAndSettle();
@@ -123,6 +129,10 @@ void main() {
         );
         expect(
           find.byKey(const ValueKey('quick-action-activity')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('quick-action-weight')),
           findsOneWidget,
         );
         expect(find.text('Quét món'), findsOneWidget);
