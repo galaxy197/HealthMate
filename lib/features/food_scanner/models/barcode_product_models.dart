@@ -1,0 +1,3 @@
+class BarcodeProductModels {
+  BarcodeProductModels._();
+}

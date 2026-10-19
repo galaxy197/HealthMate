@@ -11,6 +11,8 @@ import 'quick_add_dialog.dart';
 import '../../food_library/presentation/food_portion_dialog.dart';
 import '../../food_library/models/food_library_models.dart';
 import '../../food_library/presentation/food_nutrition_text.dart';
+import '../../food_scanner/presentation/barcode_scanner_screen.dart';
+import '../../food_scanner/data/barcode_product_service.dart';
 
 class MealFormDialog extends ConsumerStatefulWidget {
   const MealFormDialog({
@@ -270,6 +272,37 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
       backgroundColor: color.withOpacity(0.1),
       side: BorderSide(color: color.withOpacity(0.3), width: 1),
     );
+  }
+
+  Future<void> _openBarcodeScanner() async {
+    final result = await Navigator.push<BarcodeProduct>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BarcodeScannerScreen(),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    // Convert BarcodeProduct to MealItemSnapshot
+    if (result.nutrition != null) {
+      _changeMeal(() {
+        _items.add(
+          MealItemSnapshot(
+            foodId: 'barcode_${result.barcode}',
+            name: result.name,
+            brand: result.brand,
+            grams: result.servingSizeG ?? 100,
+            kcal: result.nutrition!.kcal,
+            proteinG: result.nutrition!.proteinG,
+            carbsG: result.nutrition!.carbsG,
+            fatG: result.nutrition!.fatG,
+            source: FoodDataSource.user,
+          ),
+        );
+        _error = null;
+      });
+    }
   }
 
   Future<double?> _askGrams({double initial = 100, FoodCatalogItem? food}) =>
@@ -589,13 +622,25 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
                       style: theme.textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      key: const ValueKey('food-search'),
-                      controller: _searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Ví dụ: phở bò, com tam, trứng…',
-                        prefixIcon: Icon(Icons.search_rounded),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            key: const ValueKey('food-search'),
+                            controller: _searchController,
+                            decoration: const InputDecoration(
+                              hintText: 'Ví dụ: phở bò, com tam, trứng…',
+                              prefixIcon: Icon(Icons.search_rounded),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          onPressed: _openBarcodeScanner,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          tooltip: 'Quét mã vạch',
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
