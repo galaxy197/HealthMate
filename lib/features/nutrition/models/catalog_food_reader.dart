@@ -29,16 +29,21 @@ FoodCatalogItem readCatalogFood(
   final carbs = number('carbsGPer100g', 1000);
   final fat = number('fatGPer100g', 1000);
   final fiber = number('fiberGPer100g', 100);
-  final basis =
+  final basisStr =
       text('servingBasis') ??
       (data['servingBasis'] == null ? 'per_100g' : 'unsupported');
+  final basis = basisStr == 'per_100g'
+      ? ServingBasis.per100g
+      : basisStr == 'explicit_serving'
+      ? ServingBasis.explicitServing
+      : ServingBasis.per100g; // fallback
   final unit = text('unit') ?? (data['unit'] == null ? 'g' : 'unsupported');
   final label = text('servingLabel', 60);
   final grams = number('servingGrams', 2000, positive: true);
   final hasRawServing =
       data['servingLabel'] != null || data['servingGrams'] != null;
   final validServing =
-      label != null && grams != null && basis == 'per_100g' && unit == 'g';
+      label != null && grams != null && basisStr == 'per_100g' && unit == 'g';
   return FoodCatalogItem(
     id: id,
     name: text('name') ?? 'Món chưa có tên',
@@ -53,7 +58,7 @@ FoodCatalogItem readCatalogFood(
     unit: unit,
     hasNutritionData:
         [kcal, protein, carbs, fat].every((v) => v != null) &&
-        basis == 'per_100g' &&
+        basisStr == 'per_100g' &&
         unit == 'g',
     per100g: NutritionTotals(
       kcal: kcal ?? 0,

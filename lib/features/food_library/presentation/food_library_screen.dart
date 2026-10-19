@@ -216,7 +216,7 @@ class _LibraryFoodListState extends ConsumerState<LibraryFoodList> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     Text(
-                      '${nutritionLabel(item.asFood().per100g)} /100 g · Ước tính',
+                      '${nutritionLabel(item.asFood().nutritionPer100g)} /100 g · Ước tính',
                     ),
                     if (item.asFood().servingGrams != null)
                       Text(

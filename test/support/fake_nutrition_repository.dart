@@ -13,7 +13,7 @@ class FakeNutritionRepository implements NutritionRepository {
     name: 'Cơm trắng chín',
     alternateNames: ['cơm', 'white rice'],
     category: 'Ngũ cốc',
-    servingBasis: 'per_100g',
+    servingBasis: ServingBasis.per100g,
     unit: 'g',
     per100g: NutritionTotals(
       kcal: 130,
@@ -30,7 +30,7 @@ class FakeNutritionRepository implements NutritionRepository {
     name: 'Trứng gà luộc',
     alternateNames: ['trứng luộc', 'boiled egg'],
     category: 'Trứng',
-    servingBasis: 'per_100g',
+    servingBasis: ServingBasis.per100g,
     unit: 'g',
     per100g: NutritionTotals(
       kcal: 155,

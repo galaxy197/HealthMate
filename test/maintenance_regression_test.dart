@@ -233,7 +233,7 @@ void main() {
             name: 'Cơm mới',
             alternateNames: [],
             category: 'Cơm',
-            servingBasis: 'per_100g',
+            servingBasis: ServingBasis.per100g,
             unit: 'g',
             per100g: NutritionTotals(
               kcal: 260,

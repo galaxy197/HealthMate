@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../nutrition/models/food_catalog_search.dart';
+import '../../nutrition/data/unified_food_search_service.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
 import '../models/favorite_food.dart';
@@ -43,16 +43,74 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   int _visible = 12;
   int _favoriteLimit = 40;
   bool _initialResolved = false;
+
+  // Unified search state
+  List<FoodSearchResult> _searchResults = [];
+  bool _isSearching = false;
+  String? _searchError;
+
   @override
   void initState() {
     super.initState();
     _query = TextEditingController(text: widget.initialSearch);
+    _query.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _query.removeListener(_onSearchChanged);
     _query.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    if (_source == _FoodSource.search) {
+      _performUnifiedSearch();
+    }
+  }
+
+  Future<void> _performUnifiedSearch() async {
+    final query = _query.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+        _searchError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+    });
+
+    try {
+      final catalogState = ref.read(foodCatalogProvider);
+      final catalog = catalogState.value ?? [];
+      final searchService = ref.read(unifiedFoodSearchProvider);
+
+      final results = await searchService.search(
+        query: query,
+        firestoreCatalog: catalog,
+        limit: 50,
+      );
+
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+          _visible = 12;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searchError = e.toString();
+          _isSearching = false;
+        });
+      }
+    }
   }
 
   Future<void> _favorite(
@@ -73,8 +131,13 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     );
   }
 
-  bool _matches(String name) =>
-      normalizeFoodSearch(name).contains(normalizeFoodSearch(_query.text));
+  bool _matches(String name) {
+    // Fallback for non-search tabs
+    final normalized = name.toLowerCase().trim();
+    final queryNormalized = _query.text.toLowerCase().trim();
+    return normalized.contains(queryNormalized);
+  }
+
   Widget _retry(String text, VoidCallback retry) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -82,16 +145,39 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
       TextButton(onPressed: retry, child: const Text('Thử tải lại nguồn món')),
     ],
   );
-  Widget _catalogTile(FoodCatalogItem food, {bool removable = false}) {
+
+  Widget _dataSourceBadge(FoodResultSource source) {
+    final (icon, color, label) = switch (source) {
+      FoodResultSource.firestore => (Icons.store, Colors.blue, 'Local'),
+      FoodResultSource.cache => (Icons.save_alt, Colors.green, 'Cache'),
+      FoodResultSource.usdaApi => (Icons.cloud, Colors.orange, 'USDA'),
+      FoodResultSource.user => (Icons.person, Colors.purple, 'Của bạn'),
+    };
+
+    return Chip(
+      avatar: Icon(icon, size: 16, color: color),
+      label: Text(label, style: TextStyle(fontSize: 11, color: color)),
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      backgroundColor: color.withOpacity(0.1),
+      side: BorderSide(color: color.withOpacity(0.3), width: 1),
+    );
+  }
+  Widget _catalogTile(FoodCatalogItem food, {bool removable = false, FoodResultSource? source}) {
     final busy = ref.watch(favoriteFoodControllerProvider).isLoading;
     return ListTile(
       key: ValueKey('${removable ? 'favorite' : 'catalog'}-food-${food.id}'),
       contentPadding: EdgeInsets.zero,
-      title: Text(food.name),
+      title: Row(
+        children: [
+          Expanded(child: Text(food.name)),
+          if (source != null) _dataSourceBadge(source),
+        ],
+      ),
       subtitle: Text(
         !food.hasNutritionData
             ? 'Món thiếu dữ liệu dinh dưỡng; chưa thể thêm vào bữa.'
-            : '${food.per100g.kcal.toStringAsFixed(0)} kcal / 100 g${food.isEstimated ? ' · Ước tính' : ''} · ${food.sourceLabel}'
+            : '${food.nutritionPer100g.kcal.toStringAsFixed(0)} kcal / 100 g${food.isEstimated ? ' · Ước tính' : ''} · ${food.sourceLabel}'
                   '${food.packageLabel == null ? '' : ' · ${food.packageLabel}'}'
                   '${food.hasValidServing ? ' · 1 ${food.servingLabel} = ${foodNumber(food.servingGrams!)} g' : ''}'
                   '${food.servingMetadataInvalid ? ' · Dùng gram: khẩu phần chưa hợp lệ' : ''}',
@@ -126,26 +212,78 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   }
 
   Widget _search() {
-    final state = ref.watch(foodCatalogProvider);
-    if (state.isLoading) return const LinearProgressIndicator();
-    if (state.hasError) {
-      return _retry(
-        'Chưa tải được danh mục. Bạn vẫn có thể nhập món ngoài danh mục.',
-        () => ref.invalidate(foodCatalogProvider),
+    // Show loading indicator
+    if (_isSearching) {
+      return const Column(
+        children: [
+          LinearProgressIndicator(),
+          SizedBox(height: 8),
+          Text('Đang tìm kiếm từ nhiều nguồn...'),
+        ],
       );
     }
-    final results = searchFoodCatalog(state.value ?? [], _query.text);
+
+    // Show error if any
+    if (_searchError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Lỗi tìm kiếm: $_searchError'),
+          TextButton(
+            onPressed: _performUnifiedSearch,
+            child: const Text('Thử lại'),
+          ),
+        ],
+      );
+    }
+
+    // Show empty state
+    if (_query.text.trim().isEmpty) {
+      return const Column(
+        children: [
+          Icon(Icons.search, size: 48, color: Colors.grey),
+          SizedBox(height: 8),
+          Text('Nhập tên món để tìm kiếm từ 50,000+ món ăn'),
+          SizedBox(height: 4),
+          Text(
+            'Nguồn: Local catalog, USDA database, món của bạn',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      );
+    }
+
+    // Show search results with badges
+    if (_searchResults.isEmpty) {
+      return const Column(
+        children: [
+          Icon(Icons.search_off, size: 48, color: Colors.grey),
+          SizedBox(height: 8),
+          Text('Không tìm thấy món phù hợp'),
+          Text(
+            'Thử từ khóa khác hoặc nhập món ngoài danh mục',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      );
+    }
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (results.isEmpty)
-          const Text('Không tìm thấy món phù hợp trong danh mục.'),
-        for (final food in results.take(_visible)) _catalogTile(food),
-        if (results.length > _visible)
+        Text(
+          'Tìm thấy ${_searchResults.length} món',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 8),
+        for (final result in _searchResults.take(_visible))
+          _catalogTile(result.food, source: result.source),
+        if (_searchResults.length > _visible)
           TextButton.icon(
             key: const ValueKey('more-catalog-foods'),
             onPressed: () => setState(() => _visible += 12),
             icon: const Icon(Icons.expand_more),
-            label: const Text('Xem thêm món'),
+            label: Text('Xem thêm ${_searchResults.length - _visible} món'),
           ),
       ],
     );
@@ -428,7 +566,7 @@ class PrivateFavoriteTile extends ConsumerWidget {
             else ...[
               Text(entry.name),
               Text(
-                '${nutritionLabel(entry.asFood().per100g)} /100 g · Ước tính',
+                '${nutritionLabel(entry.asFood().nutritionPer100g)} /100 g · Ước tính',
               ),
               TextButton.icon(
                 key: ValueKey('choose-favorite-${favorite.id}'),

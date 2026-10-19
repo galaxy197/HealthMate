@@ -533,7 +533,7 @@ void main() {
       name: 'Món thiếu chất béo',
       alternateNames: [],
       category: 'Fixture',
-      servingBasis: 'per_100g',
+      servingBasis: ServingBasis.per100g,
       unit: 'g',
       per100g: NutritionTotals(),
       sourceLabel: 'Fixture',

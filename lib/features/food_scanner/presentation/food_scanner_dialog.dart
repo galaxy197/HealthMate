@@ -360,7 +360,7 @@ class _FoodScannerDialogState extends ConsumerState<FoodScannerDialog> {
                               value: food,
                               title: Text(food.name),
                               subtitle: Text(
-                                '${food.per100g.kcal.toStringAsFixed(0)} kcal / 100 g',
+                                '${food.nutritionPer100g.kcal.toStringAsFixed(0)} kcal / 100 g',
                               ),
                             ),
                         ],

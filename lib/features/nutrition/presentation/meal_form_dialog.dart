@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/confirmed_save.dart';
 
 import '../models/nutrition_models.dart';
-import '../models/food_catalog_search.dart';
 import '../models/nutrition_validation.dart';
+import '../data/unified_food_search_service.dart';
+import '../providers/nutrition_providers.dart';
 import 'custom_food_dialog.dart';
 import 'quick_add_dialog.dart';
 import '../../food_library/presentation/food_portion_dialog.dart';
 import '../../food_library/models/food_library_models.dart';
 import '../../food_library/presentation/food_nutrition_text.dart';
 
-class MealFormDialog extends StatefulWidget {
+class MealFormDialog extends ConsumerStatefulWidget {
   const MealFormDialog({
     required this.catalog,
     this.recentItems = const [],
@@ -66,10 +68,10 @@ class MealFormDialog extends StatefulWidget {
   sourcesBuilder;
 
   @override
-  State<MealFormDialog> createState() => _MealFormDialogState();
+  ConsumerState<MealFormDialog> createState() => _MealFormDialogState();
 }
 
-class _MealFormDialogState extends State<MealFormDialog>
+class _MealFormDialogState extends ConsumerState<MealFormDialog>
     with ConfirmedSave<MealDraft, MealFormDialog> {
   late MealType _type;
   late DateTime _consumedAt;
@@ -82,6 +84,11 @@ class _MealFormDialogState extends State<MealFormDialog>
   String? _localStatus;
   int _localRevision = 0;
   bool _discarding = false;
+
+  // Unified search state
+  List<FoodSearchResult> _searchResults = [];
+  bool _isSearching = false;
+  String? _searchError;
 
   Future<void> _discardLocal() async {
     if (saving || _discarding || widget.onDiscardDraft == null) return;
@@ -160,6 +167,7 @@ class _MealFormDialogState extends State<MealFormDialog>
       _storedOffset = restored.timezoneOffsetMinutes;
     }
     _searchController = TextEditingController(text: widget.initialSearch);
+    _searchController.addListener(_onSearchChanged);
     if ((widget.initialDraft == null ? widget.suggestedFood : null)
         case final food?) {
       if (food.hasNutritionData) {
@@ -174,10 +182,17 @@ class _MealFormDialogState extends State<MealFormDialog>
         if (mounted) _persistLocal();
       });
     }
+    // Trigger initial search if there's initial search text
+    if (widget.initialSearch.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _performUnifiedSearch();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -189,8 +204,73 @@ class _MealFormDialogState extends State<MealFormDialog>
     _ => MealType.dinner,
   };
 
-  List<FoodCatalogItem> get _results =>
-      searchFoodCatalog(widget.catalog, _searchController.text);
+  Future<void> _performUnifiedSearch() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+        _searchError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+    });
+
+    try {
+      final searchService = ref.read(unifiedFoodSearchProvider);
+      final results = await searchService.search(
+        query: query,
+        firestoreCatalog: widget.catalog,
+        limit: 50,
+      );
+
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+          _visibleFoodCount = _foodPageSize;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searchError = e.toString();
+          _isSearching = false;
+        });
+      }
+    }
+  }
+
+  void _onSearchChanged() {
+    // Debounce search
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted && _searchController.text == _searchController.text) {
+        _performUnifiedSearch();
+      }
+    });
+  }
+
+  Widget _dataSourceBadge(FoodResultSource source) {
+    final (icon, color, label) = switch (source) {
+      FoodResultSource.firestore => (Icons.store, Colors.blue, 'Local'),
+      FoodResultSource.cache => (Icons.save_alt, Colors.green, 'Cache'),
+      FoodResultSource.usdaApi => (Icons.cloud, Colors.orange, 'USDA'),
+      FoodResultSource.user => (Icons.person, Colors.purple, 'Của bạn'),
+    };
+
+    return Chip(
+      avatar: Icon(icon, size: 16, color: color),
+      label: Text(label, style: TextStyle(fontSize: 11, color: color)),
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      backgroundColor: color.withOpacity(0.1),
+      side: BorderSide(color: color.withOpacity(0.3), width: 1),
+    );
+  }
 
   Future<double?> _askGrams({double initial = 100, FoodCatalogItem? food}) =>
       askFoodGrams(context, initial: initial, food: food);
@@ -381,7 +461,6 @@ class _MealFormDialogState extends State<MealFormDialog>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final locale = MaterialLocalizations.of(context);
-    final results = _results;
     final totals = sumNutritionTotals(_items.map((i) => i.nutrition));
     return guardSave(
       Dialog.fullscreen(
@@ -513,9 +592,6 @@ class _MealFormDialogState extends State<MealFormDialog>
                     TextField(
                       key: const ValueKey('food-search'),
                       controller: _searchController,
-                      onChanged: (_) => setState(() {
-                        _visibleFoodCount = _foodPageSize;
-                      }),
                       decoration: const InputDecoration(
                         hintText: 'Ví dụ: phở bò, com tam, trứng…',
                         prefixIcon: Icon(Icons.search_rounded),
@@ -529,46 +605,99 @@ class _MealFormDialogState extends State<MealFormDialog>
                       label: const Text('Nhập món ngoài danh mục'),
                     ),
                     const SizedBox(height: 8),
-                    if (results.isEmpty)
+                    // Loading state
+                    if (_isSearching) ...[
+                      const LinearProgressIndicator(),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text('Đang tìm kiếm từ nhiều nguồn...'),
+                      ),
+                    ]
+                    // Error state
+                    else if (_searchError != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Lỗi tìm kiếm: $_searchError',
+                              style: TextStyle(color: theme.colorScheme.error),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: _performUnifiedSearch,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Thử lại'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]
+                    // Empty query state
+                    else if (_searchController.text.trim().isEmpty) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            Icon(Icons.search, size: 48, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text(
+                              'Nhập tên món để tìm kiếm từ nhiều nguồn',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]
+                    // No results
+                    else if (_searchResults.isEmpty) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Text(
-                          'Không tìm thấy món phù hợp trong danh mục.',
+                          'Không tìm thấy món phù hợp trong tất cả nguồn dữ liệu.',
                         ),
-                      )
-                    else
-                      ...results
+                      ),
+                    ]
+                    // Results with source badges
+                    else ...[
+                      ..._searchResults
                           .take(_visibleFoodCount)
                           .map(
-                            (food) => ListTile(
+                            (result) => ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: Text(food.name),
+                              title: Row(
+                                children: [
+                                  Expanded(child: Text(result.food.name)),
+                                  _dataSourceBadge(result.source),
+                                ],
+                              ),
                               subtitle: Text(
-                                food.hasNutritionData
-                                    ? '${food.per100g.kcal.toStringAsFixed(0)} kcal / 100 g'
-                                          '${food.isEstimated ? ' · Ước tính' : ''} · ${food.sourceLabel}'
+                                result.food.hasNutritionData
+                                    ? '${result.food.nutritionPer100g.kcal.toStringAsFixed(0)} kcal / 100 g'
+                                          '${result.food.isEstimated ? ' · Ước tính' : ''} · ${result.food.sourceLabel}'
                                     : 'Món thiếu dữ liệu dinh dưỡng; chưa thể thêm vào bữa.',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               trailing: IconButton.filledTonal(
-                                onPressed: food.hasNutritionData
-                                    ? () => _add(food)
+                                onPressed: result.food.hasNutritionData
+                                    ? () => _add(result.food)
                                     : null,
-                                tooltip: 'Thêm ${food.name}',
+                                tooltip: 'Thêm ${result.food.name}',
                                 icon: const Icon(Icons.add_rounded),
                               ),
                             ),
                           ),
-                    if (results.length > _visibleFoodCount)
-                      TextButton.icon(
-                        key: const ValueKey('more-catalog-foods'),
-                        onPressed: () => setState(() {
-                          _visibleFoodCount += _foodPageSize;
-                        }),
-                        icon: const Icon(Icons.expand_more_rounded),
-                        label: const Text('Xem thêm món'),
-                      ),
+                      if (_searchResults.length > _visibleFoodCount)
+                        TextButton.icon(
+                          key: const ValueKey('more-catalog-foods'),
+                          onPressed: () => setState(() {
+                            _visibleFoodCount += _foodPageSize;
+                          }),
+                          icon: const Icon(Icons.expand_more_rounded),
+                          label: const Text('Xem thêm món'),
+                        ),
+                    ],
                   ],
                   const Divider(height: 32),
                   OutlinedButton.icon(

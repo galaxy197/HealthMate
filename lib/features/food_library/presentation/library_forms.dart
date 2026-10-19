@@ -607,7 +607,7 @@ class _IngredientPickerState extends ConsumerState<IngredientPicker> {
                     title: Text(food.name),
                     subtitle: Text(
                       food.hasNutritionData
-                          ? '${nutritionLabel(food.per100g)} /100 g'
+                          ? '${nutritionLabel(food.nutritionPer100g)} /100 g'
                           : 'Thiếu dữ liệu dinh dưỡng',
                     ),
                     onTap: food.hasNutritionData ? () => _choose(food) : null,

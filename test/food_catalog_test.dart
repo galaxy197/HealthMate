@@ -14,7 +14,7 @@ FoodCatalogItem _food(
   name: name,
   alternateNames: aliases,
   category: 'Món ăn Việt',
-  servingBasis: 'per_100g',
+  servingBasis: ServingBasis.per100g,
   unit: 'g',
   per100g: const NutritionTotals(kcal: 150, proteinG: 8, carbsG: 25, fatG: 2),
   sourceLabel: 'Công thức tham khảo',

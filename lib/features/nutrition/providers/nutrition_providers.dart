@@ -5,13 +5,47 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/models/auth_user.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../data/firebase_nutrition_repository.dart';
+import '../data/food_local_database.dart';
 import '../data/nutrition_repository.dart';
+import '../data/unified_food_search_service.dart';
+import '../data/usda_api_service.dart';
+import '../data/vietnamese_foods_preload.dart';
 import '../models/nutrition_failure.dart';
 import '../models/nutrition_models.dart';
 
 final nutritionRepositoryProvider = Provider<NutritionRepository>(
   (ref) => FirebaseNutritionRepository(FirebaseFirestore.instance),
 );
+
+// SQLite database singleton
+final foodLocalDatabaseProvider = Provider<FoodLocalDatabase>(
+  (ref) => FoodLocalDatabase.instance,
+);
+
+// USDA API service
+final usdaApiServiceProvider = Provider<UsdaApiService>(
+  (ref) => UsdaApiService(),
+);
+
+// Unified search service
+final unifiedFoodSearchProvider = Provider<UnifiedFoodSearchService>(
+  (ref) => UnifiedFoodSearchService(
+    localDatabase: ref.watch(foodLocalDatabaseProvider),
+    usdaService: ref.watch(usdaApiServiceProvider),
+  ),
+);
+
+// Preload Vietnamese foods on app start
+final vietnameseFoodsPreloadProvider = FutureProvider.autoDispose<void>((ref) async {
+  final db = ref.watch(foodLocalDatabaseProvider);
+  final stats = await db.getCacheStats();
+
+  // Only preload if cache is empty or has few items
+  if (stats['total']! < 20) {
+    final foods = getVietnamesePopularFoods();
+    await db.cacheFoodsBatch(foods);
+  }
+});
 
 final foodCatalogProvider = StreamProvider.autoDispose<List<FoodCatalogItem>>((
   ref,

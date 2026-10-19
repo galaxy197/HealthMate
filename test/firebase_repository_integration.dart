@@ -424,7 +424,7 @@ void main() {
         name: 'Cơm hiện tại',
         alternateNames: [],
         category: 'Ngũ cốc',
-        servingBasis: 'per_100g',
+        servingBasis: ServingBasis.per100g,
         unit: 'g',
         per100g: NutritionTotals(kcal: 260),
         sourceLabel: 'Nguồn mới',

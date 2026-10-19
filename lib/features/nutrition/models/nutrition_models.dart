@@ -61,15 +61,37 @@ NutritionTotals sumNutritionTotals(Iterable<NutritionTotals> values) {
   return total;
 }
 
+enum FoodDataSource {
+  local,
+  usda,
+  user;
+
+  String get wireValue => switch (this) {
+    FoodDataSource.local => 'local',
+    FoodDataSource.usda => 'usda',
+    FoodDataSource.user => 'user',
+  };
+}
+
+enum ServingBasis {
+  per100g,
+  explicitServing;
+
+  String get wireValue => switch (this) {
+    ServingBasis.per100g => 'per_100g',
+    ServingBasis.explicitServing => 'explicit_serving',
+  };
+}
+
 class FoodCatalogItem {
   const FoodCatalogItem({
     required this.id,
     required this.name,
-    required this.alternateNames,
+    this.alternateNames = const [],
     required this.category,
     required this.servingBasis,
-    required this.unit,
-    required this.per100g,
+    this.unit = 'g',
+    this.per100g,
     required this.sourceLabel,
     required this.isEstimated,
     this.updatedAt,
@@ -80,15 +102,22 @@ class FoodCatalogItem {
     this.servingMetadataInvalid = false,
     this.brand,
     this.packageLabel,
+    this.dataSource = FoodDataSource.local,
+    this.fdcId,
+    this.kcalPer100g,
+    this.proteinGPer100g,
+    this.carbsGPer100g,
+    this.fatGPer100g,
+    this.fiberGPer100g,
   });
 
   final String id;
   final String name;
   final List<String> alternateNames;
   final String category;
-  final String servingBasis;
+  final ServingBasis servingBasis;
   final String unit;
-  final NutritionTotals per100g;
+  final NutritionTotals? per100g;
   final String sourceLabel;
   final bool isEstimated;
   final DateTime? updatedAt;
@@ -100,8 +129,36 @@ class FoodCatalogItem {
   final bool servingMetadataInvalid;
   final String? brand;
   final String? packageLabel;
+
+  // USDA integration fields
+  final FoodDataSource dataSource;
+  final int? fdcId;
+
+  // Simplified nutrition fields for USDA API compatibility
+  final double? kcalPer100g;
+  final double? proteinGPer100g;
+  final double? carbsGPer100g;
+  final double? fatGPer100g;
+  final double? fiberGPer100g;
+
+  // Get per100g from simplified fields if not set
+  NutritionTotals get nutritionPer100g {
+    if (per100g != null) return per100g!;
+
+    return NutritionTotals(
+      kcal: kcalPer100g ?? 0,
+      proteinG: proteinGPer100g ?? 0,
+      carbsG: carbsGPer100g ?? 0,
+      fatG: fatGPer100g ?? 0,
+      fiberG: fiberGPer100g ?? 0,
+      fiberKnown: fiberGPer100g != null && fiberGPer100g! > 0,
+      proteinKnown: proteinGPer100g != null,
+      carbsKnown: carbsGPer100g != null,
+      fatKnown: fatGPer100g != null,
+    );
+  }
   bool get hasValidServing =>
-      servingBasis == 'per_100g' &&
+      servingBasis == ServingBasis.per100g &&
       unit == 'g' &&
       servingLabel != null &&
       servingLabel!.trim().isNotEmpty &&
@@ -115,7 +172,7 @@ class FoodCatalogItem {
     if (!hasNutritionData) {
       throw const FormatException('Món thiếu dữ liệu dinh dưỡng.');
     }
-    return per100g.scale(grams / 100);
+    return nutritionPer100g.scale(grams / 100);
   }
 }
 
