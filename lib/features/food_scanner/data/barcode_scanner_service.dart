@@ -20,12 +20,21 @@ class BarcodeScannerService {
   }
 
   Future<void> toggleTorch() async {
-    await _controller?.toggleTorch();
+    final controller = _controller;
+    if (controller != null) {
+      await controller.toggleTorch();
+    }
   }
 
   Future<void> switchCamera() async {
-    await _controller?.switchCamera();
+    final controller = _controller;
+    if (controller != null) {
+      await controller.switchCamera();
+    }
   }
 
-  bool get hasTorch => _controller?.torchState.value == TorchState.on;
+  bool get hasTorch {
+    final controller = _controller;
+    return controller != null && controller.torchState.value == TorchState.on;
+  }
 }

@@ -153,10 +153,12 @@ void main() {
       );
       expect(yogurt.brand, 'TH true YOGURT');
       expect(yogurt.forGrams(50).kcal, closeTo(47.45, .001));
+      final phoPer100g = pho.per100g;
+      final phoServingGrams = pho.servingGrams!;
       final draft = MealDraft(
         type: MealType.snack,
         consumedAt: DateTime.now(),
-        items: [MealItemSnapshot.fromCatalog(pho, pho.servingGrams! * .25)],
+        items: [MealItemSnapshot.fromCatalog(pho, phoServingGrams * .25)],
         source: MealSource.manual,
       );
       final id = await nutrition.addMeal(uid: alice, draft: draft);
@@ -166,7 +168,7 @@ void main() {
         DateTime(day.year, day.month, day.day + 1),
       )).singleWhere((m) => m.id == id);
       expect(read.items.single.grams, 150);
-      expect(read.totals.kcal, closeTo(pho.per100g.kcal * 1.5, .001));
+      expect(read.totals.kcal, closeTo(phoPer100g.kcal * 1.5, .001));
       await nutrition.deleteMeal(uid: alice, mealId: id);
     },
   );

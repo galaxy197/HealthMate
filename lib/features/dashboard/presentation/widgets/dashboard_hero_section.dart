@@ -28,11 +28,11 @@ class DashboardHeroSection extends StatelessWidget {
           colors: isDark
               ? [
                   DesignTokens.navy900,
-                  DesignTokens.navy800.withOpacity(0.9),
+                  DesignTokens.navy800.withValues(alpha: 0.9),
                 ]
               : [
-                  DesignTokens.cyan500.withOpacity(0.08),
-                  DesignTokens.cyan400.withOpacity(0.05),
+                  DesignTokens.cyan500.withValues(alpha: 0.08),
+                  DesignTokens.cyan400.withValues(alpha: 0.05),
                 ],
         ),
       ),
