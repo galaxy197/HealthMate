@@ -7,16 +7,18 @@ import 'package:intl/intl.dart';
 import '../models/body_metric.dart';
 
 class WeightChart extends StatelessWidget {
-  const WeightChart({required this.metrics, super.key});
+  const WeightChart({required this.metrics, this.maxPoints = 12, super.key})
+    : assert(maxPoints > 0);
 
   final List<BodyMetric> metrics;
+  final int maxPoints;
 
   @override
   Widget build(BuildContext context) {
     if (metrics.isEmpty) return const SizedBox.shrink();
     final sorted = [...metrics]
       ..sort((a, b) => b.measuredAt.compareTo(a.measuredAt));
-    final ordered = sorted.take(12).toList().reversed.toList();
+    final ordered = sorted.take(maxPoints).toList().reversed.toList();
     // Timestamp distance preserves gaps on sparse weeks (ordinal x did not).
     final origin = ordered.first.measuredAt;
     double xOf(DateTime time) =>

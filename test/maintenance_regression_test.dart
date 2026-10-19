@@ -271,7 +271,16 @@ void main() {
           await tester.tap(find.text('Mở'));
           await tester.pumpAndSettle();
           final edit = find.byTooltip('Sửa khẩu phần');
-          await tester.ensureVisible(edit);
+          await tester.scrollUntilVisible(
+            edit,
+            180,
+            scrollable: find
+                .byWidgetPredicate(
+                  (w) =>
+                      w is Scrollable && w.axisDirection == AxisDirection.down,
+                )
+                .last,
+          );
           await tester.pumpAndSettle();
           await tester.tap(edit);
           await tester.pumpAndSettle();

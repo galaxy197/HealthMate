@@ -1,0 +1,285 @@
+{
+  "method": "same source dataset; old substring vs new ranking; fixed cases and held-out group; timing local CPU only",
+  "catalogCount": 151,
+  "queries": 19,
+  "correctFirst": 19,
+  "elapsedMicrosecondsFor100Passes": 4226968,
+  "emptyQueryBrowseCount": 151,
+  "results": [
+    {
+      "group": "vietnamese",
+      "query": "pho bo",
+      "expectedIds": [
+        "vn-pho-bo"
+      ],
+      "before": [
+        "vn-pho-bo"
+      ],
+      "after": [
+        "vn-pho-bo"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "vietnamese",
+      "query": "com ga",
+      "expectedIds": [
+        "vn-com-ga"
+      ],
+      "before": [
+        "vn-com-gao-lut",
+        "vn-com-ga"
+      ],
+      "after": [
+        "vn-com-ga",
+        "vn-com-gao-lut"
+      ],
+      "correctFirst": true,
+      "noisyMatches": [
+        "vn-com-gao-lut"
+      ]
+    },
+    {
+      "group": "vietnamese",
+      "query": "bun bo hue",
+      "expectedIds": [
+        "vn-bun-bo-hue"
+      ],
+      "before": [
+        "vn-bun-bo-hue"
+      ],
+      "after": [
+        "vn-bun-bo-hue"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "vietnamese",
+      "query": "banh mi",
+      "expectedIds": [
+        "vn-banh-mi-thit",
+        "vn-banh-mi-trung",
+        "vn2007-1012"
+      ],
+      "before": [
+        "vn2007-1012",
+        "vn-banh-mi-trung",
+        "vn-banh-mi-thit"
+      ],
+      "after": [
+        "vn2007-1012",
+        "vn-banh-mi-trung",
+        "vn-banh-mi-thit"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "vietnamese",
+      "query": "com tam",
+      "expectedIds": [
+        "vn-com-tam-suon"
+      ],
+      "before": [
+        "vn-com-tam-suon"
+      ],
+      "after": [
+        "vn-com-tam-suon"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "vietnamese",
+      "query": "dau sot ca",
+      "expectedIds": [
+        "vn-dau-sot-ca"
+      ],
+      "before": [
+        "vn-dau-sot-ca"
+      ],
+      "after": [
+        "vn-dau-sot-ca"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "packaged",
+      "query": "sua chua TH co duong",
+      "expectedIds": [
+        "th-yogurt-sweetened-100g"
+      ],
+      "before": [
+        "th-yogurt-sweetened-100g"
+      ],
+      "after": [
+        "th-yogurt-sweetened-100g"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "packaged",
+      "query": "TH yogurt vi tu nhien",
+      "expectedIds": [
+        "th-yogurt-natural-100g"
+      ],
+      "before": [
+        "th-yogurt-natural-100g"
+      ],
+      "after": [
+        "th-yogurt-natural-100g"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "packaged",
+      "query": "sua chua TH sau rieng",
+      "expectedIds": [
+        "th-yogurt-durian-100g"
+      ],
+      "before": [
+        "th-yogurt-durian-100g"
+      ],
+      "after": [
+        "th-yogurt-durian-100g"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "unsupported",
+      "query": "Vinamilk 180ml",
+      "expectedIds": [],
+      "before": [],
+      "after": [],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "unsupported",
+      "query": "TH true milk 180 ml",
+      "expectedIds": [],
+      "before": [],
+      "after": [],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "unsupported",
+      "query": "Milo hop 180ml",
+      "expectedIds": [],
+      "before": [],
+      "after": [],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "held-out",
+      "query": "bun cha",
+      "expectedIds": [
+        "vn-bun-cha"
+      ],
+      "before": [
+        "vn-bun-cha"
+      ],
+      "after": [
+        "vn-bun-cha"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "held-out",
+      "query": "com gao luc",
+      "expectedIds": [
+        "vn-com-gao-lut"
+      ],
+      "before": [
+        "vn-com-gao-lut"
+      ],
+      "after": [
+        "vn-com-gao-lut"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "held-out",
+      "query": "ca loc hap",
+      "expectedIds": [
+        "vn-ca-loc-hap"
+      ],
+      "before": [
+        "vn-ca-loc-hap"
+      ],
+      "after": [
+        "vn-ca-loc-hap"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "held-out",
+      "query": "bo xao rau",
+      "expectedIds": [
+        "vn-bo-xao-rau"
+      ],
+      "before": [
+        "vn-bo-xao-rau"
+      ],
+      "after": [
+        "vn-bo-xao-rau",
+        "vn-mi-xao-bo"
+      ],
+      "correctFirst": true,
+      "noisyMatches": [
+        "vn-mi-xao-bo"
+      ]
+    },
+    {
+      "group": "held-out",
+      "query": "PHỞ BÒ",
+      "expectedIds": [
+        "vn-pho-bo"
+      ],
+      "before": [
+        "vn-pho-bo"
+      ],
+      "after": [
+        "vn-pho-bo"
+      ],
+      "correctFirst": true,
+      "noisyMatches": []
+    },
+    {
+      "group": "held-out",
+      "query": "sua chua tu nhien TH",
+      "expectedIds": [
+        "th-yogurt-natural-100g"
+      ],
+      "before": [],
+      "after": [
+        "th-yogurt-natural-100g",
+        "th-yogurt-durian-100g"
+      ],
+      "correctFirst": true,
+      "noisyMatches": [
+        "th-yogurt-durian-100g"
+      ]
+    },
+    {
+      "group": "held-out-unsupported",
+      "query": "pizza XYZ",
+      "expectedIds": [],
+      "before": [],
+      "after": [],
+      "correctFirst": true,
+      "noisyMatches": []
+    }
+  ]
+}

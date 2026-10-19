@@ -74,6 +74,8 @@ class DailySummaryCard extends StatelessWidget {
                       label: 'P · C · F',
                       value: nutrition == null
                           ? '—'
+                          : !nutrition.hasCompleteMacros
+                          ? 'Ba chất chưa đủ dữ liệu'
                           : '${decimal.format(nutrition.proteinG)} · '
                                 '${decimal.format(nutrition.carbsG)} · '
                                 '${decimal.format(nutrition.fatG)} g',

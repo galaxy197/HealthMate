@@ -12,6 +12,8 @@ import 'package:firebase_core_web/firebase_core_web.dart';
 import 'package:firebase_auth_web/firebase_auth_web.dart';
 import 'package:cloud_firestore_web/cloud_firestore_web.dart';
 import 'package:healthmate/core/utils/local_date_key.dart';
+import 'package:healthmate/features/reports/data/day_review_repository.dart';
+import 'package:healthmate/features/reports/models/period_report.dart';
 import 'package:healthmate/features/auth/data/firebase_auth_repository.dart';
 import 'package:healthmate/features/auth/models/auth_failure.dart';
 import 'package:healthmate/features/auth/data/firebase_account_data_repository.dart';
@@ -38,6 +40,8 @@ import 'package:healthmate/features/goals/models/tracking_goal.dart';
 import 'package:healthmate/features/daily_quest/models/daily_quest.dart';
 import 'package:healthmate/features/chatbot/data/firebase_chat_repository.dart';
 import 'package:healthmate/features/chatbot/models/chat_models.dart';
+import 'package:healthmate/features/meal_templates/data/meal_template_repository.dart';
+import 'package:healthmate/features/meal_templates/models/meal_template.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -135,6 +139,37 @@ void main() {
     );
     expect(response.statusCode, 200);
   }
+
+  test(
+    'H1 repository reads real catalog portions and snapshots fractional servings',
+    () async {
+      // Imported by the emulator-only Node createWrites fixture before this suite.
+      final catalog = await nutrition.watchFoodCatalog().first;
+      final pho = catalog.singleWhere((f) => f.id == 'vn-pho-bo');
+      expect(pho.hasValidServing, isTrue);
+      expect(pho.servingGrams, 600);
+      final yogurt = catalog.singleWhere(
+        (f) => f.id == 'th-yogurt-sweetened-100g',
+      );
+      expect(yogurt.brand, 'TH true YOGURT');
+      expect(yogurt.forGrams(50).kcal, closeTo(47.45, .001));
+      final draft = MealDraft(
+        type: MealType.snack,
+        consumedAt: DateTime.now(),
+        items: [MealItemSnapshot.fromCatalog(pho, pho.servingGrams! * .25)],
+        source: MealSource.manual,
+      );
+      final id = await nutrition.addMeal(uid: alice, draft: draft);
+      final read = (await nutrition.loadRange(
+        alice,
+        day,
+        DateTime(day.year, day.month, day.day + 1),
+      )).singleWhere((m) => m.id == id);
+      expect(read.items.single.grams, 150);
+      expect(read.totals.kcal, closeTo(pho.per100g.kcal * 1.5, .001));
+      await nutrition.deleteMeal(uid: alice, mealId: id);
+    },
+  );
 
   test(
     'real Flutter repositories persist and reload onboarding, logs, goal, quest and chat',
@@ -1252,7 +1287,7 @@ void main() {
       );
       expect(beforeFirst, isEmpty);
       await expectLater(
-        targets.loadForRange(alice, begin, keyAt(22)),
+        targets.loadForRange(alice, begin, keyAt(105)),
         throwsA(isA<NutritionTargetFailure>()),
       );
       await expectLater(
@@ -1306,6 +1341,9 @@ void main() {
         targets.loadForRange(alice, begin, end),
         throwsA(isA<NutritionTargetFailure>()),
       );
+      // This deliberately malformed emulator document belongs only to this
+      // reader-error fixture; do not contaminate later report/cleanup tests.
+      await bad.delete();
     },
   );
 
@@ -1340,6 +1378,387 @@ void main() {
   );
 
   test(
+    'H3 real SDK stores calorie-only, zero, volume and partial template snapshots without fake grams',
+    () async {
+      const energy = MealItemSnapshot(
+        foodId: 'h3-energy',
+        name: 'QA H3 kcal',
+        grams: 0,
+        quantityUnit: 'entry',
+        quantityValue: 1,
+        nutrition: NutritionTotals(
+          kcal: 250,
+          proteinKnown: false,
+          carbsKnown: false,
+          fatKnown: false,
+        ),
+        sourceLabel: 'QA H3 synthetic',
+        isEstimated: true,
+      );
+      const volume = MealItemSnapshot(
+        foodId: 'h3-volume',
+        name: 'QA H3 ml',
+        grams: 0,
+        quantityUnit: 'ml',
+        quantityValue: 250,
+        nutrition: NutritionTotals(
+          kcal: 150,
+          proteinG: 7.5,
+          carbsG: 0,
+          fatKnown: false,
+        ),
+        sourceLabel: 'QA H3 synthetic /100 ml',
+        isEstimated: true,
+      );
+      final id = nutrition.newMealId();
+      final draft = MealDraft(
+        type: MealType.snack,
+        consumedAt: DateTime.now(),
+        items: [energy, volume],
+        source: MealSource.manual,
+      );
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: id);
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: id);
+      final raw =
+          (await db
+                  .doc('users/$alice/meal_logs/$id')
+                  .get(const GetOptions(source: Source.server)))
+              .data()!;
+      expect(raw['schemaVersion'], 3);
+      expect(raw['totalProteinG'], isNull);
+      expect((raw['items'] as List).last['grams'], isNull);
+      expect((raw['items'] as List).last['quantity'], 250);
+      var read = (await nutrition.loadRange(
+        alice,
+        day,
+        DateTime(day.year, day.month, day.day + 1),
+      )).singleWhere((m) => m.id == id);
+      expect(read.totals.kcal, 400);
+      expect(read.totals.proteinG, 7.5);
+      expect(read.totals.proteinKnown, isFalse);
+      expect(read.items.last.nutrition.carbsKnown, isTrue);
+      expect(read.items.last.nutrition.carbsG, 0);
+      expect(read.items.first.nutrition.carbsKnown, isFalse);
+      final copy = read.copyDraft(
+        day: DateTime(day.year, day.month, day.day - 1),
+      );
+      final copyId = await nutrition.addMeal(
+        uid: alice,
+        draft: copy,
+        operationId: nutrition.newMealId(),
+      );
+      final copied = (await nutrition.loadRange(
+        alice,
+        DateTime(day.year, day.month, day.day - 1),
+        day,
+      )).singleWhere((m) => m.id == copyId);
+      expect(copied.items.last.toData(), read.items.last.toData());
+      final templates = FirebaseMealTemplateRepository(db);
+      final t = MealTemplate(
+        id: 'h3-template',
+        name: 'QA partial template',
+        items: read.items,
+      );
+      await templates.save(alice, t, create: true);
+      expect(
+        (await templates.watch(alice).first)
+            .singleWhere((v) => v.id == t.id)
+            .items
+            .first
+            .nutrition
+            .hasCompleteMacros,
+        isFalse,
+      );
+      await templates.delete(alice, t.id);
+      await nutrition.deleteMeal(uid: alice, mealId: id);
+      await nutrition.deleteMeal(uid: alice, mealId: copyId);
+    },
+  );
+
+  test(
+    'H2 named templates, frozen snapshots, offline retry and owner isolation',
+    () async {
+      final templates = FirebaseMealTemplateRepository(db);
+      final item = MealItemSnapshot(
+        foodId: 'h2-fixture',
+        name: 'QA H2 rice',
+        grams: 150,
+        nutrition: const NutritionTotals(
+          kcal: 195,
+          proteinG: 4,
+          carbsG: 42,
+          fatG: .4,
+        ),
+        sourceLabel: 'Synthetic emulator snapshot',
+        isEstimated: true,
+      );
+      final t = MealTemplate(
+        id: 'h2-template',
+        name: 'QA H2 two foods',
+        items: [item, item.withGrams(100)],
+      );
+      await templates.save(alice, t, create: true);
+      await templates.save(alice, t, create: true);
+      var rows = await templates.watch(alice).first;
+      expect(rows.length, 1);
+      expect(rows.single.items.length, 2);
+      final id = nutrition.newMealId();
+      await nutrition.addMeal(
+        uid: alice,
+        draft: MealDraft(
+          type: MealType.lunch,
+          consumedAt: DateTime.now(),
+          items: rows.single.items,
+          source: MealSource.manual,
+        ),
+        operationId: id,
+      );
+      await templates.save(
+        alice,
+        MealTemplate(
+          id: t.id,
+          name: 'QA changed',
+          items: [item.withGrams(200)],
+        ),
+        create: false,
+      );
+      await templates.delete(alice, t.id);
+      final logged = (await nutrition.loadRange(
+        alice,
+        day,
+        DateTime(day.year, day.month, day.day + 1),
+      )).singleWhere((m) => m.id == id);
+      expect(logged.items.length, 2);
+      expect(logged.totals.kcal, 325);
+      await db.disableNetwork();
+      try {
+        await expectLater(
+          templates.save(alice, t, create: true),
+          throwsA(isA<MealTemplateFailure>()),
+        );
+      } finally {
+        await db.enableNetwork();
+      }
+      await templates.save(alice, t, create: true);
+      await templates.save(alice, t, create: true);
+      expect((await templates.watch(alice).first).length, 1);
+      await authentication.signOut();
+      await authentication.signIn(email: bobEmail, password: password);
+      await expectLater(
+        templates.watch(alice).first,
+        throwsA(isA<MealTemplateFailure>()),
+      );
+      await expectLater(
+        templates.save(alice, t, create: true),
+        throwsA(isA<MealTemplateFailure>()),
+      );
+      await templates.save(bob, t, create: true);
+      await authentication.signOut();
+      await authentication.signIn(email: aliceEmail, password: password);
+    },
+  );
+
+  test(
+    'H6 sourced fiber survives library changes, partial recipes, retry and UID isolation',
+    () async {
+      final library = FirebaseFoodLibraryRepository(db);
+      final templates = FirebaseMealTemplateRepository(db);
+      final food = PersonalFood(
+        id: 'h6-fiber',
+        name: 'QA fiber',
+        per100g: const NutritionTotals(
+          kcal: 100,
+          fiberG: 2.4,
+          fiberKnown: true,
+        ),
+      );
+      await library.save(alice, food, create: true);
+      final known = MealItemSnapshot.fromCatalog(food.asFood(), 100);
+      final unknown = MealItemSnapshot(
+        foodId: 'qa-unknown',
+        name: 'QA unknown',
+        grams: 100,
+        nutrition: const NutritionTotals(kcal: 100),
+        sourceLabel: 'Synthetic QA',
+        isEstimated: true,
+      );
+      final recipe = FoodRecipe(
+        id: 'h6-recipe',
+        name: 'QA mixed fiber',
+        ingredients: [known, unknown],
+        yieldGrams: 400,
+      );
+      await library.save(alice, recipe, create: true);
+      final template = MealTemplate(
+        id: 'h6-template',
+        name: 'QA fiber template',
+        items: [MealItemSnapshot.fromCatalog(recipe.asFood(), 150)],
+      );
+      await templates.save(alice, template, create: true);
+      final id = nutrition.newMealId();
+      final draft = MealDraft(
+        type: MealType.snack,
+        consumedAt: DateTime.now(),
+        items: template.items,
+        source: MealSource.manual,
+      );
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: id);
+      await nutrition.addMeal(uid: alice, draft: draft, operationId: id);
+      final raw = await db
+          .doc('users/$alice/meal_logs/$id')
+          .get(const GetOptions(source: Source.server));
+      expect(raw.data()!['schemaVersion'], 4);
+      expect(
+        (raw.data()!['items'] as List).single['fiberG'],
+        closeTo(.9, 1e-9),
+      );
+      await library.delete(alice, FoodSourceKind.custom, food.id);
+      await library.delete(alice, FoodSourceKind.recipe, recipe.id);
+      await templates.delete(alice, template.id);
+      final rows = await nutrition.loadRange(
+        alice,
+        day,
+        DateTime(day.year, day.month, day.day + 1),
+      );
+      expect(rows.where((m) => m.id == id).length, 1);
+      final logged = rows.singleWhere((m) => m.id == id);
+      expect(logged.totals.fiberG, closeTo(.9, 1e-9));
+      expect(logged.totals.fiberKnown, false);
+      await nutrition.updateMeal(
+        uid: alice,
+        mealId: id,
+        draft: MealDraft(
+          type: logged.type,
+          consumedAt: logged.consumedAt,
+          items: [unknown],
+          source: logged.source,
+          minimumSchemaVersion: logged.schemaVersion,
+        ),
+      );
+      expect(
+        (await db.doc('users/$alice/meal_logs/$id').get())
+            .data()!['schemaVersion'],
+        4,
+      );
+      await authentication.signOut();
+      await authentication.signIn(email: bobEmail, password: password);
+      await expectLater(
+        db
+            .doc('users/$alice/meal_logs/$id')
+            .get(const GetOptions(source: Source.server)),
+        throwsA(isA<FirebaseException>()),
+      );
+      await authentication.signOut();
+      await authentication.signIn(email: aliceEmail, password: password);
+      await nutrition.deleteMeal(uid: alice, mealId: id);
+    },
+  );
+
+  test(
+    'H5 90-day SDK reporting, confirmation revisions, owner isolation and bounded overflow',
+    () async {
+      final reviews = FirebaseDayReviewRepository(db);
+      final end = DateTime(day.year, day.month, day.day + 1),
+          range = ReportRange(DateTime(day.year, day.month, day.day + 1), 90);
+      var meals = await nutrition.loadRange(alice, day, end);
+      await reviews.save(alice, day, meals, complete: true);
+      var saved = (await reviews.load(
+        alice,
+        range,
+      )).singleWhere((r) => r.dateKey == localDateKey(day));
+      expect(saved.matches(meals), isTrue);
+      final editable = meals.firstWhere(
+        (m) => m.items.isNotEmpty && m.items.every((i) => i.hasNutritionData),
+      );
+      await nutrition.updateMeal(
+        uid: alice,
+        mealId: editable.id,
+        draft: editable.toDraft(),
+      );
+      meals = await nutrition.loadRange(alice, day, end);
+      expect(saved.matches(meals), isFalse);
+      await reviews.save(alice, day, meals, complete: true);
+      saved = (await reviews.load(
+        alice,
+        range,
+      )).singleWhere((r) => r.dateKey == localDateKey(day));
+      expect(saved.matches(meals), isTrue);
+      final targets = FirebaseNutritionTargetRepository(db);
+      final future = DateTime(day.year, day.month, day.day + 14);
+      final targetVersions = await targets.loadForRange(
+        alice,
+        localDateKey(future),
+        localDateKey(DateTime(future.year, future.month, future.day + 90)),
+      );
+      expect(
+        targetForDate(targetVersions, localDateKey(future))!.kcalTarget,
+        1750,
+      );
+      expect(
+        targetForDate(
+          targetVersions,
+          localDateKey(DateTime(future.year, future.month, future.day + 2)),
+        )!.kcalTarget,
+        2050,
+      );
+      await expectLater(
+        nutrition.loadRange(
+          alice,
+          DateTime(day.year, day.month, day.day - 91),
+          day,
+        ),
+        throwsA(anything),
+      );
+      await authentication.signOut();
+      await authentication.signIn(email: bobEmail, password: password);
+      await expectLater(reviews.load(alice, range), throwsA(anything));
+      await expectLater(
+        reviews.save(alice, day, [], complete: true),
+        throwsA(anything),
+      );
+      await reviews.save(bob, day, [], complete: false);
+      await authentication.signOut();
+      await authentication.signIn(email: aliceEmail, password: password);
+      // Prove that a bounded server read reports overflow rather than a false total.
+      final old = DateTime(day.year, day.month, day.day - 60),
+          oldEnd = DateTime(day.year, day.month, day.day - 59);
+      final references = [
+        for (var i = 0; i < 2001; i++)
+          db.doc('users/$alice/water_logs/h5-bound-$i'),
+      ];
+      try {
+        for (var offset = 0; offset < references.length; offset += 400) {
+          final batch = db.batch();
+          for (final ref in references.skip(offset).take(400)) {
+            batch.set(ref, {
+              'amountMl': 50,
+              'consumedAt': Timestamp.fromDate(old),
+              'dateKey': localDateKey(old),
+              'timezoneOffsetMinutes': old.timeZoneOffset.inMinutes,
+              'createdAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+          await batch.commit();
+        }
+        await expectLater(
+          water.loadRange(alice, old, oldEnd),
+          throwsA(anything),
+        );
+      } finally {
+        for (var offset = 0; offset < references.length; offset += 400) {
+          final batch = db.batch();
+          for (final ref in references.skip(offset).take(400)) {
+            batch.delete(ref);
+          }
+          await batch.commit();
+        }
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
     'reauthenticated password change and account cleanup remove data before Auth',
     () async {
       await authentication.reauthenticateWithPassword(password);
@@ -1364,6 +1783,8 @@ void main() {
         'favorite_foods',
         'custom_foods',
         'recipes',
+        'meal_templates',
+        'day_reviews',
         'chat_sessions',
       ]) {
         expect(
@@ -1412,6 +1833,13 @@ void main() {
       expect(
         (await db
                 .doc('users/$bob/favorite_foods/catalog_c3-rice')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        isTrue,
+      );
+      expect(
+        (await db
+                .doc('users/$bob/meal_templates/h2-template')
                 .get(const GetOptions(source: Source.server)))
             .exists,
         isTrue,

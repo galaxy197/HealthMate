@@ -269,7 +269,7 @@ void main() {
     expect(repository.addCalls, 0);
   });
   testWidgets(
-    'three sources load only when opened and recent items update live',
+    'bounded recent window is shared for initial choice; other sources remain lazy',
     (tester) async {
       final repository = FakeNutritionRepository();
       MealItemSnapshot? selected;
@@ -278,7 +278,7 @@ void main() {
         nutrition: repository,
         onRecent: (item) => selected = item,
       );
-      expect(repository.recentWatchCalls, 0);
+      expect(repository.recentWatchCalls, 1);
       await tapVisible(
         tester,
         find.byKey(const ValueKey('food-source-recent')),
@@ -292,7 +292,7 @@ void main() {
       await tapVisible(tester, find.byTooltip('Dùng lại Cơm trắng chín'));
       expect(selected!.grams, 150);
       expect(selected!.nutrition.kcal, 195);
-      expect(find.byType(ChoiceChip), findsNWidgets(5));
+      expect(find.byType(ChoiceChip), findsNWidgets(6));
       expect(find.text('Công thức'), findsOneWidget);
     },
   );

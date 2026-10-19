@@ -9,6 +9,7 @@ import '../data/firebase_auth_repository.dart';
 import '../models/account_action_failure.dart';
 import '../models/auth_failure.dart';
 import '../models/auth_user.dart';
+import '../../meal_drafts/data/meal_draft_store.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => FirebaseAuthRepository(FirebaseAuth.instance),
@@ -160,6 +161,20 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
           'Chưa thể xóa hết dữ liệu. Một phần dữ liệu có thể đã được xóa; tài khoản vẫn được giữ để bạn thử lại an toàn.',
           dataMayBeDeleted: true,
         );
+      }
+      if (!current()) return false;
+      final local = ref.read(privateLocalDataProvider);
+      if (local.supported) {
+        try {
+          await ref
+              .read(mealDraftStoreProvider)
+              .clearForAccountDeletion(user.uid);
+        } catch (_) {
+          throw const AccountActionFailure(
+            'Dữ liệu trên máy chủ đã xóa nhưng chưa xóa được nháp trên thiết bị. Tài khoản được giữ để thử lại.',
+            dataMayBeDeleted: true,
+          );
+        }
       }
       if (!current()) return false;
       try {

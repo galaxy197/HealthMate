@@ -1,0 +1,119 @@
+{
+  "version": "2026-10-19-fiber-1",
+  "foods": [
+    {
+      "id": "apple-raw-skin",
+      "sourceUrl": "https://fdc.nal.usda.gov/",
+      "carbsGPer100g": 13.81,
+      "alternateNames": [
+        "táo",
+        "apple"
+      ],
+      "isEstimated": true,
+      "unit": "g",
+      "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC171688",
+      "name": "Táo tươi có vỏ",
+      "servingBasis": "per_100g",
+      "fatGPer100g": 0.17,
+      "kcalPer100g": 52,
+      "category": "Trái cây",
+      "proteinGPer100g": 0.26,
+      "fiberGPer100g": 2.4,
+      "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/171688/nutrients",
+      "sourceDetails": {
+        "method": "usda_sr_legacy",
+        "fdcId": 171688,
+        "description": "Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)",
+        "nutrientId": 1079,
+        "basis": "per_100g",
+        "retrievedOn": "2026-10-19"
+      }
+    },
+    {
+      "id": "banana-raw",
+      "name": "Chuối tươi",
+      "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC173944",
+      "carbsGPer100g": 22.84,
+      "unit": "g",
+      "isEstimated": true,
+      "proteinGPer100g": 1.09,
+      "category": "Trái cây",
+      "servingBasis": "per_100g",
+      "alternateNames": [
+        "chuối",
+        "banana"
+      ],
+      "kcalPer100g": 89,
+      "fatGPer100g": 0.33,
+      "sourceUrl": "https://fdc.nal.usda.gov/",
+      "fiberGPer100g": 2.6,
+      "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/173944/nutrients",
+      "sourceDetails": {
+        "method": "usda_sr_legacy",
+        "fdcId": 173944,
+        "description": "Bananas, raw",
+        "nutrientId": 1079,
+        "basis": "per_100g",
+        "retrievedOn": "2026-10-19"
+      }
+    },
+    {
+      "id": "rice-cooked",
+      "kcalPer100g": 130,
+      "unit": "g",
+      "alternateNames": [
+        "cơm",
+        "cơm trắng",
+        "white rice"
+      ],
+      "proteinGPer100g": 2.69,
+      "fatGPer100g": 0.28,
+      "name": "Cơm trắng chín",
+      "category": "Ngũ cốc",
+      "isEstimated": true,
+      "sourceUrl": "https://fdc.nal.usda.gov/",
+      "servingBasis": "per_100g",
+      "carbsGPer100g": 28.17,
+      "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC168878",
+      "fiberGPer100g": 0.4,
+      "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/168878/nutrients",
+      "sourceDetails": {
+        "method": "usda_sr_legacy",
+        "fdcId": 168878,
+        "description": "Rice, white, long-grain, regular, enriched, cooked",
+        "nutrientId": 1079,
+        "basis": "per_100g",
+        "retrievedOn": "2026-10-19"
+      }
+    },
+    {
+      "id": "egg-boiled",
+      "category": "Trứng",
+      "kcalPer100g": 155,
+      "fatGPer100g": 10.61,
+      "alternateNames": [
+        "trứng luộc",
+        "trứng gà",
+        "boiled egg"
+      ],
+      "carbsGPer100g": 1.12,
+      "unit": "g",
+      "isEstimated": true,
+      "proteinGPer100g": 12.58,
+      "servingBasis": "per_100g",
+      "sourceUrl": "https://fdc.nal.usda.gov/",
+      "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC173424",
+      "name": "Trứng gà luộc",
+      "fiberGPer100g": 0,
+      "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/173424/nutrients",
+      "sourceDetails": {
+        "method": "usda_sr_legacy",
+        "fdcId": 173424,
+        "description": "Egg, whole, cooked, hard-boiled",
+        "nutrientId": 1079,
+        "basis": "per_100g",
+        "retrievedOn": "2026-10-19"
+      }
+    }
+  ]
+}

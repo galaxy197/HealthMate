@@ -1,26 +1,35 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {buildCatalog, validateFood, planAdditions, createWrites} = require('./import_food_catalog.cjs');
+const {buildCatalog, validateFood, planAdditions, createWrites, planCatalogChanges} = require('./import_food_catalog.cjs');
 const catalog = buildCatalog();
 const find = id => catalog.find(food => food.id === id);
 
 test('Vietnamese expansion has complete sources, finite macros, estimates and distinct names/IDs', () => {
-  assert.equal(catalog.length, 148);
+  assert.equal(catalog.length, 155);
   assert.equal(new Set(catalog.map(food => food.id)).size, catalog.length);
   assert.equal(new Set(catalog.map(food => food.name)).size, catalog.length);
   assert.equal(catalog.filter(food => food.sourceDetails.method === 'reference_table').length, 101);
   assert.equal(catalog.filter(food => food.sourceDetails.method === 'recipe_estimate').length, 47);
   for (const food of catalog) {
     assert.equal(validateFood(food), food);
-    assert.match(food.sourceUrl, /^https:\/\/www\.fao\.org\//);
-    assert.ok(food.sourceLabel.includes('Ước tính'));
+    assert.match(food.sourceUrl, /^https:\/\/(www\.fao\.org|(?:www\.)?thmilk\.vn|fdc\.nal\.usda\.gov)\//);
     if (food.sourceDetails.method === 'reference_table') {
       assert.ok(food.sourceDetails.pdfPage >= 14 && food.sourceDetails.pdfPage <= 567);
       assert.match(food.sourceDetails.foodCode, /^\d+$/);
-    } else {
+    } else if (food.sourceDetails.method === 'recipe_estimate') {
       assert.ok(food.sourceDetails.yieldGrams > 0);
       assert.ok(food.sourceDetails.ingredients.length > 0);
       assert.match(food.sourceDetails.note, /không phải kết quả phân tích/);
+      assert.equal(food.servingGrams, food.sourceDetails.yieldGrams);
+    } else if(food.sourceDetails.method==='usda_sr_legacy') {
+      assert.equal(food.sourceDetails.nutrientId,1079);
+      assert.ok(Number.isFinite(food.fiberGPer100g));
+      assert.match(food.fiberSourceUrl,/food-details\/\d+\/nutrients$/);
+    } else {
+      assert.equal(food.sourceDetails.method, 'manufacturer_label');
+      assert.equal(food.servingGrams, 100);
+      assert.equal(food.brand, 'TH true YOGURT');
+      assert.equal(food.sourceDetails.retrievedOn, '2026-10-19');
     }
   }
 });
@@ -57,11 +66,34 @@ test('recipes can use another recipe and normalize final cooked yield once', () 
 test('import is additive/idempotent and detects matching normalized names with another id', () => {
   const existing = catalog.map(food => ({name: `projects/demo-test/databases/(default)/documents/food_catalog/${food.id}`, fields: {name: {stringValue: food.name}}}));
   assert.equal(planAdditions(catalog, existing).additions.length, 0);
-  assert.equal(planAdditions(catalog, existing).skipped, 148);
+  assert.equal(planAdditions(catalog, existing).skipped, catalog.length);
   const renamedId = [{name: 'food_catalog/legacy-pho', fields: {name: {stringValue: 'PHO BO'}}}];
   const plan = planAdditions(catalog, renamedId);
   assert.equal(plan.skipped, 1);
   assert.ok(!plan.additions.some(food => food.id === 'vn-pho-bo'));
+});
+
+test('manufacturer variants retain their own values and mass basis, never generic milk/ml', () => {
+  const sweet = find('th-yogurt-sweetened-100g'), plain = find('th-yogurt-natural-100g');
+  assert.deepEqual([sweet.kcalPer100g, sweet.proteinGPer100g, sweet.carbsGPer100g, sweet.fatGPer100g], [94.9,3.1,13.2,3.3]);
+  assert.deepEqual([plain.kcalPer100g, plain.proteinGPer100g, plain.carbsGPer100g, plain.fatGPer100g], [63.2,3.3,4.4,3.6]);
+  for (const servingGrams of [0, -1, NaN, Infinity, '100']) assert.throws(() => validateFood({...sweet, servingGrams}));
+  assert.throws(() => validateFood({...sweet, servingLabel: ''}));
+});
+
+test('review manifest distinguishes metadata updates, conflicts and skips without overwriting', () => {
+  const food = find('vn-pho-bo');
+  const write = createWrites('demo-healthmate-rules', [food])[0];
+  const existing = {name: write.update.name, fields: {...write.update.fields}, updateTime: '2026-10-01T00:00:00Z'};
+  delete existing.fields.servingLabel; delete existing.fields.servingGrams; delete existing.fields.portionSource;
+  const plan = planCatalogChanges([food], [existing]);
+  assert.equal(plan.creates.length, 0); assert.equal(plan.updates.length, 1);
+  assert.equal(plan.updates[0].patch.servingGrams, 600);
+  assert.equal(plan.updates[0].beforeUpdateTime, existing.updateTime);
+  const fresh = {name: write.update.name, fields: write.update.fields};
+  assert.deepEqual(planCatalogChanges([food], [fresh]).skips, [food.id]);
+  const changed = {...existing, fields: {...existing.fields, kcalPer100g: {doubleValue: 999}}};
+  assert.equal(planCatalogChanges([food], [changed]).conflicts.length, 1);
 });
 
 test('every write is a catalog create with a server timestamp, never user-data mutation', () => {
@@ -83,4 +115,16 @@ test('import rejects non-finite, missing, impossible or misleading nutrition met
   assert.throws(() => validateFood({...catalog[0], proteinGPer100g: 90, fatGPer100g: 30}));
   assert.throws(() => validateFood({...catalog[0], servingBasis: 'per_bowl'}));
   assert.throws(() => validateFood({...catalog[0], isEstimated: false}));
+});
+
+test('fiber metadata is sourced, optional, zero-preserving and review-only idempotent',()=>{
+  const food=find('egg-boiled'); assert.equal(food.fiberGPer100g,0);
+  for(const fiberGPer100g of [-1,101,NaN,Infinity,'0'])assert.throws(()=>validateFood({...food,fiberGPer100g}));
+  assert.throws(()=>validateFood({...food,fiberSourceUrl:'https://example.com/unverified'}));
+  const write=createWrites('demo-healthmate-rules',[food])[0];
+  const existing={name:write.update.name,fields:{...write.update.fields},updateTime:'2026-10-01T00:00:00Z'};
+  delete existing.fields.fiberGPer100g; delete existing.fields.fiberSourceUrl;
+  const plan=planCatalogChanges([food],[existing]);
+  assert.equal(plan.creates.length,0);assert.equal(plan.updates.length,1);assert.equal(plan.updates[0].patch.fiberGPer100g,0);
+  assert.deepEqual(planCatalogChanges([food],[{name:write.update.name,fields:write.update.fields}]).skips,[food.id]);
 });

@@ -7,6 +7,8 @@ const {execSync} = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const source = JSON.parse(fs.readFileSync(path.join(root, 'data/food_catalog/ingredients.json'), 'utf8'));
 const recipes = JSON.parse(fs.readFileSync(path.join(root, 'data/food_catalog/recipes.json'), 'utf8'));
+const packaged = JSON.parse(fs.readFileSync(path.join(root, 'data/food_catalog/packaged.json'), 'utf8'));
+const legacy = JSON.parse(fs.readFileSync(path.join(root,'data/food_catalog/legacy_usda.json'),'utf8'));
 const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toLowerCase().replace(/đ/g, 'd').trim().replace(/\s+/g, ' ');
 const metrics = ['kcal', 'proteinG', 'carbsG', 'fatG'];
@@ -28,6 +30,13 @@ function validateFood(food) {
     }
   }
   if (food.proteinGPer100g + food.carbsGPer100g + food.fatGPer100g > 101) throw Error(`Macros exceed mass: ${food.id}`);
+  if(food.fiberGPer100g!=null && (!Number.isFinite(food.fiberGPer100g)||food.fiberGPer100g<0||food.fiberGPer100g>100||!/^https:\/\/fdc\.nal\.usda\.gov\/food-details\/\d+\/nutrients$/.test(food.fiberSourceUrl||''))) throw Error(`Invalid sourced fiber: ${food.id}`);
+  if (food.servingLabel != null || food.servingGrams != null) {
+    if (typeof food.servingLabel !== 'string' || !food.servingLabel.trim() || food.servingLabel.length > 60 ||
+        !Number.isFinite(food.servingGrams) || food.servingGrams <= 0 || food.servingGrams > 2000) {
+      throw Error(`Invalid portion: ${food.id}`);
+    }
+  }
   return food;
 }
 
@@ -66,7 +75,7 @@ function buildCatalog() {
     return per100g;
   };
   const names = new Set();
-  return [...definitions.values()].filter(item => item.publish !== false).map(item => {
+  const computed = [...definitions.values()].filter(item => item.publish !== false).map(item => {
     const values = evaluate(item.id);
     const name = normalize(item.name);
     if (names.has(name)) throw Error(`Duplicate food name: ${item.name}`);
@@ -82,6 +91,10 @@ function buildCatalog() {
         : 'HealthMate · Công thức tham khảo từ VDD 2007 · Ước tính',
       sourceUrl: source.sourceUrl,
       catalogVersion: recipes.version,
+      ...(item.per100g ? {} : {
+        servingLabel: 'phần công thức tham khảo', servingGrams: item.yieldGrams,
+        portionSource: 'Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn.',
+      }),
       sourceDetails: item.per100g
         ? {method: 'reference_table', foodCode: item.sourceFoodCode, pdfPage: item.sourcePdfPage, basis: source.basis}
         : {method: 'recipe_estimate', yieldGrams: item.yieldGrams,
@@ -89,6 +102,52 @@ function buildCatalog() {
             note: recipes.method + ' ' + recipes.limitation},
     });
   });
+  for (const food of packaged.foods) {
+    if (!/^https:\/\/([\w-]+\.)?thmilk\.vn\//.test(food.sourceUrl) || food.sourceDetails?.method !== 'manufacturer_label') {
+      throw Error(`Missing manufacturer source: ${food.id}`);
+    }
+    if (computed.some(item => item.id === food.id || normalize(item.name) === normalize(food.name))) throw Error('Duplicate packaged food');
+    computed.push(validateFood(food));
+  }
+  for(const food of legacy.foods){
+    if(food.sourceDetails?.method!=='usda_sr_legacy'||food.sourceDetails?.nutrientId!==1079||food.sourceDetails?.basis!=='per_100g'||food.fiberSourceUrl!==`https://fdc.nal.usda.gov/food-details/${food.sourceDetails.fdcId}/nutrients`)throw Error(`Missing USDA source: ${food.id}`);
+    if(computed.some(item=>item.id===food.id||normalize(item.name)===normalize(food.name)))throw Error(`Duplicate legacy food: ${food.id}`);
+    computed.push(validateFood(food));
+  }
+  return computed;
+}
+
+function decode(fields = {}) {
+  return Object.fromEntries(Object.entries(fields).map(([key, item]) => [key,
+    'stringValue' in item ? item.stringValue : 'doubleValue' in item ? item.doubleValue :
+    'integerValue' in item ? Number(item.integerValue) : 'booleanValue' in item ? item.booleanValue :
+    'arrayValue' in item ? (item.arrayValue.values || []).map(v => decode({v}).v) :
+    'mapValue' in item ? decode(item.mapValue.fields) : null]));
+}
+
+// Review-only metadata updates. Applying them needs a separate authorized
+// maintenance task; --apply below continues to CREATE missing entries only.
+function planCatalogChanges(catalog, existing) {
+  const byId = new Map(existing.map(doc => [doc.name.split('/').pop(), doc]));
+  const creates = [], updates = [], skips = [], conflicts = [];
+  for (const food of catalog) {
+    const doc = byId.get(food.id);
+    if (!doc) {
+      if (existing.some(d => normalize(decode(d.fields).name || '') === normalize(food.name))) conflicts.push({id: food.id, reason: 'name-owned-by-another-id'});
+      else creates.push(food);
+      continue;
+    }
+    const before = decode(doc.fields);
+    const core = ['name','kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','servingBasis','unit'];
+    if (core.some(key => before[key] !== food[key])) {
+      conflicts.push({id: food.id, reason: 'existing-source-or-nutrition-differs'}); continue;
+    }
+    const metadata=['servingLabel','servingGrams','portionSource',...(food.fiberGPer100g!=null?['fiberGPer100g','fiberSourceUrl','sourceLabel']:[])];
+    const patch = Object.fromEntries(metadata.filter(key => food[key] != null && food[key] !== before[key]).map(key => [key, food[key]]));
+    if (Object.keys(patch).length) updates.push({id: food.id, beforeUpdateTime: doc.updateTime, before: Object.fromEntries(Object.keys(patch).map(k => [k, before[k] ?? null])), patch});
+    else skips.push(food.id);
+  }
+  return {creates, updates, skips, conflicts};
 }
 
 function planAdditions(catalog, existing) {
@@ -151,15 +210,23 @@ async function main(args) {
     page = response.nextPageToken;
   } while (page);
   const {additions, skipped} = planAdditions(catalog, existing);
+  const manifest = planCatalogChanges(catalog, existing);
+  const manifestIndex = args.indexOf('--manifest');
+  if (manifestIndex >= 0) {
+    const destination = args[manifestIndex + 1];
+    if (!destination) throw Error('Pass a new manifest output path.');
+    fs.writeFileSync(destination, JSON.stringify({project, generatedAt: new Date().toISOString(), ...manifest}, null, 2), {flag:'wx'});
+  }
   const writes = createWrites(project, additions);
   if (writes.length > 450) throw Error('Too many additions for this atomic import; review dataset first.');
   const summary = {project, mode: args.includes('--apply') ? 'apply' : 'dry-run', existing: existing.length,
-    additions: additions.length, skipped, version: recipes.version};
+    additions: additions.length, skipped, proposedMetadataUpdates: manifest.updates.length,
+    conflicts: manifest.conflicts.length, version: recipes.version};
   console.log(JSON.stringify(summary));
   if (!args.includes('--apply') || !writes.length) return;
   await request(`${api}:commit`, {writes});
   console.log(`Created ${writes.length} catalog entries atomically. Existing entries and users/* were not modified.`);
 }
 
-module.exports = {buildCatalog, validateFood, planAdditions, createWrites};
+module.exports = {buildCatalog, validateFood, planAdditions, createWrites, planCatalogChanges, decode};
 if (require.main === module) main(process.argv.slice(2)).catch(error => {console.error(error.message); process.exitCode = 1;});

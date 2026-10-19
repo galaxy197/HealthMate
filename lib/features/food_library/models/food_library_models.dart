@@ -47,6 +47,7 @@ abstract final class LibraryValidation {
     number(n.proteinG, 1000);
     number(n.carbsG, 1000);
     number(n.fatG, 1000);
+    number(n.fiberG, 1000);
   }
 
   static double readNumber(Map<String, dynamic> data, String key) {
@@ -57,31 +58,9 @@ abstract final class LibraryValidation {
     return value.toDouble();
   }
 
-  static Map<String, Object?> snapshot(MealItemSnapshot item) => {
-    'foodId': item.foodId,
-    'name': item.name,
-    'grams': item.grams,
-    'kcal': item.nutrition.kcal,
-    'proteinG': item.nutrition.proteinG,
-    'carbsG': item.nutrition.carbsG,
-    'fatG': item.nutrition.fatG,
-    'sourceLabel': item.sourceLabel,
-    'isEstimated': item.isEstimated,
-  };
+  static Map<String, Object?> snapshot(MealItemSnapshot item) => item.toData();
   static MealItemSnapshot readSnapshot(Map<String, dynamic> d) =>
-      MealItemSnapshot(
-        foodId: d['foodId'] as String,
-        name: d['name'] as String,
-        grams: readNumber(d, 'grams'),
-        nutrition: NutritionTotals(
-          kcal: readNumber(d, 'kcal'),
-          proteinG: readNumber(d, 'proteinG'),
-          carbsG: readNumber(d, 'carbsG'),
-          fatG: readNumber(d, 'fatG'),
-        ),
-        sourceLabel: d['sourceLabel'] as String,
-        isEstimated: d['isEstimated'] as bool,
-      );
+      MealItemSnapshot.fromData(d, allowPartial: true);
 }
 
 class PersonalFood extends LibraryEntry {
@@ -115,6 +94,17 @@ class PersonalFood extends LibraryEntry {
     LibraryValidation.text(name, 100, min: 2);
     LibraryValidation.text(sourceLabel, 160);
     LibraryValidation.nutrition(per100g);
+    LibraryValidation.number(per100g.fiberG, 100);
+    if (!per100g.fiberKnown && per100g.fiberG > 0) {
+      throw const FormatException(
+        'Chất xơ mới biết một phần; hãy giữ dưới dạng công thức hoặc bữa mẫu.',
+      );
+    }
+    if (!per100g.hasCompleteMacros) {
+      throw const FormatException(
+        'Món trong thư viện cần đủ ba chất. Dùng ghi nhanh hoặc bữa mẫu nếu chưa biết.',
+      );
+    }
     LibraryValidation.number(defaultServingGrams, 2000, positive: true);
     if (alternateNames.length > 5) {
       throw const FormatException('Tối đa 5 tên khác.');
@@ -144,17 +134,19 @@ class PersonalFood extends LibraryEntry {
       'proteinGPer100g': per100g.proteinG,
       'carbsGPer100g': per100g.carbsG,
       'fatGPer100g': per100g.fatG,
+      if (per100g.fiberKnown) 'fiberGPer100g': per100g.fiberG,
       'defaultServingGrams': defaultServingGrams,
       'servingLabel': servingLabel,
       'servingGrams': servingGrams,
       'sourceLabel': sourceLabel,
       'isEstimated': isEstimated,
-      'schemaVersion': 1,
+      'schemaVersion': per100g.fiberKnown ? 2 : 1,
     };
   }
 
   factory PersonalFood.fromData(String id, Map<String, dynamic> d) {
-    if (d['schemaVersion'] != 1 || d['servingBasis'] != 'per_100g') {
+    if (![1, 2].contains(d['schemaVersion']) ||
+        d['servingBasis'] != 'per_100g') {
       throw const FormatException();
     }
     final food = PersonalFood(
@@ -166,6 +158,10 @@ class PersonalFood extends LibraryEntry {
         proteinG: LibraryValidation.readNumber(d, 'proteinGPer100g'),
         carbsG: LibraryValidation.readNumber(d, 'carbsGPer100g'),
         fatG: LibraryValidation.readNumber(d, 'fatGPer100g'),
+        fiberG: d['fiberGPer100g'] == null
+            ? 0
+            : LibraryValidation.readNumber(d, 'fiberGPer100g'),
+        fiberKnown: d['fiberGPer100g'] != null,
       ),
       defaultServingGrams: LibraryValidation.readNumber(
         d,
@@ -220,10 +216,8 @@ class FoodRecipe extends LibraryEntry {
   final String sourceLabel;
   @override
   FoodSourceKind get kind => FoodSourceKind.recipe;
-  NutritionTotals get totals => ingredients.fold(
-    const NutritionTotals(),
-    (sum, item) => sum + item.nutrition,
-  );
+  NutritionTotals get totals =>
+      sumNutritionTotals(ingredients.map((i) => i.nutrition));
   NutritionTotals get per100g {
     validate();
     return totals.scale(100 / yieldGrams);
@@ -248,7 +242,10 @@ class FoodRecipe extends LibraryEntry {
       LibraryValidation.text(item.foodId, 100);
       LibraryValidation.text(item.name, 100);
       LibraryValidation.text(item.sourceLabel, 160);
-      if (item.foodId.startsWith('recipe:') || !item.hasNutritionData) {
+      if (item.foodId.startsWith('recipe:') ||
+          !item.hasNutritionData ||
+          item.quantityUnit != 'g' ||
+          !item.nutrition.hasCompleteMacros) {
         throw const FormatException(
           'Chỉ chọn nguyên liệu từ catalog hoặc Món của tôi.',
         );
@@ -273,12 +270,12 @@ class FoodRecipe extends LibraryEntry {
       'servingsCount': servingsCount,
       'sourceLabel': sourceLabel,
       'isEstimated': true,
-      'schemaVersion': 1,
+      'schemaVersion': ingredients.any((i) => i.hasFiberData) ? 2 : 1,
     };
   }
 
   factory FoodRecipe.fromData(String id, Map<String, dynamic> d) {
-    if (d['schemaVersion'] != 1 || d['isEstimated'] != true) {
+    if (![1, 2].contains(d['schemaVersion']) || d['isEstimated'] != true) {
       throw const FormatException();
     }
     final recipe = FoodRecipe(

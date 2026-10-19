@@ -29,7 +29,7 @@ try {
     Join-Path $PSScriptRoot 'chrome_test_adapter.cmd'
   }
   # Both services point at a fixed demo project. Never use the active project.
-  $command = 'npm test --prefix rules-tests && "' + $flutter + '" test --no-pub --platform chrome --dart-define=HEALTHMATE_EMULATOR_TESTS=true test/firebase_repository_integration.dart'
+  $command = 'npm test --prefix rules-tests && node tool/test_h1_catalog_import.cjs && "' + $flutter + '" test --no-pub --platform chrome --dart-define=HEALTHMATE_EMULATOR_TESTS=true test/firebase_repository_integration.dart'
   & $firebase emulators:exec --config firebase.emulators.json --only auth,firestore --project demo-healthmate-rules $command
   $result = $LASTEXITCODE
 } finally {

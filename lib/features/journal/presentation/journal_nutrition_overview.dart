@@ -6,6 +6,7 @@ import '../../../core/utils/local_date_key.dart';
 import '../../../core/widgets/confirmed_save.dart';
 import '../../../shared/providers/local_clock_provider.dart';
 import '../../nutrition/models/nutrition_models.dart';
+import '../../food_library/presentation/food_nutrition_text.dart';
 import '../../nutrition_targets/models/nutrition_target.dart';
 import '../../nutrition_targets/providers/nutrition_target_providers.dart';
 import '../../nutrition_targets/presentation/nutrition_target_form.dart';
@@ -43,9 +44,21 @@ class JournalNutritionOverview extends ConsumerWidget {
     }
 
     final macros = [
-      ('Đạm', totals?.proteinG, target?.proteinGTarget),
-      ('Tinh bột', totals?.carbsG, target?.carbsGTarget),
-      ('Béo', totals?.fatG, target?.fatGTarget),
+      (
+        'Đạm',
+        totals?.proteinKnown == false ? null : totals?.proteinG,
+        target?.proteinGTarget,
+      ),
+      (
+        'Tinh bột',
+        totals?.carbsKnown == false ? null : totals?.carbsG,
+        target?.carbsGTarget,
+      ),
+      (
+        'Béo',
+        totals?.fatKnown == false ? null : totals?.fatG,
+        target?.fatGTarget,
+      ),
     ];
     return Card(
       key: const ValueKey('daily-summary'),
@@ -114,6 +127,10 @@ class JournalNutritionOverview extends ConsumerWidget {
             ),
             if (target != null && !target.hasMacros)
               const Text('Chưa đặt mục tiêu cho ba chất'),
+            if (totals != null && !totals.hasCompleteMacros)
+              const Text(
+                'Nhật ký chưa đủ số liệu ba chất. Dấu — không có nghĩa là 0; chưa so sánh phần thiếu với mục tiêu.',
+              ),
             Wrap(
               spacing: 8,
               children: [
@@ -135,6 +152,13 @@ class JournalNutritionOverview extends ConsumerWidget {
                               style: theme.textTheme.titleLarge,
                             ),
                             Text(DateFormat('dd/MM/yyyy').format(day)),
+                            Text(
+                              'Chất xơ: ${totals == null ? '—' : macroAmount(totals.fiberG, totals.fiberKnown)}',
+                            ),
+                            if (totals != null)
+                              Text(
+                                'Đủ số liệu chất xơ ở ${meals.value!.expand((m) => m.items).where((i) => i.nutrition.fiberKnown).length}/${meals.value!.expand((m) => m.items).length} món đã ghi. Chưa biết không có nghĩa là 0.',
+                              ),
                             if (target != null)
                               Text(
                                 'Mục tiêu áp dụng từ ${target.effectiveFromDateKey} · Bạn tự thiết lập',

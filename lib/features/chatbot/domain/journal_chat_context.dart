@@ -82,7 +82,9 @@ class JournalChatContext {
         } else {
           final totals = totalMealNutrition(logs);
           lines.add(
-            '${logs.length} bữa đã ghi: ${number.format(totals.kcal)} kcal. Đạm ${number.format(totals.proteinG)} g; tinh bột ${number.format(totals.carbsG)} g; béo ${number.format(totals.fatG)} g.',
+            totals.hasCompleteMacros
+                ? '${logs.length} bữa đã ghi: ${number.format(totals.kcal)} kcal. Đạm ${number.format(totals.proteinG)} g; tinh bột ${number.format(totals.carbsG)} g; béo ${number.format(totals.fatG)} g.'
+                : '${logs.length} bữa đã ghi: ${number.format(totals.kcal)} kcal. Số liệu ba chất chưa đầy đủ; không coi phần chưa biết là 0.',
           );
         }
       } catch (_) {

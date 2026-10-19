@@ -17,6 +17,8 @@ class FirebaseAccountDataRepository implements AccountDataRepository {
     'favorite_foods',
     'custom_foods',
     'recipes',
+    'meal_templates',
+    'day_reviews',
   ];
 
   final FirebaseFirestore _firestore;

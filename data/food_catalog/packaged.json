@@ -1,0 +1,49 @@
+{
+  "version": "manufacturer-labels-2026-10-19",
+  "reviewedOn": "2026-10-19",
+  "limitation": "Trang nhà sản xuất có thể đổi công thức. Chỉ dùng đúng dòng sản phẩm và khối lượng ghi; không áp dụng cho sữa uống/ml hoặc sản phẩm cùng thương hiệu khác. Đối chiếu nhãn đang cầm trước khi chọn.",
+  "foods": [
+    {
+      "id": "th-yogurt-sweetened-100g",
+      "name": "Sữa chua TH true YOGURT có đường 100 g",
+      "brand": "TH true YOGURT",
+      "alternateNames": ["sữa chua TH có đường", "TH yogurt có đường"],
+      "packageLabel": "hộp 100 g · có đường",
+      "servingLabel": "hộp 100 g", "servingGrams": 100,
+      "category": "Sản phẩm đóng gói", "servingBasis": "per_100g", "unit": "g",
+      "kcalPer100g": 94.9, "proteinGPer100g": 3.1, "carbsGPer100g": 13.2, "fatGPer100g": 3.3,
+      "isEstimated": true, "sourceLabel": "TH · Nhãn trung bình/100 g · đối chiếu bao bì",
+      "sourceUrl": "https://www.thmilk.vn/products/sua-chua-an-co-duong/",
+      "catalogVersion": "manufacturer-labels-2026-10-19",
+      "sourceDetails": {"method":"manufacturer_label", "basis":"100 g sản phẩm", "retrievedOn":"2026-10-19", "state":"sản phẩm ăn liền"}
+    },
+    {
+      "id": "th-yogurt-natural-100g",
+      "name": "Sữa chua TH true YOGURT vị tự nhiên 100 g",
+      "brand": "TH true YOGURT",
+      "alternateNames": ["sữa chua TH không đường", "TH yogurt vị tự nhiên"],
+      "packageLabel": "hộp 100 g · vị tự nhiên",
+      "servingLabel": "hộp 100 g", "servingGrams": 100,
+      "category": "Sản phẩm đóng gói", "servingBasis": "per_100g", "unit": "g",
+      "kcalPer100g": 63.2, "proteinGPer100g": 3.3, "carbsGPer100g": 4.4, "fatGPer100g": 3.6,
+      "isEstimated": true, "sourceLabel": "TH · Nhãn trung bình/100 g · đối chiếu bao bì",
+      "sourceUrl": "https://thmilk.vn/products/sua-chua-an-khong-duong/",
+      "catalogVersion": "manufacturer-labels-2026-10-19",
+      "sourceDetails": {"method":"manufacturer_label", "basis":"100 g sản phẩm", "retrievedOn":"2026-10-19", "state":"sản phẩm ăn liền"}
+    },
+    {
+      "id": "th-yogurt-durian-100g",
+      "name": "Sữa chua TH true YOGURT sầu riêng tự nhiên 100 g",
+      "brand": "TH true YOGURT",
+      "alternateNames": ["sữa chua TH sầu riêng", "TH yogurt sầu riêng"],
+      "packageLabel": "hộp 100 g · sầu riêng tự nhiên",
+      "servingLabel": "hộp 100 g", "servingGrams": 100,
+      "category": "Sản phẩm đóng gói", "servingBasis": "per_100g", "unit": "g",
+      "kcalPer100g": 100.4, "proteinGPer100g": 3.1, "carbsGPer100g": 14.8, "fatGPer100g": 3.2,
+      "isEstimated": true, "sourceLabel": "TH · Nhãn trung bình/100 g · đối chiếu bao bì",
+      "sourceUrl": "https://thmilk.vn/products/sua-chua-an-sau-rieng-tu-nhien/",
+      "catalogVersion": "manufacturer-labels-2026-10-19",
+      "sourceDetails": {"method":"manufacturer_label", "basis":"100 g sản phẩm", "retrievedOn":"2026-10-19", "state":"sản phẩm ăn liền"}
+    }
+  ]
+}

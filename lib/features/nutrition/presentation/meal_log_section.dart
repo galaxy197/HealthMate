@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../models/nutrition_failure.dart';
 import '../models/nutrition_models.dart';
+import '../../food_library/presentation/food_nutrition_text.dart';
 
 class MealLogSection extends StatelessWidget {
   const MealLogSection({
@@ -15,6 +16,7 @@ class MealLogSection extends StatelessWidget {
     required this.action,
     required this.onAdd,
     this.onAddForType,
+    this.onOpenDrafts,
     required this.onScan,
     this.showScanner = false,
     required this.onEdit,
@@ -32,6 +34,7 @@ class MealLogSection extends StatelessWidget {
   final AsyncValue<void> action;
   final VoidCallback? onAdd;
   final ValueChanged<MealType>? onAddForType;
+  final VoidCallback? onOpenDrafts;
   final VoidCallback? onScan;
   final bool showScanner;
   final ValueChanged<MealLog> onEdit;
@@ -51,7 +54,20 @@ class MealLogSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Bữa ăn', style: theme.textTheme.titleLarge),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Bữa ăn', style: theme.textTheme.titleLarge),
+                ),
+                if (onOpenDrafts != null)
+                  IconButton(
+                    key: const ValueKey('open-meal-drafts'),
+                    onPressed: action.isLoading ? null : onOpenDrafts,
+                    tooltip: 'Bản nháp trên thiết bị',
+                    icon: const Icon(Icons.drafts_outlined),
+                  ),
+              ],
+            ),
             const SizedBox(height: AppSpacing.md),
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -223,7 +239,6 @@ class _MealTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final integer = NumberFormat.decimalPattern('vi_VN');
-    final decimal = NumberFormat('0.0', 'vi_VN');
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const CircleAvatar(child: Icon(Icons.restaurant_outlined)),
@@ -233,10 +248,8 @@ class _MealTile extends StatelessWidget {
       subtitle: Text(
         '${DateFormat('dd/MM/yyyy').format(meal.consumedAt)}, '
         '${DateFormat('HH:mm').format(meal.consumedAt)}\n'
-        '${meal.items.map((item) => '${item.name} ${integer.format(item.grams)} g').join(' · ')}\n'
-        'P ${decimal.format(meal.totals.proteinG)} g · '
-        'C ${decimal.format(meal.totals.carbsG)} g · '
-        'F ${decimal.format(meal.totals.fatG)} g'
+        '${meal.items.map((item) => '${item.name} ${snapshotQuantityLabel(item)}').join(' · ')}\n'
+        '${nutritionLabel(meal.totals)}'
         '${meal.source == MealSource.aiAssisted ? ' · Có hỗ trợ nhận diện' : ''}',
       ),
       isThreeLine: true,

@@ -27,6 +27,106 @@ const {
 
 let environment;
 
+test('H6 optional fiber keeps known zero, partial subtotals, five/six rows and rejects downgrade',async()=>{
+  const a=environment.authenticatedContext('alice').firestore(),b=environment.authenticatedContext('bob').firestore();
+  const full={...mealItem(),fiberG:2.4},partial={...mealItem(),fiberG:1.2,fiberIncomplete:true};
+  const m=doc(a,'users/alice/meal_logs/h6'),data={...mealData(Array(5).fill(full)),schemaVersion:4};
+  await assertSucceeds(setDoc(m,data));console.log('H6 full five created');await assertSucceeds(updateDoc(m,{items:[partial,full,full,full,full],updatedAt:serverTimestamp()}));
+  console.log('H6 mixed five updated');
+  await assertFails(updateDoc(m,{schemaVersion:2,updatedAt:serverTimestamp()}));
+  const nonG={...full,grams:null,quantity:250,quantityUnit:'ml'};
+  await assertSucceeds(setDoc(doc(a,'users/alice/meal_logs/h6-volume'),{...data,items:Array(5).fill(nonG)}));
+  for(const bad of [{fiberG:-1},{fiberG:1001},{fiberG:NaN},{fiberG:'0'},{fiberG:2,knownFiberG:1}])await assertFails(setDoc(doc(a,'users/alice/meal_logs/h6-bad'),{...data,items:[{...full,...bad}]}));
+  console.log('H6 full volume five created');
+  const compact=i=>({...Object.fromEntries(Object.entries(i).filter(([k,v])=>!['fiberG','knownFiberG','fiberIncomplete','grams'].includes(k) && !(v==null&&['proteinG','carbsG','fatG'].includes(k)))),quantity:i.grams??i.quantity,quantityUnit:i.grams==null?i.quantityUnit:'g'});
+  const t=doc(a,'users/alice/meal_templates/h6');
+  await assertSucceeds(setDoc(t,{name:'H6 template',items:Array(5).fill(compact(nonG)),schemaVersion:3,fiberValues:Array(5).fill(2.4),createdAt:serverTimestamp(),updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(t,{fiberValues:[1.2,2.4,1.2,2.4,1.2],fiberPartialMask:21,items:[partial,full,partial,full,partial].map(compact),updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(t,{items:[compact(nonG),compact({...nonG,proteinG:null,carbsG:null,fatG:null}),compact(full),compact(partial),compact(full)],fiberValues:[2.4,null,0,1.2,2.4],fiberPartialMask:8,updatedAt:serverTimestamp()}));
+  for(const patch of [{fiberValues:[1]},{fiberValues:[-1,0,0,0,0]},{fiberValues:[NaN,0,0,0,0]},{fiberPartialMask:32},{fiberPartialMask:-1},{fiberPartialMask:'1'},{extra:true}])await assertFails(updateDoc(t,{...patch,updatedAt:serverTimestamp()}));
+  const attack={...data,items:[{...full,unexpected:'x'}]};delete attack.items[0].proteinG;
+  await assertFails(setDoc(doc(a,'users/alice/meal_logs/h6-key-substitution'),attack));
+  for(const key of ['totalKcal','consumedAt','source']){const missing={...data,unexpected:1};delete missing[key];await assertFails(setDoc(doc(a,'users/alice/meal_logs/h6-key-substitution'),missing));}
+  await assertSucceeds(setDoc(doc(a,'users/alice/meal_logs/h6-five-partial'),{...data,items:Array(5).fill(partial)}));
+  await assertFails(updateDoc(t,{schemaVersion:1,updatedAt:serverTimestamp()}));
+  const r=doc(a,'users/alice/recipes/h6');
+  await assertSucceeds(setDoc(r,recipeData({ingredients:Array(6).fill(full),schemaVersion:2})));
+  await assertSucceeds(updateDoc(r,{ingredients:[full,partial,full,partial,full,partial],updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(r,{schemaVersion:1,updatedAt:serverTimestamp()}));
+  const p=doc(a,'users/alice/custom_foods/h6');
+  await assertSucceeds(setDoc(p,personalFoodData({fiberGPer100g:0,schemaVersion:2})));
+  await assertFails(updateDoc(p,{fiberGPer100g:101,updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(p,{schemaVersion:1,updatedAt:serverTimestamp()}));
+  for(const path of [m.path,t.path,r.path,p.path]){await assertFails(getDoc(doc(b,path)));await assertFails(updateDoc(doc(b,path),{updatedAt:serverTimestamp()}));}
+});
+
+test('H5 day reviews are owner-only, validated, immutable-createdAt and bounded by local date',async()=>{
+  const a=environment.authenticatedContext('alice').firestore(),b=environment.authenticatedContext('bob').firestore(),g=environment.unauthenticatedContext().firestore();
+  const key='2026-01-01',ref=doc(a,`users/alice/day_reviews/${key}`);
+  const d={dateKey:key,mealsComplete:true,mealCount:0,latestMealUpdate:null,timezoneOffsetMinutes:420,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),schemaVersion:1};
+  await assertSucceeds(setDoc(ref,d));await assertSucceeds(getDocs(query(collection(a,'users/alice/day_reviews'),orderBy('dateKey'),limit(91))));
+  await assertSucceeds(updateDoc(ref,{mealsComplete:false,updatedAt:serverTimestamp()}));
+  for(const db of [b,g]){await assertFails(getDoc(doc(db,ref.path)));await assertFails(getDocs(collection(db,'users/alice/day_reviews')));await assertFails(setDoc(doc(db,ref.path),d));await assertFails(deleteDoc(doc(db,ref.path)));}
+  const patches=[{extra:1},{dateKey:'2026-02-30'},{dateKey:'2999-01-01'},{mealCount:2001},{mealCount:1},{mealsComplete:'true'},{timezoneOffsetMinutes:841},{schemaVersion:2}];
+  for(let i=0;i<patches.length;i++){const patch=patches[i],dayKey=patch.dateKey??`2026-01-${String(i+2).padStart(2,'0')}`;await assertFails(setDoc(doc(a,`users/alice/day_reviews/${dayKey}`),{...d,dateKey:dayKey,...patch}));}
+  await assertFails(updateDoc(ref,{createdAt:Timestamp.fromMillis(0),updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(ref,{mealCount:2,latestMealUpdate:Timestamp.fromDate(new Date('2026-01-01T00:00:00Z')),updatedAt:serverTimestamp()}));
+});
+
+test('H3 calorie-only and non-mass meals keep null macros; five snapshots and templates remain bounded', async()=>{
+  const alice=environment.authenticatedContext('alice').firestore(),bob=environment.authenticatedContext('bob').firestore();
+  const quick={...mealItem(),grams:null,quantityUnit:'entry',quantity:1,kcal:250,proteinG:null,carbsG:null,fatG:null};
+  const data={...mealData([quick]),totalProteinG:null,totalCarbsG:null,totalFatG:null,schemaVersion:3};
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_logs/h3'),data));
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_logs/h3-legacy-source'),{...data,items:[{...quick,sourceLabel:''}]}));
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_logs/h3-five'),{...data,items:Array(5).fill(quick),totalKcal:1250}));
+  await assertFails(getDoc(doc(bob,'users/alice/meal_logs/h3')));
+  for(const item of [{...quick,grams:100},{...quick,quantity:0},{...quick,quantityUnit:'litre'},{...quick,proteinG:-1},{...quick,proteinG:1001},{...quick,proteinG:'0'},{...quick,kcal:NaN}]) {
+    await assertFails(setDoc(doc(alice,'users/alice/meal_logs/bad'),{...data,items:[item]}));
+  }
+  await assertFails(setDoc(doc(alice,'users/alice/meal_logs/legacy-null'),{...data,schemaVersion:2}));
+  const template={name:'H3 template',items:Array(5).fill(quick),schemaVersion:2,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
+  console.log('H3 rule five unknown template');
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_templates/h3'),template));
+  const complete={...quick,quantityUnit:'ml',quantity:100,proteinG:1,carbsG:1,fatG:1};
+  console.log('H3 rule five known template');
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_logs/h3-five-known'),{...data,items:Array(5).fill(complete),totalKcal:1250,totalProteinG:5,totalCarbsG:5,totalFatG:5}));
+  await assertSucceeds(updateDoc(doc(alice,'users/alice/meal_logs/h3-five-known'),{mealType:'snack',updatedAt:serverTimestamp()}));
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_templates/h3-known'),{...template,items:Array(5).fill(complete)}));
+  await assertSucceeds(updateDoc(doc(alice,'users/alice/meal_templates/h3-known'),{name:'H3 edited',updatedAt:serverTimestamp()}));
+  console.log('H3 rule mixed template');
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_templates/h3-mixed'),{...template,items:[quick,complete,quick,complete,complete]}));
+  await assertFails(setDoc(doc(alice,'users/alice/meal_templates/h3-overflow'),{...template,items:Array(5).fill({...complete,proteinG:500})}));
+  await assertFails(setDoc(doc(bob,'users/alice/meal_templates/h3'),template));
+});
+
+test('H2 templates enforce owner CRUD, immutable timestamps, five bounded snapshots and no source dependency', async () => {
+  const alice=environment.authenticatedContext('alice').firestore();
+  const bob=environment.authenticatedContext('bob').firestore();
+  const guest=environment.unauthenticatedContext().firestore();
+  const path='users/alice/meal_templates/h2';
+  const template=(items=[mealItem()])=>({name:'Bữa mẫu QA H2',items,schemaVersion:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  await assertSucceeds(setDoc(doc(alice,path),template()));
+  await assertSucceeds(getDoc(doc(alice,path)));
+  await assertSucceeds(getDocs(query(collection(alice,'users/alice/meal_templates'),orderBy('updatedAt','desc'),limit(40))));
+  await assertSucceeds(updateDoc(doc(alice,path),{name:'QA đã sửa',updatedAt:serverTimestamp()}));
+  for(const db of [bob,guest]) {
+    await assertFails(getDoc(doc(db,path)));
+    await assertFails(getDocs(collection(db,'users/alice/meal_templates')));
+    await assertFails(setDoc(doc(db,'users/alice/meal_templates/other'),template()));
+    await assertFails(updateDoc(doc(db,path),{name:'QA denied',updatedAt:serverTimestamp()}));
+    await assertFails(deleteDoc(doc(db,path)));
+  }
+  await assertFails(updateDoc(doc(alice,path),{createdAt:Timestamp.fromMillis(0),updatedAt:serverTimestamp()}));
+  for(const d of [template([]),template(Array(6).fill(mealItem())),{...template(),extra:true},
+      {...template(),name:''},template([mealItem({grams:-1})]),template([mealItem({kcal:null})]),
+      template(Array(5).fill(mealItem({proteinG:500})))]) {
+    await assertFails(setDoc(doc(alice,'users/alice/meal_templates/invalid'),d));
+  }
+  await assertSucceeds(setDoc(doc(alice,'users/alice/meal_templates/five'),template(Array(5).fill(mealItem()))));
+  await assertSucceeds(deleteDoc(doc(alice,path)));
+});
+
 const profileData = (email = 'alice@example.com') => ({
   displayName: 'Alice',
   email,
@@ -920,7 +1020,7 @@ for(const [name,fixture] of [['custom_foods',personalFoodData],['recipes',recipe
 }
 test('C4 personal food rejects missing nutrients malformed servings alias middle/end and non finite fields',async()=>{
   const db=environment.authenticatedContext('alice').firestore();const ref=doc(db,'users/alice/custom_foods/invalid');
-  for(const patch of [{kcalPer100g:-1},{kcalPer100g:Infinity},{fatGPer100g:NaN},{carbsGPer100g:'0'},{proteinGPer100g:1001},{defaultServingGrams:0},{defaultServingGrams:2001},{servingGrams:null},{servingLabel:null},{servingGrams:-1},{servingLabel:'x'.repeat(41)},{alternateNames:['ok',5]},{alternateNames:['ok','ok','ok','ok',false]},{alternateNames:Array(6).fill('a')},{name:'x'},{schemaVersion:2}]) await assertFails(setDoc(ref,personalFoodData(patch)));
+  for(const patch of [{kcalPer100g:-1},{kcalPer100g:Infinity},{fatGPer100g:NaN},{carbsGPer100g:'0'},{proteinGPer100g:1001},{defaultServingGrams:0},{defaultServingGrams:2001},{servingGrams:null},{servingLabel:null},{servingGrams:-1},{servingLabel:'x'.repeat(41)},{alternateNames:['ok',5]},{alternateNames:['ok','ok','ok','ok',false]},{alternateNames:Array(6).fill('a')},{name:'x'},{schemaVersion:3}]) await assertFails(setDoc(ref,personalFoodData(patch)));
   const missing=personalFoodData();delete missing.fatGPer100g;await assertFails(setDoc(ref,missing));
   await assertSucceeds(setDoc(ref,personalFoodData({servingLabel:null,servingGrams:null,proteinGPer100g:0,carbsGPer100g:0,fatGPer100g:0})));
 });

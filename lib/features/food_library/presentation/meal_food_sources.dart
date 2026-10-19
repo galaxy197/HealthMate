@@ -12,6 +12,7 @@ import 'food_nutrition_text.dart';
 enum _FoodSource {
   search('Tìm món'),
   recent('Gần đây'),
+  frequent('Hay dùng'),
   favorites('Yêu thích'),
   custom('Món của tôi'),
   recipes('Công thức');
@@ -41,6 +42,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   late final TextEditingController _query;
   int _visible = 12;
   int _favoriteLimit = 40;
+  bool _initialResolved = false;
   @override
   void initState() {
     super.initState();
@@ -89,7 +91,10 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
       subtitle: Text(
         !food.hasNutritionData
             ? 'Món thiếu dữ liệu dinh dưỡng; chưa thể thêm vào bữa.'
-            : '${food.per100g.kcal.toStringAsFixed(0)} kcal / 100 g${food.isEstimated ? ' · Ước tính' : ''} · ${food.sourceLabel}',
+            : '${food.per100g.kcal.toStringAsFixed(0)} kcal / 100 g${food.isEstimated ? ' · Ước tính' : ''} · ${food.sourceLabel}'
+                  '${food.packageLabel == null ? '' : ' · ${food.packageLabel}'}'
+                  '${food.hasValidServing ? ' · 1 ${food.servingLabel} = ${foodNumber(food.servingGrams!)} g' : ''}'
+                  '${food.servingMetadataInvalid ? ' · Dùng gram: khẩu phần chưa hợp lệ' : ''}',
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -146,7 +151,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     );
   }
 
-  Widget _recent() {
+  Widget _recent({bool frequent = false}) {
     final state = ref.watch(recentMealsProvider);
     if (state.isLoading) return const LinearProgressIndicator();
     if (state.hasError) {
@@ -156,12 +161,18 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
       );
     }
     final page = state.value!;
-    final items = recentMealItems(
-      page.meals,
-    ).where((item) => _matches(item.name)).toList();
+    final ranked = frequentMealItems(page.meals);
+    final items =
+        (frequent ? ranked.map((r) => r.item) : recentMealItems(page.meals))
+            .where((item) => _matches(item.name))
+            .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (frequent)
+          Text(
+            'Tần suất trong ${page.meals.length} bản ghi gần nhất (tối đa 20), không phải toàn bộ lịch sử.',
+          ),
         if (page.fromCache)
           const Text('Dữ liệu trên thiết bị; đang chờ đồng bộ với máy chủ.'),
         if (items.isEmpty)
@@ -177,7 +188,8 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
             title: Text(item.name),
             subtitle: Text(
               item.hasNutritionData
-                  ? '${item.grams} g · ${item.nutrition.kcal.toStringAsFixed(0)} kcal · ${item.sourceLabel}${item.isEstimated ? ' · Ước tính' : ''}'
+                  ? '${snapshotQuantityLabel(item)} · ${item.nutrition.kcal.toStringAsFixed(0)} kcal · ${item.sourceLabel}${item.isEstimated ? ' · Ước tính' : ''}${item.nutrition.hasCompleteMacros ? '' : ' · Chưa đủ ba chất'}'
+                        '${frequent ? ' · ${ranked.singleWhere((r) => identical(r.item, item)).count} bản ghi' : ''}'
                   : 'Snapshot thiếu dữ liệu dinh dưỡng; hãy chọn lại từ nguồn bạn xác nhận.',
             ),
             trailing: IconButton.filledTonal(
@@ -285,6 +297,17 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_initialResolved && widget.initialSearch.isEmpty) {
+      final recent = ref.watch(recentMealsProvider);
+      if (recent.hasValue && !recent.isLoading && !recent.hasError) {
+        _source = recent.value!.meals.isEmpty
+            ? _FoodSource.search
+            : _FoodSource.recent;
+        _initialResolved = true;
+      } else if (recent.hasError) {
+        _initialResolved = true;
+      }
+    }
     final action = ref.watch(favoriteFoodControllerProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -299,6 +322,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
                 label: Text(source.label),
                 selected: _source == source,
                 onSelected: (_) => setState(() {
+                  _initialResolved = true;
                   _source = source;
                   _visible = 12;
                   _query.clear();
@@ -339,6 +363,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
         switch (_source) {
           _FoodSource.search => _search(),
           _FoodSource.recent => _recent(),
+          _FoodSource.frequent => _recent(frequent: true),
           _FoodSource.favorites => _favorites(),
           _FoodSource.custom => LibraryFoodList(
             key: const ValueKey('source-custom'),

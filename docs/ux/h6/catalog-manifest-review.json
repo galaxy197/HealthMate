@@ -1,0 +1,913 @@
+{
+  "project": "healthmate-app-20261013",
+  "generatedAt": "2026-10-19T01:12:56.228Z",
+  "creates": [
+    {
+      "id": "th-yogurt-sweetened-100g",
+      "name": "Sữa chua TH true YOGURT có đường 100 g",
+      "brand": "TH true YOGURT",
+      "alternateNames": [
+        "sữa chua TH có đường",
+        "TH yogurt có đường"
+      ],
+      "packageLabel": "hộp 100 g · có đường",
+      "servingLabel": "hộp 100 g",
+      "servingGrams": 100,
+      "category": "Sản phẩm đóng gói",
+      "servingBasis": "per_100g",
+      "unit": "g",
+      "kcalPer100g": 94.9,
+      "proteinGPer100g": 3.1,
+      "carbsGPer100g": 13.2,
+      "fatGPer100g": 3.3,
+      "isEstimated": true,
+      "sourceLabel": "TH · Nhãn trung bình/100 g · đối chiếu bao bì",
+      "sourceUrl": "https://www.thmilk.vn/products/sua-chua-an-co-duong/",
+      "catalogVersion": "manufacturer-labels-2026-10-19",
+      "sourceDetails": {
+        "method": "manufacturer_label",
+        "basis": "100 g sản phẩm",
+        "retrievedOn": "2026-10-19",
+        "state": "sản phẩm ăn liền"
+      }
+    },
+    {
+      "id": "th-yogurt-natural-100g",
+      "name": "Sữa chua TH true YOGURT vị tự nhiên 100 g",
+      "brand": "TH true YOGURT",
+      "alternateNames": [
+        "sữa chua TH không đường",
+        "TH yogurt vị tự nhiên"
+      ],
+      "packageLabel": "hộp 100 g · vị tự nhiên",
+      "servingLabel": "hộp 100 g",
+      "servingGrams": 100,
+      "category": "Sản phẩm đóng gói",
+      "servingBasis": "per_100g",
+      "unit": "g",
+      "kcalPer100g": 63.2,
+      "proteinGPer100g": 3.3,
+      "carbsGPer100g": 4.4,
+      "fatGPer100g": 3.6,
+      "isEstimated": true,
+      "sourceLabel": "TH · Nhãn trung bình/100 g · đối chiếu bao bì",
+      "sourceUrl": "https://thmilk.vn/products/sua-chua-an-khong-duong/",
+      "catalogVersion": "manufacturer-labels-2026-10-19",
+      "sourceDetails": {
+        "method": "manufacturer_label",
+        "basis": "100 g sản phẩm",
+        "retrievedOn": "2026-10-19",
+        "state": "sản phẩm ăn liền"
+      }
+    },
+    {
+      "id": "th-yogurt-durian-100g",
+      "name": "Sữa chua TH true YOGURT sầu riêng tự nhiên 100 g",
+      "brand": "TH true YOGURT",
+      "alternateNames": [
+        "sữa chua TH sầu riêng",
+        "TH yogurt sầu riêng"
+      ],
+      "packageLabel": "hộp 100 g · sầu riêng tự nhiên",
+      "servingLabel": "hộp 100 g",
+      "servingGrams": 100,
+      "category": "Sản phẩm đóng gói",
+      "servingBasis": "per_100g",
+      "unit": "g",
+      "kcalPer100g": 100.4,
+      "proteinGPer100g": 3.1,
+      "carbsGPer100g": 14.8,
+      "fatGPer100g": 3.2,
+      "isEstimated": true,
+      "sourceLabel": "TH · Nhãn trung bình/100 g · đối chiếu bao bì",
+      "sourceUrl": "https://thmilk.vn/products/sua-chua-an-sau-rieng-tu-nhien/",
+      "catalogVersion": "manufacturer-labels-2026-10-19",
+      "sourceDetails": {
+        "method": "manufacturer_label",
+        "basis": "100 g sản phẩm",
+        "retrievedOn": "2026-10-19",
+        "state": "sản phẩm ăn liền"
+      }
+    }
+  ],
+  "updates": [
+    {
+      "id": "vn-bun-tuoi",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 330,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-com-gao-lut",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 280,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-xoi-trang",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 210,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-xoi-dau-xanh",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 290,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-xoi-ga",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 300,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-pho-bo",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 600,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-pho-ga",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 600,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-bun-bo-hue",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 650,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-bun-thit-nuong",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 430,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-bun-cha",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 500,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-bun-rieu",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 600,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-bun-ca",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 600,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-bun-bo-xao",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 430,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-hu-tieu",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 600,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-mi-quang",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 500,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-mien-ga",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 550,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-mi-xao-bo",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 400,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-mien-xao-rau",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 360,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-chao-thit",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 500,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-chao-ga",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 500,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-chao-trung",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 450,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-chao-dau-xanh",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 500,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-com-tam-suon",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 420,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-com-ga",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 420,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-com-chien-trung",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 400,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-com-chien-duong-chau",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 450,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-banh-mi-trung",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 210,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-banh-mi-thit",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 230,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-banh-cuon",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 350,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-banh-xeo",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 350,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-goi-cuon",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 300,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-cha-gio",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 250,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-thit-luoc",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 75,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-thit-kho-trung",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 280,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-thit-kho-tieu",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 170,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-ga-kho",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 170,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-bo-xao-rau",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 300,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-dau-sot-ca",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 300,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-rau-muong-luoc",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 90,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-rau-muong-xao",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 210,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-canh-bau-tom",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 500,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-canh-chua-ca",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 600,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-canh-cai-thit",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 500,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-tom-hap",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 80,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-ca-loc-hap",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 80,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-che-dau-xanh",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 350,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "vn-che-dau-den",
+      "beforeUpdateTime": "2026-10-16T13:33:18.395484Z",
+      "before": {
+        "servingLabel": null,
+        "servingGrams": null,
+        "portionSource": null
+      },
+      "patch": {
+        "servingLabel": "phần công thức tham khảo",
+        "servingGrams": 350,
+        "portionSource": "Khối lượng thành phẩm giả định của công thức; không phải khẩu phần tiêu chuẩn."
+      }
+    },
+    {
+      "id": "apple-raw-skin",
+      "beforeUpdateTime": "2026-10-12T20:38:56.634337Z",
+      "before": {
+        "fiberGPer100g": null,
+        "fiberSourceUrl": null,
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g"
+      },
+      "patch": {
+        "fiberGPer100g": 2.4,
+        "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/171688/nutrients",
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC171688"
+      }
+    },
+    {
+      "id": "banana-raw",
+      "beforeUpdateTime": "2026-10-12T20:38:56.634337Z",
+      "before": {
+        "fiberGPer100g": null,
+        "fiberSourceUrl": null,
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g"
+      },
+      "patch": {
+        "fiberGPer100g": 2.6,
+        "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/173944/nutrients",
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC173944"
+      }
+    },
+    {
+      "id": "rice-cooked",
+      "beforeUpdateTime": "2026-10-12T20:38:56.634337Z",
+      "before": {
+        "fiberGPer100g": null,
+        "fiberSourceUrl": null,
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g"
+      },
+      "patch": {
+        "fiberGPer100g": 0.4,
+        "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/168878/nutrients",
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC168878"
+      }
+    },
+    {
+      "id": "egg-boiled",
+      "beforeUpdateTime": "2026-10-12T20:38:56.634337Z",
+      "before": {
+        "fiberGPer100g": null,
+        "fiberSourceUrl": null,
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g"
+      },
+      "patch": {
+        "fiberGPer100g": 0,
+        "fiberSourceUrl": "https://fdc.nal.usda.gov/food-details/173424/nutrients",
+        "sourceLabel": "USDA FoodData Central (SR Legacy) — giá trị tham khảo/100 g · FDC173424"
+      }
+    }
+  ],
+  "skips": [
+    "vn2007-1001",
+    "vn2007-1004",
+    "vn2007-1005",
+    "vn2007-1010",
+    "vn2007-1011",
+    "vn2007-1012",
+    "vn2007-1013",
+    "vn2007-1014",
+    "vn2007-1016",
+    "vn2007-1017",
+    "vn2007-1018",
+    "vn2007-1022",
+    "vn2007-1023",
+    "vn2007-2009",
+    "vn2007-2013",
+    "vn2007-2014",
+    "vn2007-2015",
+    "vn2007-3001",
+    "vn2007-3004",
+    "vn2007-3007",
+    "vn2007-3010",
+    "vn2007-3015",
+    "vn2007-3017",
+    "vn2007-3020",
+    "vn2007-3025",
+    "vn2007-3032",
+    "vn2007-3033",
+    "vn2007-4001",
+    "vn2007-4003",
+    "vn2007-4005",
+    "vn2007-4007",
+    "vn2007-4010",
+    "vn2007-4015",
+    "vn2007-4016",
+    "vn2007-4021",
+    "vn2007-4027",
+    "vn2007-4030",
+    "vn2007-4031",
+    "vn2007-4036",
+    "vn2007-4039",
+    "vn2007-4040",
+    "vn2007-4053",
+    "vn2007-4054",
+    "vn2007-4055",
+    "vn2007-4069",
+    "vn2007-4070",
+    "vn2007-4072",
+    "vn2007-4083",
+    "vn2007-4096",
+    "vn2007-4098",
+    "vn2007-4099",
+    "vn2007-4100",
+    "vn2007-4103",
+    "vn2007-4123",
+    "vn2007-4125",
+    "vn2007-5001",
+    "vn2007-5002",
+    "vn2007-5004",
+    "vn2007-5009",
+    "vn2007-5011",
+    "vn2007-5015",
+    "vn2007-5017",
+    "vn2007-5018",
+    "vn2007-5023",
+    "vn2007-5025",
+    "vn2007-5028",
+    "vn2007-5034",
+    "vn2007-5035",
+    "vn2007-5037",
+    "vn2007-5040",
+    "vn2007-5042",
+    "vn2007-5047",
+    "vn2007-5048",
+    "vn2007-5052",
+    "vn2007-5055",
+    "vn2007-6001",
+    "vn2007-6002",
+    "vn2007-7003",
+    "vn2007-7013",
+    "vn2007-7016",
+    "vn2007-7017",
+    "vn2007-7028",
+    "vn2007-7053",
+    "vn2007-7063",
+    "vn2007-7069",
+    "vn2007-7071",
+    "vn2007-7073",
+    "vn2007-8003",
+    "vn2007-8022",
+    "vn2007-8024",
+    "vn2007-8026",
+    "vn2007-8034",
+    "vn2007-8040",
+    "vn2007-8051",
+    "vn2007-9001",
+    "vn2007-9004",
+    "vn2007-9007",
+    "vn2007-10004",
+    "vn2007-10008",
+    "vn2007-10009",
+    "vn2007-12013"
+  ],
+  "conflicts": []
+}

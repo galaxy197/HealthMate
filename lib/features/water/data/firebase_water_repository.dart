@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/data/bounded_range.dart';
 import '../../../core/utils/local_date_key.dart';
 
 import '../../journal/models/daily_log_failure.dart';
@@ -31,10 +32,13 @@ class FirebaseWaterRepository implements WaterRepository {
   @override
   Future<List<WaterLog>> loadRange(String uid, DateTime start, DateTime end) =>
       _guard(() async {
-        final snapshot = await _logs(uid)
-            .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
-            .where('dateKey', isLessThan: localDateKey(end))
-            .get(const GetOptions(source: Source.server));
+        final snapshot = await readBoundedRange(
+          _logs(uid)
+              .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
+              .where('dateKey', isLessThan: localDateKey(end)),
+          start,
+          end,
+        );
         return [for (final doc in snapshot.docs) _fromDoc(doc.id, doc.data())];
       });
 

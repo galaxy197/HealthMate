@@ -4,6 +4,24 @@
 Android là nền tảng chính;
 web phục vụ xem và kiểm tra giao diện trong quá trình phát triển.
 
+## Thay đổi local H0–H7 — 19/10/2026
+
+[Tiến độ và kết quả từng mốc](docs/h-improvements.md): ổn định E2E/release guard,
+catalog/khẩu phần/tìm kiếm, recent/bữa mẫu, nhập nhãn và ghi nhanh kcal với macro
+chưa biết. [Schema H3 và kiểm thử](docs/h3-quick-add.md).
+**Rules/schema mới chưa deploy; catalog mới chưa import production.** Backend U2
+bên dưới là trạng thái lịch sử, chưa bảo đảm lưu bữa mẫu/schema3 trên production.
+Cần phối hợp nâng client/cleanup và review triển khai riêng; không dùng APK test
+target Emulator làm APK phát hành. H4 đã có hướng dẫn mục tiêu tùy chọn; H5 có báo
+cáo 30/90 ngày và trạng thái xác nhận; [H6](docs/h6-fiber.md) bổ sung chất xơ có nguồn.
+H0–H7 đã kiểm thử local/Emulator. [H7](docs/h7-private-data.md): nháp bữa ăn mã hóa
+theo UID trên Android, phục hồi sau process death, retry cùng mã thao tác; xuất
+nhật ký CSV 1–90 ngày qua hộp chọn nơi lưu của Android. Flutter454/454; analyze
+sạch; Android H7 hai phase12s/32s, file1554byte trong Downloads khớp snapshot
+repository. Web/desktop chưa hỗ trợ nháp bền vững hoặc xuất file.
+[Checkpoint H7 cũ](docs/h7-checkpoint.md) ghi lần dừng lúc hạn mức còn4%; đã tiếp
+tục và hoàn thành sau khi cửa sổ hạn mức reset. Không commit/push/deploy trong đợt này.
+
 ## Phạm vi hiện tại — Core C6, UX U1 và Firebase U2
 
 U1 thu gọn Nhật ký thành một overview kcal/macros + mục tiêu đúng ngày; nút thêm

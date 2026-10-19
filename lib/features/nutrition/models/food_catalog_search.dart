@@ -26,12 +26,32 @@ List<FoodCatalogItem> searchFoodCatalog(
 ) {
   final normalized = normalizeFoodSearch(query);
   if (normalized.isEmpty) return catalog;
-  return catalog
-      .where(
-        (food) => [
-          food.name,
-          ...food.alternateNames,
-        ].any((name) => normalizeFoodSearch(name).contains(normalized)),
-      )
-      .toList(growable: false);
+  final words = normalized.split(' ');
+  int score(FoodCatalogItem food) {
+    var best = 99;
+    for (final raw in [food.name, ...food.alternateNames]) {
+      final name = normalizeFoodSearch(raw);
+      final tokens = name.split(' ');
+      final rank = name == normalized
+          ? 0
+          : name.startsWith('$normalized ')
+          ? 1
+          : words.every(tokens.contains)
+          ? 2
+          : name.contains(normalized)
+          ? 3
+          : 99;
+      if (rank < best) best = rank;
+    }
+    return best;
+  }
+
+  final ranked =
+      [for (final pair in catalog.indexed) (pair.$1, pair.$2, score(pair.$2))]
+        ..removeWhere((r) => r.$3 == 99)
+        ..sort((a, b) {
+          final rank = a.$3.compareTo(b.$3);
+          return rank != 0 ? rank : a.$1.compareTo(b.$1);
+        });
+  return [for (final result in ranked) result.$2];
 }

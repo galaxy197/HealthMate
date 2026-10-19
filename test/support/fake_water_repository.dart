@@ -13,6 +13,7 @@ class FakeWaterRepository implements WaterRepository {
   int updateCalls = 0;
   int deleteCalls = 0;
   int rangeCalls = 0;
+  Object? rangeError;
   int activeDayListeners = 0;
 
   List<WaterLog> get logs => List.unmodifiable(_logs);
@@ -37,6 +38,7 @@ class FakeWaterRepository implements WaterRepository {
     DateTime end,
   ) async {
     rangeCalls++;
+    if (rangeError != null) throw rangeError!;
     final first = localDateKey(start), last = localDateKey(end);
     return _logs
         .where(

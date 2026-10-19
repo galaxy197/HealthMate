@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/data/bounded_range.dart';
 import '../../../core/utils/local_date_key.dart';
 
 import '../models/body_metric.dart';
@@ -185,10 +186,16 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
     DateTime start,
     DateTime end,
   ) => _guard(() async {
-    final snapshot = await _metrics(uid)
-        .where('measuredAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('measuredAt', isLessThan: Timestamp.fromDate(end))
-        .get(const GetOptions(source: Source.server));
+    final snapshot = await readBoundedRange(
+      _metrics(uid)
+          .where(
+            'measuredAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(start),
+          )
+          .where('measuredAt', isLessThan: Timestamp.fromDate(end)),
+      start,
+      end,
+    );
     return [
       for (final doc in snapshot.docs) _metricFromData(doc.id, doc.data()),
     ];

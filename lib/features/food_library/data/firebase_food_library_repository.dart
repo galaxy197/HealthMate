@@ -85,6 +85,11 @@ class FirebaseFoodLibraryRepository implements FoodLibraryRepository {
       final reference = _collection(uid, entry.kind).doc(entry.id);
       await firestore.runTransaction((tx) async {
         final before = await tx.get(reference);
+        if (!create &&
+            (before.data()?['schemaVersion'] as num? ?? 1) >
+                (data['schemaVersion'] as num)) {
+          data['schemaVersion'] = before.data()!['schemaVersion'];
+        }
         if (create && before.exists) {
           if (!_same(data, {
             for (final key in data.keys) key: before.data()?[key],

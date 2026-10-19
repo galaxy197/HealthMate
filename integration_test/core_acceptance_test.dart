@@ -2,6 +2,7 @@
 // production main/bootstrap, use a real account, or use the default Firebase app.
 import 'dart:convert';
 import 'dart:io';
+import 'package:intl/intl.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -28,6 +29,7 @@ import 'package:healthmate/features/nutrition/data/firebase_nutrition_repository
 import 'package:healthmate/features/nutrition/models/nutrition_models.dart';
 import 'package:healthmate/features/nutrition/providers/nutrition_providers.dart';
 import 'package:healthmate/features/nutrition/presentation/meal_form_dialog.dart';
+import 'package:healthmate/features/nutrition/presentation/quick_add_dialog.dart';
 import 'package:healthmate/features/nutrition_targets/data/firebase_nutrition_target_repository.dart';
 import 'package:healthmate/features/nutrition_targets/models/nutrition_target.dart';
 import 'package:healthmate/features/nutrition_targets/providers/nutrition_target_providers.dart';
@@ -39,6 +41,10 @@ import 'package:healthmate/features/activity/data/firebase_activity_repository.d
 import 'package:healthmate/features/activity/providers/activity_providers.dart';
 import 'package:healthmate/features/goals/data/firebase_goals_repository.dart';
 import 'package:healthmate/features/goals/providers/goals_providers.dart';
+import 'package:healthmate/features/meal_templates/data/meal_template_repository.dart';
+import 'package:healthmate/features/meal_templates/providers/meal_template_providers.dart';
+import 'package:healthmate/features/reports/data/day_review_repository.dart';
+import 'package:healthmate/features/reports/providers/report_providers.dart';
 
 const _project = 'demo-healthmate-rules';
 const _host = '10.0.2.2';
@@ -161,6 +167,8 @@ Future<void> seedCatalog() async {
         'category': {'stringValue': 'Synthetic QA'},
         'servingBasis': {'stringValue': 'per_100g'},
         'unit': {'stringValue': 'g'},
+        'servingLabel': {'stringValue': 'phần fixture'},
+        'servingGrams': {'doubleValue': 200},
         'kcalPer100g': {'doubleValue': 130},
         'proteinGPer100g': {'doubleValue': 3},
         'carbsGPer100g': {'doubleValue': 28},
@@ -208,6 +216,7 @@ void main() {
       final nutrition = FirebaseNutritionRepository(db);
       final profile = FirebaseHealthProfileRepository(db);
       final targets = FirebaseNutritionTargetRepository(db);
+      final dayReviews = FirebaseDayReviewRepository(db);
       final library = FirebaseFoodLibraryRepository(db);
       final container = ProviderContainer(
         overrides: [
@@ -220,7 +229,11 @@ void main() {
           healthProfileRepositoryProvider.overrideWithValue(profile),
           nutritionRepositoryProvider.overrideWithValue(nutrition),
           nutritionTargetRepositoryProvider.overrideWithValue(targets),
+          dayReviewRepositoryProvider.overrideWithValue(dayReviews),
           foodLibraryRepositoryProvider.overrideWithValue(library),
+          mealTemplateRepositoryProvider.overrideWithValue(
+            FirebaseMealTemplateRepository(db),
+          ),
           favoriteFoodRepositoryProvider.overrideWithValue(
             FirebaseFavoriteFoodRepository(db),
           ),
@@ -266,6 +279,9 @@ void main() {
           await binding.convertFlutterSurfaceToImage();
           surfaceConverted = true;
         }
+        // Finish route/IME transitions before recording visual evidence.
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pump(const Duration(milliseconds: 700));
         await tester.pump();
         final bytes = await binding.takeScreenshot(name);
         expect(bytes, isNotEmpty);
@@ -329,7 +345,9 @@ void main() {
       await tap(tester, keyed('add-meal-lunch'));
       await waitFor(tester, keyed('catalog-food-$_catalogId'));
       await tap(tester, find.byTooltip('Thêm Cơm fixture C6'));
-      await enter(tester, 'meal-grams', '150');
+      await tap(tester, keyed('portion-unit'));
+      await enter(tester, 'meal-grams', '0,75');
+      await capture('c6-h1-catalog-fractional-portion');
       await tap(tester, find.widgetWithText(FilledButton, 'Xác nhận'));
       await tap(tester, keyed('save-meal'));
       await waitFor(tester, find.byType(MealFormDialog), absent: true);
@@ -339,6 +357,7 @@ void main() {
         DateTime(_today.year, _today.month, _today.day + 1),
       );
       expect(todayMeals.single.totals.kcal, 195);
+      expect(todayMeals.single.items.single.grams, 150);
       await checkpoint('03-add-meal');
 
       Future<void> mealMenu(String label) async {
@@ -347,7 +366,7 @@ void main() {
       }
 
       await mealMenu('Sửa');
-      await waitFor(tester, keyed('selected-meal-item-0'));
+      await reveal(tester, keyed('selected-meal-item-0'));
       await tap(tester, find.byTooltip('Sửa khẩu phần'));
       await enter(tester, 'meal-grams', '200');
       await tap(tester, find.widgetWithText(FilledButton, 'Xác nhận'));
@@ -426,6 +445,7 @@ void main() {
         'library-protein': '10',
         'library-carbs': '30',
         'library-fat': '4',
+        'library-fiber': '2',
         'library-default-grams': '100',
       }.entries) {
         await enter(tester, entry.key, entry.value);
@@ -470,6 +490,10 @@ void main() {
       await checkpoint('06-create-personal-and-recipe');
 
       await quick('meal');
+      // Exercise two valid breakfasts regardless of the wall clock. The global
+      // quick action still keeps the application's normal time-based default.
+      await tap(tester, keyed('meal-type'));
+      await tap(tester, find.text(MealType.breakfast.label).last);
       await tap(tester, keyed('food-source-recipes'));
       await waitFor(tester, keyed('choose-recipe-$recipeId'));
       await tap(tester, keyed('choose-recipe-$recipeId'));
@@ -488,6 +512,7 @@ void main() {
       );
       expect(recipeMeal.items.single.grams, 20);
       expect(recipeMeal.totals.kcal, 50);
+      expect(recipeMeal.type, MealType.breakfast);
 
       await profileRoot();
       await tap(tester, keyed('open-food-library'));
@@ -548,10 +573,8 @@ void main() {
 
       await tap(tester, keyed('nav-journal'));
       await tap(tester, keyed('add-meal-breakfast'));
-      await tap(tester, find.widgetWithText(ChoiceChip, 'Gần đây'));
       await waitFor(tester, find.byTooltip('Dùng lại Cơm fixture C6'));
       await tap(tester, find.byTooltip('Dùng lại Cơm fixture C6'));
-      await tap(tester, find.widgetWithText(FilledButton, 'Xác nhận'));
       await tap(tester, keyed('save-meal'));
       await waitFor(tester, find.byType(MealFormDialog), absent: true);
       final repeated = await nutrition.loadRange(
@@ -561,12 +584,22 @@ void main() {
       );
       expect(repeated.length, 3);
       final breakfast = repeated.singleWhere(
-        (m) => m.type == MealType.breakfast,
+        (m) => m.id != sourceId && m.id != recipeMeal.id,
+      );
+      expect(repeated.map((m) => m.id).toSet(), hasLength(3));
+      expect(breakfast.id, isNot(sourceId));
+      expect(breakfast.id, isNot(recipeMeal.id));
+      expect(breakfast.type, MealType.breakfast);
+      expect(
+        repeated.where((m) => m.type == MealType.breakfast).length,
+        greaterThanOrEqualTo(2),
       );
       expect(breakfast.items.single.grams, 200);
       expect(breakfast.totals.kcal, 260);
       expect(breakfast.dateKey, localDateKey(_today));
-      debugPrint('U1_RECENT repeated through 5 existing taps, no typed search');
+      debugPrint(
+        'H2_RECENT repeated through 3 taps, no typed search or portion confirmation; source amount shown before use',
+      );
 
       await profileRoot();
       await tap(tester, find.widgetWithText(ChoiceChip, 'Tối'));
@@ -578,6 +611,233 @@ void main() {
       tester.platformDispatcher.clearTextScaleFactorTestValue();
       await tester.pump(const Duration(milliseconds: 300));
       await checkpoint('09-dark-large-text');
+
+      // Create a named multi-food template from an unsaved meal, discard that
+      // meal, then use/edit the frozen template after the recipe source is gone.
+      await tap(tester, keyed('nav-journal'));
+      await tap(tester, keyed('add-meal-dinner'));
+      await tap(tester, find.byTooltip('Dùng lại Cơm fixture C6'));
+      await tap(tester, find.byTooltip('Dùng lại C6 công thức'));
+      await tap(tester, keyed('meal-templates'));
+      await tap(tester, keyed('create-meal-template'));
+      await enter(tester, 'meal-template-name', 'H2 QA dinner');
+      await tap(tester, keyed('save-meal-template'));
+      await waitFor(tester, keyed('meal-template-name'), absent: true);
+      final template =
+          (await db
+                  .collection('users/$alice/meal_templates')
+                  .get(const GetOptions(source: Source.server)))
+              .docs
+              .single;
+      expect((template.data()['items'] as List).length, 2);
+      await tap(tester, keyed('discard-local-draft'));
+      await waitFor(tester, find.byType(MealFormDialog), absent: true);
+      expect(
+        (await nutrition.loadRange(
+          alice,
+          _today,
+          DateTime(_today.year, _today.month, _today.day + 1),
+        )).length,
+        3,
+      );
+      await tap(tester, keyed('add-meal-dinner'));
+      await tap(tester, keyed('meal-templates'));
+      await waitFor(tester, keyed('use-template-${template.id}'));
+      await tap(tester, keyed('use-template-${template.id}'));
+      await tap(
+        tester,
+        find.descendant(
+          of: keyed('selected-meal-item-0'),
+          matching: find.byTooltip('Sửa khẩu phần'),
+        ),
+      );
+      await enter(tester, 'meal-grams', '100');
+      await tap(tester, find.widgetWithText(FilledButton, 'Xác nhận'));
+      await capture('c6-h2-template-two-foods');
+      await tap(tester, keyed('save-meal'));
+      await waitFor(tester, find.byType(MealFormDialog), absent: true);
+      final withTemplate = await nutrition.loadRange(
+        alice,
+        _today,
+        DateTime(_today.year, _today.month, _today.day + 1),
+      );
+      final newMeal = withTemplate.singleWhere(
+        (m) => !repeated.any((old) => old.id == m.id),
+      );
+      expect(withTemplate.length, 4);
+      expect(newMeal.items.length, 2);
+      expect(newMeal.type, MealType.dinner);
+      expect(newMeal.dateKey, localDateKey(_today));
+      expect(newMeal.totals.kcal, 180);
+      await tap(tester, keyed('add-meal-dinner'));
+      await tap(tester, keyed('meal-templates'));
+      await waitFor(tester, keyed('delete-template-${template.id}'));
+      await tap(tester, keyed('delete-template-${template.id}'));
+      await tap(tester, find.widgetWithText(FilledButton, 'Xóa bữa mẫu'));
+      await waitFor(
+        tester,
+        keyed('delete-template-${template.id}'),
+        absent: true,
+      );
+      await tap(tester, keyed('discard-local-draft'));
+      expect(
+        (await nutrition.loadRange(
+          alice,
+          _today,
+          DateTime(_today.year, _today.month, _today.day + 1),
+        )).singleWhere((m) => m.id == newMeal.id).totals.kcal,
+        180,
+      );
+      debugPrint(
+        'H2_TEMPLATES UI create/cancel/use/edit/delete; source gone; two foods 180 kcal; no history mutation',
+      );
+      await tap(tester, keyed('add-meal-snack'));
+      await tap(tester, keyed('open-quick-add'));
+      await enter(tester, 'quick-name', 'H3 QA chỉ kcal');
+      await enter(tester, 'quick-kcal', '250');
+      await tap(tester, keyed('confirm-quick-add'));
+      await tap(tester, keyed('open-quick-add'));
+      await tap(tester, keyed('quick-basis'));
+      await tap(tester, find.text('Trên 100 ml').last);
+      await enter(tester, 'quick-name', 'H3 QA nhãn thể tích');
+      await enter(tester, 'quick-amount', '250');
+      await enter(tester, 'quick-kcal', '60');
+      await enter(tester, 'quick-protein', '3');
+      await enter(tester, 'quick-carbs', '0');
+      await reveal(tester, keyed('quick-preview'));
+      await capture('c6-h3-volume-preview');
+      await tap(tester, keyed('confirm-quick-add'));
+      await tap(tester, keyed('save-meal'));
+      await waitFor(tester, find.byType(MealFormDialog), absent: true);
+      final withQuick = await nutrition.loadRange(
+        alice,
+        _today,
+        DateTime(_today.year, _today.month, _today.day + 1),
+      );
+      expect(withQuick.length, 5);
+      final quickMeal = withQuick.singleWhere(
+        (m) => !withTemplate.any((old) => old.id == m.id),
+      );
+      expect(quickMeal.items.length, 2);
+      expect(quickMeal.totals.kcal, 400);
+      expect(quickMeal.totals.proteinG, 7.5);
+      expect(quickMeal.totals.hasCompleteMacros, isFalse);
+      expect(quickMeal.items.last.quantityUnit, 'ml');
+      expect(quickMeal.items.last.quantity, 250);
+      final quickWire =
+          (await db.doc('users/$alice/meal_logs/${quickMeal.id}').get())
+              .data()!;
+      expect(quickWire['schemaVersion'], 3);
+      expect(quickWire['totalProteinG'], isNull);
+      expect((quickWire['items'] as List).last['grams'], isNull);
+      debugPrint(
+        'H3_QUICK_ADD UI kcal-only + 250 ml; 400 kcal; known protein subtotal 7.5 g; missing macros stay null',
+      );
+      await profileRoot();
+      await tap(tester, keyed('edit-nutrition-target-${localDateKey(_today)}'));
+      await tap(tester, keyed('open-energy-estimate'));
+      await tap(tester, keyed('estimate-eligible'));
+      await enter(tester, 'estimate-age', '25');
+      await enter(tester, 'estimate-weight', '70');
+      await tap(tester, keyed('estimate-sex'));
+      await tap(tester, find.text('Nam · hệ số theo nghiên cứu').last);
+      await tap(tester, keyed('estimate-activity'));
+      await tap(tester, find.text('Ít vận động / nhẹ').last);
+      await tap(tester, keyed('calculate-estimate'));
+      await reveal(tester, keyed('estimate-result'));
+      await capture('c6-h4-maintenance-estimate');
+      expect(
+        (await targets.loadForDay(alice, localDateKey(_today)))!.kcalTarget,
+        2100,
+      );
+      await tap(tester, keyed('accept-estimate'));
+      await enter(tester, 'target-kcal', '2600');
+      await tap(tester, keyed('save-target'));
+      if (keyed('confirm-target-mismatch').evaluate().isNotEmpty) {
+        await tap(tester, keyed('confirm-target-mismatch'));
+      }
+      await waitFor(tester, keyed('target-kcal'), absent: true);
+      expect(
+        (await targets.loadForDay(alice, localDateKey(_today)))!.kcalTarget,
+        2600,
+      );
+      expect(
+        (await targets.loadForDay(alice, localDateKey(_yesterday)))!.kcalTarget,
+        1800,
+      );
+      debugPrint(
+        'H4_ESTIMATE reviewed/edited/saved; past target unchanged; inputs not persisted',
+      );
+      await tap(tester, keyed('nav-journal'));
+      await tap(tester, keyed('open-day-review'));
+      await waitFor(
+        tester,
+        find.text('Chưa xác nhận hoặc nhật ký đã thay đổi; hãy kiểm tra lại.'),
+      );
+      await tap(tester, keyed('confirm-day-review'));
+      await waitFor(tester, keyed('confirm-day-review'), absent: true);
+      final rangeEnd = DateTime(_today.year, _today.month, _today.day + 1);
+      final periodStart = DateTime(_today.year, _today.month, _today.day - 29);
+      final recorded = await nutrition.loadRange(alice, periodStart, rangeEnd);
+      await tap(tester, keyed('nav-progress'));
+      await tap(tester, keyed('report-window-30'));
+      await waitFor(tester, keyed('period-total-kcal'));
+      expect(
+        find.text(
+          '${NumberFormat('0.#', 'vi').format(totalMealNutrition(recorded).kcal)} kcal đã ghi',
+        ),
+        findsOneWidget,
+      );
+      await waitFor(tester, keyed('recording-coverage'));
+      expect(find.textContaining('1 ngày đã xác nhận đủ bữa'), findsOneWidget);
+      await capture('c6-h5-period-30');
+      await tap(tester, keyed('report-window-90'));
+      await waitFor(tester, keyed('period-total-kcal'));
+      await waitFor(tester, keyed('recording-coverage'));
+      expect(find.textContaining('1 ngày đã xác nhận đủ bữa'), findsOneWidget);
+      await tap(tester, keyed('previous-period'));
+      await waitFor(
+        tester,
+        find.textContaining('Chưa ghi bữa ăn trong khoảng này'),
+      );
+      await tap(tester, keyed('next-period'));
+      await waitFor(tester, keyed('period-total-kcal'));
+      debugPrint(
+        'H5_REPORT 30/90 real totals and effective targets; explicit confirmation; old empty period stays empty',
+      );
+      await tap(tester, keyed('nav-journal'));
+      await tap(tester, keyed('add-meal-snack'));
+      await tap(tester, keyed('open-quick-add'));
+      await tap(tester, keyed('quick-basis'));
+      await tap(tester, find.text(LabelBasis.per100ml.label).last);
+      await enter(tester, 'quick-name', 'H6 QA chất xơ');
+      await enter(tester, 'quick-amount', '250');
+      await enter(tester, 'quick-kcal', '60');
+      await enter(tester, 'quick-fiber', '1,2');
+      await reveal(tester, keyed('quick-preview'));
+      await capture('c6-h6-fiber-volume');
+      await tap(tester, keyed('confirm-quick-add'));
+      await tap(tester, keyed('save-meal'));
+      await waitFor(tester, keyed('save-meal'), absent: true);
+      final fiberMeals = await nutrition.loadRange(alice, _today, rangeEnd);
+      final fiberMeal = fiberMeals.singleWhere(
+        (m) => m.items.any((i) => i.name == 'H6 QA chất xơ'),
+      );
+      expect(fiberMeal.schemaVersion, 4);
+      final fiberItem = fiberMeal.items.singleWhere(
+        (i) => i.name == 'H6 QA chất xơ',
+      );
+      expect(fiberItem.quantityUnit, 'ml');
+      expect(fiberItem.quantity, 250);
+      expect(fiberItem.nutrition.fiberG, closeTo(3, 1e-9));
+      expect(fiberItem.nutrition.fiberKnown, true);
+      expect(fiberItem.nutrition.proteinKnown, false);
+      final frozenRecipe = fiberMeals.singleWhere((m) => m.id == recipeMeal.id);
+      expect(frozenRecipe.totals.fiberKnown, true);
+      expect(frozenRecipe.totals.fiberG, closeTo(.5, 1e-9));
+      debugPrint(
+        'H6_FIBER 250 ml /100 ml -> 3 g; recipe known 0.5 g snapshot survives source deletion',
+      );
       await profileRoot();
       await tap(tester, keyed('sign-out'));
       await waitFor(tester, keyed('auth-email'));
@@ -586,6 +846,7 @@ void main() {
       final bob = auth.currentUser!.uid;
       expect(bob, isNot(alice));
       await tap(tester, keyed('nav-progress'));
+      await tap(tester, keyed('report-window-7'));
       await waitFor(
         tester,
         find.textContaining('Chưa có nhật ký bữa ăn, nước hoặc vận động'),

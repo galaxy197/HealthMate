@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:healthmate/features/reports/providers/report_providers.dart';
+import 'package:healthmate/features/reports/data/day_review_repository.dart';
+import 'fake_day_review_repository.dart';
 import 'package:healthmate/app.dart';
 import 'package:healthmate/features/food_library/providers/favorite_food_providers.dart';
 import 'fake_favorite_food_repository.dart';
@@ -33,6 +36,9 @@ import 'fake_health_profile_repository.dart';
 import 'fake_nutrition_repository.dart';
 import 'fake_water_repository.dart';
 import 'fake_theme_preference_store.dart';
+import 'fake_private_local_data.dart';
+import 'package:healthmate/core/data/private_local_data.dart';
+import 'package:healthmate/features/meal_drafts/data/meal_draft_store.dart';
 
 Future<ProviderContainer> pumpApp(
   WidgetTester tester, {
@@ -58,8 +64,10 @@ Future<ProviderContainer> pumpApp(
   AppFeatureFlags featureFlags = const AppFeatureFlags(),
   GlobalKey? captureKey,
   NutritionTargetRepository? targetRepository,
+  DayReviewRepository? dayReviewRepository,
   FakeFavoriteFoodRepository? favoriteRepository,
   FakeFoodLibraryRepository? libraryRepository,
+  PrivateLocalData? privateLocalData,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -84,6 +92,12 @@ Future<ProviderContainer> pumpApp(
   final library = libraryRepository ?? FakeFoodLibraryRepository();
   final container = ProviderContainer(
     overrides: [
+      privateLocalDataProvider.overrideWithValue(
+        privateLocalData ?? FakePrivateLocalData(available: false),
+      ),
+      dayReviewRepositoryProvider.overrideWithValue(
+        dayReviewRepository ?? FakeDayReviewRepository(),
+      ),
       foodLibraryRepositoryProvider.overrideWithValue(library),
       favoriteFoodRepositoryProvider.overrideWithValue(favorites),
       localClockProvider.overrideWith(

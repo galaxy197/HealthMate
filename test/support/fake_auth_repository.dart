@@ -16,6 +16,8 @@ class FakeAuthRepository implements AuthRepository {
     email: 'member@example.com',
   );
   AuthUser? _user;
+  @override
+  String? get currentUid => _user?.uid;
   final List<String>? events;
   final _changes = StreamController<AuthUser?>.broadcast();
   bool emitInitial = true;

@@ -15,6 +15,7 @@ import '../../../shared/providers/local_clock_provider.dart';
 import '../../activity/models/activity_log.dart';
 import '../../activity/providers/activity_providers.dart';
 import '../../nutrition/models/nutrition_models.dart';
+import '../../food_library/presentation/food_nutrition_text.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
 import '../../nutrition_targets/presentation/nutrition_target_card.dart';
 import '../../profile/models/body_metric.dart';
@@ -195,7 +196,6 @@ class _TodayNutritionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.metricColors;
     final integer = NumberFormat.decimalPattern('vi');
-    final decimal = NumberFormat('0.#', 'vi');
     final value = isLoading ? '—' : integer.format(totals.kcal.round());
     return AppCard(
       key: const ValueKey('dashboard-today-card'),
@@ -245,17 +245,23 @@ class _TodayNutritionCard extends StatelessWidget {
             children: [
               _MacroValue(
                 label: 'Đạm',
-                value: isLoading ? '—' : '${decimal.format(totals.proteinG)} g',
+                value: isLoading
+                    ? '—'
+                    : macroAmount(totals.proteinG, totals.proteinKnown),
                 color: colors.onMealContainer,
               ),
               _MacroValue(
                 label: 'Tinh bột',
-                value: isLoading ? '—' : '${decimal.format(totals.carbsG)} g',
+                value: isLoading
+                    ? '—'
+                    : macroAmount(totals.carbsG, totals.carbsKnown),
                 color: colors.onMealContainer,
               ),
               _MacroValue(
                 label: 'Béo',
-                value: isLoading ? '—' : '${decimal.format(totals.fatG)} g',
+                value: isLoading
+                    ? '—'
+                    : macroAmount(totals.fatG, totals.fatKnown),
                 color: colors.onMealContainer,
               ),
             ],

@@ -29,6 +29,7 @@ class _CustomFoodDialogState extends State<CustomFoodDialog>
   final _protein = TextEditingController();
   final _carbs = TextEditingController();
   final _fat = TextEditingController();
+  final _fiber = TextEditingController();
   String? _error;
   bool _saveToLibrary = false;
   bool _libraryAttempted = false;
@@ -41,7 +42,15 @@ class _CustomFoodDialogState extends State<CustomFoodDialog>
 
   @override
   void dispose() {
-    for (final controller in [_name, _grams, _kcal, _protein, _carbs, _fat]) {
+    for (final controller in [
+      _name,
+      _grams,
+      _kcal,
+      _protein,
+      _carbs,
+      _fat,
+      _fiber,
+    ]) {
       controller.dispose();
     }
     super.dispose();
@@ -70,12 +79,15 @@ class _CustomFoodDialogState extends State<CustomFoodDialog>
       proteinG: NutritionValidation.parseDecimal(_protein.text)!,
       carbsG: NutritionValidation.parseDecimal(_carbs.text)!,
       fatG: NutritionValidation.parseDecimal(_fat.text)!,
+      fiberG: NutritionValidation.parseDecimal(_fiber.text) ?? 0,
+      fiberKnown: _fiber.text.trim().isNotEmpty,
     );
     final nutrition = per100g.scale(grams / 100);
     if (nutrition.kcal > 10000 ||
         nutrition.proteinG > 1000 ||
         nutrition.carbsG > 1000 ||
-        nutrition.fatG > 1000) {
+        nutrition.fatG > 1000 ||
+        nutrition.fiberG > 1000) {
       setState(() {
         _error = 'Giá trị theo khẩu phần vượt giới hạn có thể lưu.';
       });
@@ -175,6 +187,23 @@ class _CustomFoodDialogState extends State<CustomFoodDialog>
                   _macroField(_carbs, 'Tinh bột', 'carbs'),
                   const SizedBox(height: 12),
                   _macroField(_fat, 'Chất béo', 'fat'),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    key: const ValueKey('custom-food-fiber'),
+                    controller: _fiber,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Chất xơ (tùy chọn)',
+                      suffixText: 'g/100 g',
+                      helperText: 'Để trống nếu nguồn chưa có.',
+                      helperMaxLines: 2,
+                    ),
+                    validator: (v) => (v?.trim().isEmpty ?? true)
+                        ? null
+                        : _nutrientValidator(v, max: 100),
+                  ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(

@@ -5,8 +5,10 @@ import '../models/nutrition_models.dart';
 import '../models/food_catalog_search.dart';
 import '../models/nutrition_validation.dart';
 import 'custom_food_dialog.dart';
+import 'quick_add_dialog.dart';
 import '../../food_library/presentation/food_portion_dialog.dart';
 import '../../food_library/models/food_library_models.dart';
+import '../../food_library/presentation/food_nutrition_text.dart';
 
 class MealFormDialog extends StatefulWidget {
   const MealFormDialog({
@@ -25,10 +27,19 @@ class MealFormDialog extends StatefulWidget {
     this.newLibraryId,
     this.onSavePersonalFood,
     this.libraryErrorMessage,
+    this.templatesBuilder,
+    this.initialDraft,
+    this.onDraftChanged,
+    this.onDiscardDraft,
+    this.draftNotice,
     super.key,
   });
 
   final List<FoodCatalogItem> catalog;
+  final MealDraft? initialDraft;
+  final Future<void> Function(MealDraft)? onDraftChanged;
+  final Future<void> Function()? onDiscardDraft;
+  final String? draftNotice;
   final List<MealItemSnapshot> recentItems;
   final MealLog? meal;
   final DateTime? initialConsumedAt;
@@ -42,6 +53,11 @@ class MealFormDialog extends StatefulWidget {
   final String Function()? newLibraryId;
   final Future<bool> Function(PersonalFood)? onSavePersonalFood;
   final String? Function()? libraryErrorMessage;
+  final Widget Function(
+    List<MealItemSnapshot>,
+    ValueChanged<List<MealItemSnapshot>>,
+  )?
+  templatesBuilder;
   final Widget Function(
     ValueChanged<FoodCatalogItem>,
     ValueChanged<MealItemSnapshot>,
@@ -62,6 +78,73 @@ class _MealFormDialogState extends State<MealFormDialog>
   String? _error;
   static const _foodPageSize = 12;
   int _visibleFoodCount = _foodPageSize;
+  int? _storedOffset;
+  String? _localStatus;
+  int _localRevision = 0;
+  bool _discarding = false;
+
+  Future<void> _discardLocal() async {
+    if (saving || _discarding || widget.onDiscardDraft == null) return;
+    setState(() => _discarding = true);
+    try {
+      await widget.onDiscardDraft!();
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _discarding = false;
+          _error = 'Chưa xóa được nháp; hãy thử lại.';
+        });
+      }
+    }
+  }
+
+  MealDraft get _draft => MealDraft(
+    minimumSchemaVersion:
+        widget.initialDraft?.minimumSchemaVersion ??
+        widget.meal?.schemaVersion ??
+        2,
+    type: _type,
+    consumedAt: _consumedAt,
+    items: List.unmodifiable(_items),
+    timezoneOffsetOverride: _storedOffset,
+    source:
+        widget.initialDraft?.source ??
+        (widget.aiAssisted || widget.meal?.source == MealSource.aiAssisted
+            ? MealSource.aiAssisted
+            : MealSource.manual),
+  );
+
+  void _changeMeal(VoidCallback change) {
+    if (_discarding) return;
+    setState(change);
+    _persistLocal();
+  }
+
+  Future<void> _persistLocal() async {
+    if (widget.onDraftChanged == null) return;
+    final revision = ++_localRevision;
+    setState(
+      () =>
+          _localStatus = 'Nháp chờ xác nhận nhật ký · Đang giữ trên thiết bị…',
+    );
+    try {
+      await widget.onDraftChanged!(_draft);
+      if (mounted && revision == _localRevision) {
+        setState(
+          () => _localStatus =
+              'Nháp chờ xác nhận nhật ký · Đã giữ mã hóa trên thiết bị (7 ngày).',
+        );
+      }
+    } catch (_) {
+      if (mounted && revision == _localRevision) {
+        setState(
+          () => _localStatus =
+              'Chưa giữ được nháp trên thiết bị. Đừng đóng ứng dụng; thử thay đổi lại hoặc lưu khi có mạng.',
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -70,14 +153,26 @@ class _MealFormDialogState extends State<MealFormDialog>
         widget.meal?.consumedAt ?? widget.initialConsumedAt ?? DateTime.now();
     _type = widget.meal?.type ?? widget.initialType ?? _typeFor(_consumedAt);
     _items = [...?widget.meal?.items, ...widget.initialItems];
+    if (widget.initialDraft case final restored?) {
+      _consumedAt = restored.consumedAt;
+      _type = restored.type;
+      _items = [...restored.items];
+      _storedOffset = restored.timezoneOffsetMinutes;
+    }
     _searchController = TextEditingController(text: widget.initialSearch);
-    if (widget.suggestedFood case final food?) {
+    if ((widget.initialDraft == null ? widget.suggestedFood : null)
+        case final food?) {
       if (food.hasNutritionData) {
         _items.add(MealItemSnapshot.fromCatalog(food, 100));
       } else {
         _error =
             'Món gợi ý thiếu dữ liệu dinh dưỡng. Hãy chọn lại món có đủ thông tin.';
       }
+    }
+    if (widget.onDraftChanged != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _persistLocal();
+      });
     }
   }
 
@@ -117,7 +212,7 @@ class _MealFormDialogState extends State<MealFormDialog>
       food: food,
     );
     if (grams == null || !mounted) return;
-    setState(() {
+    _changeMeal(() {
       _items.add(MealItemSnapshot.fromCatalog(food, grams));
       _error = null;
     });
@@ -128,14 +223,30 @@ class _MealFormDialogState extends State<MealFormDialog>
       setState(() => _error = 'Mỗi bữa tối đa 5 mục.');
       return;
     }
-    final grams = await _askGrams(initial: item.grams);
-    if (grams == null || !mounted) return;
     try {
-      final resized = item.withGrams(grams);
-      setState(() {
+      final resized = item.withQuantity(item.quantity);
+      final index = _items.length;
+      _changeMeal(() {
         _items.add(resized);
         _error = null;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Đã thêm ${item.name}, ${snapshotQuantityLabel(item)} vào bản nháp. Kiểm tra rồi Lưu.',
+          ),
+          action: SnackBarAction(
+            label: 'Hoàn tác',
+            onPressed: () {
+              if (mounted &&
+                  index < _items.length &&
+                  identical(_items[index], resized)) {
+                _changeMeal(() => _items.removeAt(index));
+              }
+            },
+          ),
+        ),
+      );
     } on FormatException {
       setState(
         () => _error =
@@ -158,7 +269,7 @@ class _MealFormDialogState extends State<MealFormDialog>
       ),
     );
     if (item == null || !mounted) return;
-    setState(() {
+    _changeMeal(() {
       _items.add(item);
       _error = null;
     });
@@ -175,11 +286,11 @@ class _MealFormDialogState extends State<MealFormDialog>
 
   Future<void> _edit(int index) async {
     final current = _items[index];
-    final grams = await _askGrams(initial: current.grams);
+    final grams = await askSnapshotQuantity(context, current);
     if (grams == null || !mounted) return;
     try {
-      final resized = current.withGrams(grams);
-      setState(() => _items[index] = resized);
+      final resized = current.withQuantity(grams);
+      _changeMeal(() => _items[index] = resized);
     } on FormatException {
       setState(
         () => _error =
@@ -197,7 +308,8 @@ class _MealFormDialogState extends State<MealFormDialog>
       helpText: 'Ngày dùng bữa',
     );
     if (date == null || !mounted) return;
-    setState(() {
+    _changeMeal(() {
+      _storedOffset = null;
       _consumedAt = DateTime(
         date.year,
         date.month,
@@ -215,7 +327,8 @@ class _MealFormDialogState extends State<MealFormDialog>
       helpText: 'Giờ dùng bữa',
     );
     if (selected == null || !mounted) return;
-    setState(() {
+    _changeMeal(() {
+      _storedOffset = null;
       _consumedAt = DateTime(
         _consumedAt.year,
         _consumedAt.month,
@@ -227,7 +340,8 @@ class _MealFormDialogState extends State<MealFormDialog>
   }
 
   Future<void> _submit() async {
-    if (saving) return;
+    if (saving || _discarding) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     if (_consumedAt.isAfter(DateTime.now())) {
       setState(() => _error = 'Thời điểm dùng bữa không thể ở tương lai.');
       return;
@@ -246,7 +360,7 @@ class _MealFormDialogState extends State<MealFormDialog>
     }
     try {
       for (final item in _items) {
-        item.withGrams(item.grams);
+        item.withQuantity(item.quantity);
       }
     } on FormatException {
       setState(
@@ -255,14 +369,7 @@ class _MealFormDialogState extends State<MealFormDialog>
       );
       return;
     }
-    final draft = MealDraft(
-      type: _type,
-      consumedAt: _consumedAt,
-      items: List.unmodifiable(_items),
-      source: widget.aiAssisted || widget.meal?.source == MealSource.aiAssisted
-          ? MealSource.aiAssisted
-          : MealSource.manual,
-    );
+    final draft = _draft;
     if (draft.totals.kcal > NutritionValidation.maxMealKcal) {
       setState(() => _error = 'Tổng năng lượng vượt giới hạn hợp lệ.');
       return;
@@ -275,24 +382,28 @@ class _MealFormDialogState extends State<MealFormDialog>
     final theme = Theme.of(context);
     final locale = MaterialLocalizations.of(context);
     final results = _results;
-    final totals = _items.fold(
-      const NutritionTotals(),
-      (sum, item) => sum + item.nutrition,
-    );
+    final totals = sumNutritionTotals(_items.map((i) => i.nutrition));
     return guardSave(
       Dialog.fullscreen(
         child: Scaffold(
           appBar: AppBar(
             title: Text(widget.meal == null ? 'Thêm bữa ăn' : 'Sửa bữa ăn'),
             leading: IconButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: _discarding ? null : () => Navigator.pop(context),
               tooltip: 'Hủy',
               icon: const Icon(Icons.close_rounded),
             ),
             actions: [
+              if (widget.onDiscardDraft != null)
+                IconButton(
+                  key: const ValueKey('discard-local-draft'),
+                  onPressed: saving || _discarding ? null : _discardLocal,
+                  tooltip: 'Bỏ bản nháp này',
+                  icon: const Icon(Icons.delete_outline),
+                ),
               TextButton(
                 key: const ValueKey('save-meal'),
-                onPressed: saving ? null : _submit,
+                onPressed: saving || _discarding ? null : _submit,
                 child: Text(saving ? 'Đang lưu…' : 'Lưu'),
               ),
             ],
@@ -303,6 +414,12 @@ class _MealFormDialogState extends State<MealFormDialog>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (widget.draftNotice != null) Text(widget.draftNotice!),
+                  if (_localStatus != null)
+                    Text(
+                      _localStatus!,
+                      key: const ValueKey('local-draft-status'),
+                    ),
                   if (_error != null)
                     Text(
                       _error!,
@@ -324,6 +441,7 @@ class _MealFormDialogState extends State<MealFormDialog>
                 children: [
                   DropdownButtonFormField<MealType>(
                     key: const ValueKey('meal-type'),
+                    isExpanded: true,
                     initialValue: _type,
                     decoration: const InputDecoration(labelText: 'Loại bữa ăn'),
                     items: [
@@ -331,7 +449,7 @@ class _MealFormDialogState extends State<MealFormDialog>
                         DropdownMenuItem(value: type, child: Text(type.label)),
                     ],
                     onChanged: (value) =>
-                        setState(() => _type = value ?? _type),
+                        _changeMeal(() => _type = value ?? _type),
                   ),
                   const SizedBox(height: 16),
                   Wrap(
@@ -453,6 +571,40 @@ class _MealFormDialogState extends State<MealFormDialog>
                       ),
                   ],
                   const Divider(height: 32),
+                  OutlinedButton.icon(
+                    key: const ValueKey('open-quick-add'),
+                    onPressed: () async {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      if (_items.length >= 5) {
+                        setState(() => _error = 'Mỗi bản ghi tối đa 5 món.');
+                        return;
+                      }
+                      final item = await showDialog<MealItemSnapshot>(
+                        context: context,
+                        builder: (_) => const QuickAddDialog(),
+                      );
+                      if (item != null && mounted) {
+                        _changeMeal(() => _items.add(item));
+                      }
+                    },
+                    icon: const Icon(Icons.bolt_outlined),
+                    label: const Text('Ghi nhanh kcal / nhập nhãn khác'),
+                  ),
+                  if (widget.templatesBuilder != null)
+                    widget.templatesBuilder!(_items, (items) {
+                      if (_items.length + items.length >
+                          NutritionValidation.maxItemsPerMeal) {
+                        setState(
+                          () => _error =
+                              'Tổng tối đa 5 món. Bỏ bớt món đã chọn hoặc dùng bữa mẫu trong bản ghi mới.',
+                        );
+                        return;
+                      }
+                      _changeMeal(() {
+                        _items.addAll(items);
+                        _error = null;
+                      });
+                    }),
                   Text('Món đã chọn', style: theme.textTheme.titleMedium),
                   if (_items.isEmpty)
                     const Padding(
@@ -466,7 +618,7 @@ class _MealFormDialogState extends State<MealFormDialog>
                         contentPadding: EdgeInsets.zero,
                         title: Text(entry.$2.name),
                         subtitle: Text(
-                          '${_formatNumber(entry.$2.grams)} g · ${entry.$2.nutrition.kcal.toStringAsFixed(0)} kcal'
+                          '${snapshotQuantityLabel(entry.$2)} · ${entry.$2.nutrition.kcal.toStringAsFixed(0)} kcal'
                           '${entry.$2.isEstimated ? ' · Ước tính' : ''}',
                         ),
                         trailing: Wrap(
@@ -478,7 +630,7 @@ class _MealFormDialogState extends State<MealFormDialog>
                             ),
                             IconButton(
                               onPressed: () =>
-                                  setState(() => _items.removeAt(entry.$1)),
+                                  _changeMeal(() => _items.removeAt(entry.$1)),
                               tooltip: 'Bỏ món',
                               icon: const Icon(Icons.remove_circle_outline),
                             ),
@@ -492,9 +644,9 @@ class _MealFormDialogState extends State<MealFormDialog>
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         '${totals.kcal.toStringAsFixed(0)} kcal  ·  '
-                        'P ${totals.proteinG.toStringAsFixed(1)} g  ·  '
-                        'C ${totals.carbsG.toStringAsFixed(1)} g  ·  '
-                        'F ${totals.fatG.toStringAsFixed(1)} g',
+                        'P ${macroAmount(totals.proteinG, totals.proteinKnown)}  ·  '
+                        'C ${macroAmount(totals.carbsG, totals.carbsKnown)}  ·  '
+                        'F ${macroAmount(totals.fatG, totals.fatKnown)}',
                         style: theme.textTheme.titleMedium,
                       ),
                     ),
@@ -514,7 +666,3 @@ class _MealFormDialogState extends State<MealFormDialog>
     );
   }
 }
-
-String _formatNumber(double value) => value == value.roundToDouble()
-    ? value.toStringAsFixed(0)
-    : value.toStringAsFixed(1);

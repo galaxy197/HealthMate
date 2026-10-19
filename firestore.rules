@@ -71,28 +71,22 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
-    function validMealItem(item) {
-      // Direct field reads make missing keys fail. Numeric range comparisons
-      // also reject non-number operands; the emulator test covers that case.
-      // Avoiding duplicate type expressions keeps five-item meals below the
-      // Firestore Rules limit of 1,000 evaluated expressions.
-      return item.keys().hasOnly([
-          'foodId', 'name', 'grams', 'kcal', 'proteinG', 'carbsG', 'fatG',
-          'sourceLabel', 'isEstimated'
-        ])
-        && item.foodId is string && item.foodId.size() > 0 && item.foodId.size() <= 100
-        && item.name is string && item.name.size() > 0 && item.name.size() <= 100
-        && item.grams > 0 && item.grams <= 2000
-        && item.kcal >= 0 && item.kcal <= 10000
-        && item.proteinG >= 0 && item.proteinG <= 1000
-        && item.carbsG >= 0 && item.carbsG <= 1000
-        && item.fatG >= 0 && item.fatG <= 1000
-        && item.sourceLabel is string && item.sourceLabel.size() <= 160
-        && item.isEstimated is bool;
+    function validMealItem(i) {
+      let extra=i.keys().size()-9;
+      let g=i.grams;
+      let k=i.kcal;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && g>0 && g<=2000 && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500;
     }
 
     function validMealItems(items) {
-      return items is list && items.size() > 0 && items.size() <= 5
+            return items is list && items.size() > 0 && items.size() <= 5
         && validMealItem(items[0])
         && (items.size() < 2 || validMealItem(items[1]))
         && (items.size() < 3 || validMealItem(items[2]))
@@ -102,32 +96,112 @@ service cloud.firestore {
 
     function validMeal() {
       let data = request.resource.data;
+      let v=data.schemaVersion;
+      let k=data.totalKcal;
+      let p=data.totalProteinG;
+      let c=data.totalCarbsG;
+      let f=data.totalFatG;
+      let complete=p!=null && c!=null && f!=null;
+      let items=data.items;
       // Every allowed key is read below, so a missing required key fails.
-      return data.keys().hasOnly([
-          'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
-          'totalCarbsG', 'totalFatG', 'source', 'createdAt', 'updatedAt',
-          'dateKey', 'timezoneOffsetMinutes', 'schemaVersion'
-        ])
-        && data.mealType in ['breakfast', 'lunch', 'dinner', 'snack']
-        && data.consumedAt is timestamp
+      return data.keys().size()==13
+        && data.mealType.matches('^(breakfast|lunch|dinner|snack)$')
         && data.consumedAt <= request.time + duration.value(5, 'm')
         && validDateKeyAndTimezone(data, data.consumedAt)
-        && validMealItems(data.items)
-        && data.totalKcal is number && data.totalKcal >= 0 && data.totalKcal <= 20000
-        && data.totalProteinG is number && data.totalProteinG >= 0 && data.totalProteinG <= 2000
-        && data.totalCarbsG is number && data.totalCarbsG >= 0 && data.totalCarbsG <= 2000
-        && data.totalFatG is number && data.totalFatG >= 0 && data.totalFatG <= 2000
+        && (v==2 ? validMealItems(items) : validFlexibleItems(items,complete))
+        && math.abs(k-10000)<=10000
+        && (p==null ? v>=3 : math.abs(p-1000)<=1000)
+        && (c==null ? v>=3 : math.abs(c-1000)<=1000)
+        && (f==null ? v>=3 : math.abs(f-1000)<=1000)
         && data.source in ['manual', 'ai_assisted']
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
-        && data.schemaVersion == 2;
+        && v is int && v in [2,3,4];
+    }
+
+    // abs(x-midpoint)<=midpoint is the same closed numeric interval as
+    // 0<=x<=maximum. One numeric operation keeps five flexible rows within
+    // the Rules expression budget; strings/NaN/infinity still fail.
+    function knownNumber(value) { return value==null?0:value; }
+    function flexibleItemInfo(i, fields) {
+      let keys=i.keys();
+      let k=i.kcal;
+      // Null contributes only to a validation subtotal; the persisted value
+      // stays null and clients retain incomplete nutrient coverage.
+      let p=i.proteinG==null?0:i.proteinG;
+      let c=i.carbsG==null?0:i.carbsG;
+      let f=i.fatG==null?0:i.fatG;
+      let g=i.grams;
+      let q=i.get('quantity',0);
+      let valid=keys.hasOnly(fields)
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
+          : (g>0 && g<=2000 && !keys.hasAny(['quantity','quantityUnit'])));
+      return {'valid':valid,'k':k,'p':p,'c':c,'f':f};
+    }
+    function compactItemInfo(i,fields) {
+      let k=i.kcal;
+      // Null contributes only to a validation subtotal; the persisted value
+      // stays null and clients retain incomplete nutrient coverage.
+      let p=i.get('proteinG',0);
+      let c=i.get('carbsG',0);
+      let f=i.get('fatG',0);
+      let q=i.quantity;
+      let valid=i.keys().hasOnly(fields)
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
+        && q>0 && q<=2000 && i.quantityUnit.matches('^(g|ml|serving|entry)$');
+      return {'valid':valid,'k':k,'p':p,'c':c,'f':f};
+    }
+    function fullFlexibleItem(i) {
+      let g=i.grams;
+      let extra=i.keys().size()-(g==null?11:9);
+      let k=i.kcal;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      let q=i.get('quantity',0);
+      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
+          : (g>0 && g<=2000));
+    }
+    function validFlexibleItem(i) {
+      let g=i.grams;
+      let extra=i.keys().size()-(g==null?11:9);
+      let k=i.kcal;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      let q=i.get('quantity',0);
+      let valid=(extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && (p==null || math.abs(p-500)<=500) && (c==null || math.abs(c-500)<=500) && (f==null || math.abs(f-500)<=500)
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
+          : (g>0 && g<=2000));
+      return valid;
+    }
+    function validFlexibleItems(items,complete) {
+      let n=items.size();
+      return items is list && n>0 && n<=5 && (complete
+        ? (fullFlexibleItem(items[0]) && (n<2 || fullFlexibleItem(items[1])) && (n<3 || fullFlexibleItem(items[2])) && (n<4 || fullFlexibleItem(items[3])) && (n<5 || fullFlexibleItem(items[4])))
+        : (validFlexibleItem(items[0]) && (n<2 || validFlexibleItem(items[1])) && (n<3 || validFlexibleItem(items[2])) && (n<4 || validFlexibleItem(items[3])) && (n<5 || validFlexibleItem(items[4]))));
     }
 
     function validDateKeyAndTimezone(data, recordedAt) {
       let localTime = recordedAt + duration.value(data.timezoneOffsetMinutes, 'm');
       let parts = data.dateKey.split('-');
-      return data.dateKey is string
-        && data.dateKey.matches(
+      return data.dateKey.matches(
           '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
         )
         && data.timezoneOffsetMinutes is int
@@ -296,19 +370,16 @@ service cloud.firestore {
         allow read: if owns(uid);
 
         allow create: if owns(uid)
-          && validMeal()
           && request.resource.data.createdAt == request.time
-          && request.resource.data.updatedAt == request.time;
+          && request.resource.data.updatedAt == request.time
+          && validMeal();
 
         allow update: if owns(uid)
-          && validMeal()
+          && request.resource.data.schemaVersion>=resource.data.get('schemaVersion',1)
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.updatedAt == request.time
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'mealType', 'consumedAt', 'items', 'totalKcal', 'totalProteinG',
-            'totalCarbsG', 'totalFatG', 'source', 'dateKey',
-            'timezoneOffsetMinutes', 'updatedAt', 'schemaVersion'
-          ]);
+          // validMeal fixes all 13 keys; immutable createdAt is checked above.
+          && validMeal();
 
         allow delete: if owns(uid);
       }
@@ -357,7 +428,8 @@ service cloud.firestore {
         function alias(value) { return value is string && value.size()>0 && value.size()<=60; }
         function validFood() {
           let d=request.resource.data;
-          return d.keys().hasOnly(['name','alternateNames','servingBasis','kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','defaultServingGrams','servingLabel','servingGrams','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
+          return d.keys().hasOnly(['name','alternateNames','servingBasis','kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','fiberGPer100g','defaultServingGrams','servingLabel','servingGrams','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
+            && (d.get('fiberGPer100g',null)==null || math.abs(d.fiberGPer100g-50)<=50)
             && d.name is string && d.name.size()>=2 && d.name.size()<=100
             && d.alternateNames is list && d.alternateNames.size()<=5
             && (d.alternateNames.size()<1 || alias(d.alternateNames[0]))
@@ -373,16 +445,17 @@ service cloud.firestore {
             && d.defaultServingGrams is number && d.defaultServingGrams>0 && d.defaultServingGrams<=2000
             && ((d.servingLabel==null && d.servingGrams==null) || (d.servingLabel is string && d.servingLabel.size()>0 && d.servingLabel.size()<=40 && d.servingGrams is number && d.servingGrams>0 && d.servingGrams<=2000))
             && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
-            && d.isEstimated is bool && d.schemaVersion is int && d.schemaVersion==1
+            && d.isEstimated is bool && d.schemaVersion is int && d.schemaVersion in [1,2]
             && d.createdAt is timestamp && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
         allow create: if owns(uid) && validFood() && request.resource.data.createdAt==request.time;
-        allow update: if owns(uid) && validFood() && request.resource.data.createdAt==resource.data.createdAt;
+        allow update: if owns(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validFood() && request.resource.data.createdAt==resource.data.createdAt;
       }
 
       match /recipes/{recipeId} {
-        function ingredient(item, fields) {
+        function ingredient(item) {
+      let extra=item.keys().size()-9;
           // Regex length checks also enforce string type, reducing repeated
           // expressions without skipping any ingredient or allowed-field check.
           let grams=item.grams;
@@ -390,35 +463,129 @@ service cloud.firestore {
           let p=item.proteinG;
           let c=item.carbsG;
           let f=item.fatG;
-          return item.keys().hasOnly(fields)
+          return (extra==0 || (math.abs(item.fiberG-500)<=500 && (extra==1 || (extra==2 && item.fiberIncomplete==true))))
             && item.foodId.matches('(?s)^.{1,100}$') && !item.foodId.matches('^recipe:.*')
             && item.name.matches('(?s)^.{1,100}$')
-            && grams>0 && grams<=2000 && kcal>=0 && kcal<=10000
-            && p>=0 && p<=1000 && c>=0 && c<=1000 && f>=0 && f<=1000
+            && grams>0 && grams<=2000 && math.abs(kcal-5000)<=5000
+            && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
             && item.sourceLabel.matches('(?s)^.{1,160}$') && item.isEstimated is bool;
         }
         function validRecipe() {
-          let d=request.resource.data;
+                    let d=request.resource.data;
           let items=d.ingredients;
-          let fields=['foodId','name','grams','kcal','proteinG','carbsG','fatG','sourceLabel','isEstimated'];
-          return d.keys().hasOnly(['name','ingredients','yieldGrams','servingsCount','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
+          return d.keys().size()==9
             && d.name is string && d.name.size()>=2 && d.name.size()<=100
             && d.yieldGrams is number && d.yieldGrams>0 && d.yieldGrams<=20000
             && (d.servingsCount==null || (d.servingsCount is number && d.servingsCount>0 && d.servingsCount<=1000))
             && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
-            && d.isEstimated==true && d.schemaVersion is int && d.schemaVersion==1
+            && d.isEstimated==true && d.schemaVersion is int && d.schemaVersion in [1,2]
             && d.createdAt is timestamp && d.updatedAt==request.time
             && items is list && items.size()>0 && items.size()<=6
-            && ingredient(items[0], fields)
-            && (items.size()<2 || ingredient(items[1], fields))
-            && (items.size()<3 || ingredient(items[2], fields))
-            && (items.size()<4 || ingredient(items[3], fields))
-            && (items.size()<5 || ingredient(items[4], fields))
-            && (items.size()<6 || ingredient(items[5], fields));
+            && ingredient(items[0])
+            && (items.size()<2 || ingredient(items[1]))
+            && (items.size()<3 || ingredient(items[2]))
+            && (items.size()<4 || ingredient(items[3]))
+            && (items.size()<5 || ingredient(items[4]))
+            && (items.size()<6 || ingredient(items[5]));
         }
         allow read,delete: if owns(uid);
         allow create: if owns(uid) && validRecipe() && request.resource.data.createdAt==request.time;
-        allow update: if owns(uid) && validRecipe() && request.resource.data.createdAt==resource.data.createdAt;
+        allow update: if owns(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validRecipe() && request.resource.data.createdAt==resource.data.createdAt;
+      }
+
+      match /day_reviews/{dateKey} {
+        function validReview() {
+          let d=request.resource.data;
+          let parts=d.dateKey.split('-');
+          return d.keys().hasOnly(['dateKey','mealsComplete','mealCount','latestMealUpdate','timezoneOffsetMinutes','createdAt','updatedAt','schemaVersion'])
+            && d.dateKey==dateKey && goalDate(d.dateKey)
+            && d.mealsComplete is bool && d.mealCount is int && d.mealCount>=0 && d.mealCount<=2000
+            && ((d.mealCount==0 && d.latestMealUpdate==null) || (d.mealCount>0 && d.latestMealUpdate is timestamp && d.latestMealUpdate<=request.time))
+            && d.timezoneOffsetMinutes is int && d.timezoneOffsetMinutes>=-720 && d.timezoneOffsetMinutes<=840
+            && timestamp.date(int(parts[0]),int(parts[1]),int(parts[2])) <= request.time+duration.value(d.timezoneOffsetMinutes,'m')
+            && d.createdAt is timestamp && d.updatedAt==request.time && d.schemaVersion is int && d.schemaVersion==1;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && request.resource.data.createdAt==request.time && validReview();
+        allow update: if owns(uid) && request.resource.data.createdAt==resource.data.createdAt && validReview();
+      }
+
+      match /meal_templates/{templateId} {
+        function sum(items, field, n) {
+          return items[0][field] + (n>1?items[1][field]:0) + (n>2?items[2][field]:0)
+            + (n>3?items[3][field]:0) + (n>4?items[4][field]:0);
+        }
+        function flexibleTemplate(items,n) {
+          let fields=['foodId','name','grams','kcal','proteinG','carbsG','fatG','sourceLabel','isEstimated','quantity','quantityUnit'];
+                    let z={'valid':true,'k':0,'p':0,'c':0,'f':0};
+          let a=flexibleItemInfo(items[0],fields);
+          let b=n>1?flexibleItemInfo(items[1],fields):z;
+          let c=n>2?flexibleItemInfo(items[2],fields):z;
+          let d=n>3?flexibleItemInfo(items[3],fields):z;
+          let e=n>4?flexibleItemInfo(items[4],fields):z;
+          return a.valid && b.valid && c.valid && d.valid && e.valid
+            && a.k+b.k+c.k+d.k+e.k<=20000
+            && a.p+b.p+c.p+d.p+e.p<=2000
+            && a.c+b.c+c.c+d.c+e.c<=2000
+            && a.f+b.f+c.f+d.f+e.f<=2000;
+        }
+        function compactTemplate(items,n) {
+          let fields=['foodId','name','kcal','proteinG','carbsG','fatG','sourceLabel','isEstimated','quantity','quantityUnit'];
+                    let z={'valid':true,'k':0,'p':0,'c':0,'f':0};
+          let a=compactItemInfo(items[0],fields);
+          let b=n>1?compactItemInfo(items[1],fields):z;
+          let c=n>2?compactItemInfo(items[2],fields):z;
+          let d=n>3?compactItemInfo(items[3],fields):z;
+          let e=n>4?compactItemInfo(items[4],fields):z;
+          return a.valid && b.valid && c.valid && d.valid && e.valid
+            && a.k+b.k+c.k+d.k+e.k<=20000
+            && a.p+b.p+c.p+d.p+e.p<=2000
+            && a.c+b.c+c.c+d.c+e.c<=2000
+            && a.f+b.f+c.f+d.f+e.f<=2000;
+        }
+        function item(i) {
+      let extra=i.keys().size()-9;
+          let g=i.grams;
+          let k=i.kcal;
+          let p=i.proteinG;
+          let c=i.carbsG;
+          let f=i.fatG;
+          return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+            && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+            && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
+            && g>0 && g<=2000 && math.abs(k-5000)<=5000
+            && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500;
+        }
+        function fiberValue(v) {
+          return v==null || math.abs(v-500)<=500;
+        }
+        function validFiberValues(values,n) {
+          return values.size()==n && fiberValue(values[0])
+            && (n<2 || fiberValue(values[1])) && (n<3 || fiberValue(values[2]))
+            && (n<4 || fiberValue(values[3])) && (n<5 || fiberValue(values[4]));
+        }
+        function compactShape(d,n) {
+          return d.keys().size()==6 || (d.keys().size()==7 && d.fiberPartialMask is int && d.fiberPartialMask>0 && d.fiberPartialMask<math.pow(2,n));
+        }
+        function validTemplate(updating) {
+                    let d=request.resource.data;
+          let v=d.schemaVersion;
+          let items=d.items;
+          let n=items.size();
+          return (updating ? (d.createdAt==resource.data.createdAt && v>=resource.data.schemaVersion) : d.createdAt==request.time)
+            && (v==3?compactShape(d,n):d.keys().size()==5)
+            && d.name.matches('(?s)^.{2,80}$')
+            && v in [1,2,3] && d.updatedAt==request.time
+            && n<=5 && (v!=3 || validFiberValues(d.fiberValues,n))
+            && (v==3 ? compactTemplate(items,n) : v==2 ? flexibleTemplate(items,n) : (item(items[0]) && (n<2 || item(items[1]))
+            && (n<3 || item(items[2])) && (n<4 || item(items[3]))
+            && (n<5 || item(items[4]))
+            && sum(items,'kcal',n)<=20000
+            && sum(items,'proteinG',n)<=2000 && sum(items,'carbsG',n)<=2000 && sum(items,'fatG',n)<=2000));
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validTemplate(false);
+        allow update: if owns(uid) && validTemplate(true);
       }
 
       match /favorite_foods/{favoriteId} {

@@ -8,6 +8,8 @@ class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository(this._auth);
 
   final FirebaseAuth _auth;
+  @override
+  String? get currentUid => _auth.currentUser?.uid;
 
   @override
   Stream<AuthUser?> authStateChanges() => _auth.authStateChanges().map(

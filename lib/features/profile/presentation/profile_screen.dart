@@ -23,6 +23,7 @@ import '../providers/profile_providers.dart';
 import 'body_metric_form_dialog.dart';
 import 'profile_form_dialog.dart';
 import 'weight_chart.dart';
+import '../../data_export/presentation/journal_export_dialog.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -93,6 +94,20 @@ class ProfileScreen extends ConsumerWidget {
             title: const Text('Thư viện món của tôi'),
             subtitle: const Text('Món cá nhân, công thức và khẩu phần'),
             onTap: () => context.push(AppRoutes.foodLibrary),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            key: const ValueKey('open-journal-export'),
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('Xuất nhật ký CSV'),
+            subtitle: const Text('Chọn khoảng ngày và nơi lưu tệp riêng tư'),
+            onTap: () => showDialog<void>(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) =>
+                  const AccountBoundDialog(child: JournalExportDialog()),
+            ),
           ),
         ),
         Card(

@@ -241,10 +241,7 @@ void main() {
       }
 
       await tap(find.byKey(const ValueKey('add-meal-breakfast')));
-      await tap(find.widgetWithText(ChoiceChip, 'Gần đây'));
       await tap(find.byTooltip('Dùng lại Cơm trắng chín'));
-      // Existing portion confirmation stays; U1 adds no confirmation step.
-      await tap(find.widgetWithText(FilledButton, 'Xác nhận'));
       await tap(find.byKey(const ValueKey('save-meal')));
       expect(find.byType(MealFormDialog), findsNothing);
       expect(repo.addCalls, 1);
@@ -253,12 +250,10 @@ void main() {
       expect(saved.type, MealType.breakfast);
       expect(saved.items.single.grams, 150);
       expect(saved.totals.kcal, 195);
-      expect(taps, 5);
+      expect(taps, 3);
       expect(tester.takeException(), isNull);
       await tester.runAsync(() async {
-        final file = File(
-          'build/u1-layout/${captureBefore ? 'before' : 'after'}-recent-flow.json',
-        );
+        final file = File('build/h2-recent-flow.json');
         await file.parent.create(recursive: true);
         await file.writeAsString(
           jsonEncode({
@@ -266,7 +261,7 @@ void main() {
             'scrolls': scrolls,
             'typedSearches': 0,
             'extraConfirmations': 0,
-            'portionConfirmations': 1,
+            'portionConfirmations': 0,
             'dateKey': saved.dateKey,
             'type': saved.type.name,
           }),

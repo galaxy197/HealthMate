@@ -51,8 +51,9 @@ class WeeklyReflection {
   int get mealDays => days.where((day) => day.mealCount > 0).length;
   int get waterDays => days.where((day) => day.waterCount > 0).length;
   int get activityDays => days.where((day) => day.activityCount > 0).length;
-  NutritionTotals get nutrition =>
-      days.fold(const NutritionTotals(), (sum, day) => sum + day.nutrition);
+  NutritionTotals get nutrition => sumNutritionTotals(
+    days.where((d) => d.mealCount > 0).map((d) => d.nutrition),
+  );
   int get waterMl => days.fold(0, (sum, day) => sum + day.waterMl);
   int get activityMinutes =>
       days.fold(0, (sum, day) => sum + day.activityMinutes);

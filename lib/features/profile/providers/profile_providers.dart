@@ -38,6 +38,7 @@ final userProfileProvider = StreamProvider<UserProfile?>((ref) async* {
     return;
   }
   await ref.watch(profileBootstrapProvider.future);
+  if (!ref.mounted) return;
   yield* subscriptionStream(
     ref.watch(healthProfileRepositoryProvider).watchProfile(user.uid),
   );
@@ -52,6 +53,7 @@ final bodyMetricsProvider = StreamProvider.autoDispose<List<BodyMetric>>((
     return;
   }
   await ref.watch(profileBootstrapProvider.future);
+  if (!ref.mounted) return;
   yield* subscriptionStream(
     ref.watch(healthProfileRepositoryProvider).watchBodyMetrics(user.uid),
   );

@@ -107,6 +107,7 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
       _protein,
       _carbs,
       _fat,
+      _fiber,
       _defaultGrams,
       _servingLabel,
       _servingGrams,
@@ -123,6 +124,11 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
     _protein = TextEditingController(text: food?.per100g.proteinG.toString());
     _carbs = TextEditingController(text: food?.per100g.carbsG.toString());
     _fat = TextEditingController(text: food?.per100g.fatG.toString());
+    _fiber = TextEditingController(
+      text: food?.per100g.fiberKnown == true
+          ? food!.per100g.fiberG.toString()
+          : null,
+    );
     _defaultGrams = TextEditingController(
       text: (food?.defaultServingGrams ?? 100).toString(),
     );
@@ -142,6 +148,7 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
       _protein,
       _carbs,
       _fat,
+      _fiber,
       _defaultGrams,
       _servingLabel,
       _servingGrams,
@@ -168,6 +175,8 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
           proteinG: read(_protein),
           carbsG: read(_carbs),
           fatG: read(_fat),
+          fiberG: _fiber.text.trim().isEmpty ? 0 : read(_fiber),
+          fiberKnown: _fiber.text.trim().isNotEmpty,
         ),
         defaultServingGrams: read(_defaultGrams),
         servingLabel: _servingLabel.text.trim().isEmpty
@@ -249,6 +258,16 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
                 'library-fat',
                 'Chất béo (g/100 g)',
                 number: true,
+              ),
+              libraryField(
+                _fiber,
+                'library-fiber',
+                'Chất xơ (g/100 g, tùy chọn)',
+                number: true,
+                optional: true,
+              ),
+              const Text(
+                'Để trống chất xơ nếu nguồn chưa có; số 0 phải được công bố/nhập có chủ ý.',
               ),
               libraryField(
                 _defaultGrams,
@@ -374,10 +393,7 @@ class _RecipeFormState extends ConsumerState<RecipeForm>
 
   @override
   Widget build(BuildContext context) {
-    final totals = _ingredients.fold(
-      const NutritionTotals(),
-      (sum, item) => sum + item.nutrition,
-    );
+    final totals = sumNutritionTotals(_ingredients.map((i) => i.nutrition));
     final yieldGrams = NutritionValidation.parseDecimal(_yield.text);
     final count = NutritionValidation.parseDecimal(_servings.text);
     final action = ref.watch(foodLibraryControllerProvider);

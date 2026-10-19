@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../food_library/presentation/food_nutrition_text.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
@@ -13,6 +14,8 @@ import '../../nutrition_targets/models/nutrition_target.dart';
 import '../../nutrition_targets/providers/nutrition_target_providers.dart';
 import '../models/weekly_reflection.dart';
 import '../providers/weekly_reflection_providers.dart';
+import '../../reports/models/period_report.dart';
+import '../../reports/presentation/recording_coverage_block.dart';
 
 enum _ChartMetric {
   kcal('Năng lượng đã ghi', 'kcal'),
@@ -222,6 +225,15 @@ class _WeeklyReflectionCardState extends ConsumerState<WeeklyReflectionCard> {
                             : 'Chênh lệch lần cuối so với lần đầu: ${NumberFormat('+0.#;-0.#', 'vi').format(reflection.weightChange)} kg. Không suy diễn nguyên nhân từ số đo.',
                       ),
                     ],
+                    if (widget.progressMode)
+                      RecordingCoverageBlock(
+                        range: ReportRange(
+                          DateTime(start.year, start.month, start.day + 7),
+                          7,
+                        ),
+                        today: widget.today,
+                        meals: logs.meals,
+                      ),
                     if (targets?.isLoading == true)
                       const Text('Đang tải mục tiêu tuần…'),
                     if (targets?.hasError == true) ...[
@@ -332,12 +344,13 @@ class _ReflectionSummary extends StatelessWidget {
             ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
           Text(
-            'Đạm ${n.format(r.nutrition.proteinG)} g · Tinh bột ${n.format(r.nutrition.carbsG)} g · Béo ${n.format(r.nutrition.fatG)} g',
+            'Đạm ${macroAmount(r.nutrition.proteinG, r.nutrition.proteinKnown)} · Tinh bột ${macroAmount(r.nutrition.carbsG, r.nutrition.carbsKnown)} · Béo ${macroAmount(r.nutrition.fatG, r.nutrition.fatKnown)}',
           ),
         ] else
-          Text(
-            '${n.format(r.nutrition.kcal)} kcal · Đạm ${n.format(r.nutrition.proteinG)} g · Tinh bột ${n.format(r.nutrition.carbsG)} g · Béo ${n.format(r.nutrition.fatG)} g',
-          ),
+          Text(nutritionLabel(r.nutrition)),
+        Text(
+          'Chất xơ: ${macroAmount(r.nutrition.fiberG, r.nutrition.fiberKnown)} · chỉ cộng phần có nguồn.',
+        ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           'Nước: ${n.format(r.waterMl)} ml · Vận động: ${n.format(r.activityMinutes)} phút',
@@ -486,7 +499,7 @@ class _DailyTargets extends StatelessWidget {
                       ? 'Chưa tới ngày · không tính vào tổng hoặc số ngày thiếu ghi.'
                       : day.mealCount == 0
                       ? 'Chưa ghi bữa ăn · chưa có số liệu lượng ăn.'
-                      : '${n.format(day.nutrition.kcal)} kcal đã ghi · Đạm ${n.format(day.nutrition.proteinG)} g · Tinh bột ${n.format(day.nutrition.carbsG)} g · Béo ${n.format(day.nutrition.fatG)} g',
+                      : '${n.format(day.nutrition.kcal)} kcal đã ghi · Đạm ${macroAmount(day.nutrition.proteinG, day.nutrition.proteinKnown)} · Tinh bột ${macroAmount(day.nutrition.carbsG, day.nutrition.carbsKnown)} · Béo ${macroAmount(day.nutrition.fatG, day.nutrition.fatKnown)}',
                 ),
                 _TargetText(
                   target: targetForDate(targets, localDateKey(day.date)),

@@ -101,9 +101,28 @@ class NutritionTargetCard extends ConsumerWidget {
                     'Đạm ${number.format(value.proteinGTarget)} · Tinh bột ${number.format(value.carbsGTarget)} · Béo ${number.format(value.fatGTarget)} g/ngày',
                   )
                 else ...[
-                  line('Đạm', value.proteinGTarget!, totals?.proteinG, 'g'),
-                  line('Tinh bột', value.carbsGTarget!, totals?.carbsG, 'g'),
-                  line('Béo', value.fatGTarget!, totals?.fatG, 'g'),
+                  line(
+                    'Đạm',
+                    value.proteinGTarget!,
+                    totals?.proteinKnown == false ? null : totals?.proteinG,
+                    'g',
+                  ),
+                  line(
+                    'Tinh bột',
+                    value.carbsGTarget!,
+                    totals?.carbsKnown == false ? null : totals?.carbsG,
+                    'g',
+                  ),
+                  line(
+                    'Béo',
+                    value.fatGTarget!,
+                    totals?.fatKnown == false ? null : totals?.fatG,
+                    'g',
+                  ),
+                  if (totals != null && !totals.hasCompleteMacros)
+                    const Text(
+                      'Chưa đủ dữ liệu chất; không tính còn/vượt cho phần chưa biết.',
+                    ),
                 ],
               ] else
                 const Text('Chưa đặt mục tiêu cho ba chất'),

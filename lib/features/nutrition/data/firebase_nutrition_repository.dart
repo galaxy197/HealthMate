@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/data/bounded_range.dart';
 
 import '../../../core/utils/local_date_key.dart';
 import '../models/nutrition_failure.dart';
 import '../models/nutrition_models.dart';
+import '../models/catalog_food_reader.dart';
 import 'nutrition_repository.dart';
 
 class FirebaseNutritionRepository implements NutritionRepository {
@@ -135,17 +137,23 @@ class FirebaseNutritionRepository implements NutritionRepository {
   ) async {
     try {
       final snapshots = await (
-        _meals(uid)
-            .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
-            .where('dateKey', isLessThan: localDateKey(end))
-            .get(const GetOptions(source: Source.server)),
-        _meals(uid)
-            .where(
-              'consumedAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(start),
-            )
-            .where('consumedAt', isLessThan: Timestamp.fromDate(end))
-            .get(const GetOptions(source: Source.server)),
+        readBoundedRange(
+          _meals(uid)
+              .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
+              .where('dateKey', isLessThan: localDateKey(end)),
+          start,
+          end,
+        ),
+        readBoundedRange(
+          _meals(uid)
+              .where(
+                'consumedAt',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(start),
+              )
+              .where('consumedAt', isLessThan: Timestamp.fromDate(end)),
+          start,
+          end,
+        ),
       ).wait;
       final byId = <String, MealLog>{
         for (final doc in snapshots.$1.docs) doc.id: _meal(doc.id, doc.data()),
@@ -228,96 +236,53 @@ class FirebaseNutritionRepository implements NutritionRepository {
   Future<void> deleteMeal({required String uid, required String mealId}) =>
       _guard(() => _meals(uid).doc(mealId).delete());
 
-  Map<String, Object> _mealData(MealDraft draft) {
+  Map<String, Object?> _mealData(MealDraft draft) {
+    if (draft.minimumSchemaVersion > 4) {
+      throw const NutritionFailure(
+        'Cần phiên bản ứng dụng mới hơn để sửa bản ghi này.',
+      );
+    }
+    for (final item in draft.items) {
+      item.withQuantity(item.quantity);
+    }
     final totals = draft.totals;
     return {
       'mealType': draft.type.name,
       'consumedAt': Timestamp.fromDate(draft.consumedAt),
       'dateKey': draft.dateKey,
       'timezoneOffsetMinutes': draft.timezoneOffsetMinutes,
-      'items': [
-        for (final item in draft.items)
-          {
-            'foodId': item.foodId,
-            'name': item.name,
-            'grams': item.grams,
-            'kcal': item.nutrition.kcal,
-            'proteinG': item.nutrition.proteinG,
-            'carbsG': item.nutrition.carbsG,
-            'fatG': item.nutrition.fatG,
-            'sourceLabel': item.sourceLabel,
-            'isEstimated': item.isEstimated,
-          },
-      ],
+      'items': [for (final item in draft.items) item.toData()],
       'totalKcal': totals.kcal,
-      'totalProteinG': totals.proteinG,
-      'totalCarbsG': totals.carbsG,
-      'totalFatG': totals.fatG,
+      'totalProteinG': totals.proteinKnown ? totals.proteinG : null,
+      'totalCarbsG': totals.carbsKnown ? totals.carbsG : null,
+      'totalFatG': totals.fatKnown ? totals.fatG : null,
       'source': draft.source.wireValue,
-      'schemaVersion': 2,
+      'schemaVersion':
+          draft.items.any((i) => i.hasFiberData) ||
+              draft.minimumSchemaVersion >= 4
+          ? 4
+          : draft.items.any((i) => i.needsExtendedSchema) ||
+                draft.minimumSchemaVersion >= 3
+          ? 3
+          : 2,
     };
   }
 
   FoodCatalogItem _food(String id, Map<String, dynamic> data) =>
-      FoodCatalogItem(
-        hasNutritionData:
-            [
-              'kcalPer100g',
-              'proteinGPer100g',
-              'carbsGPer100g',
-              'fatGPer100g',
-            ].every(
-              (key) =>
-                  data[key] is num &&
-                  (data[key] as num).isFinite &&
-                  (data[key] as num) >= 0,
-            ),
-        id: id,
-        name: data['name'] as String? ?? '',
-        alternateNames: (data['alternateNames'] as List? ?? const [])
-            .whereType<String>()
-            .toList(growable: false),
-        category: data['category'] as String? ?? '',
-        servingBasis: data['servingBasis'] as String? ?? 'per_100g',
-        unit: data['unit'] as String? ?? 'g',
-        per100g: NutritionTotals(
-          kcal: _number(data['kcalPer100g']),
-          proteinG: _number(data['proteinGPer100g']),
-          carbsG: _number(data['carbsGPer100g']),
-          fatG: _number(data['fatGPer100g']),
-        ),
-        sourceLabel: data['sourceLabel'] as String? ?? 'Không rõ nguồn',
-        isEstimated: data['isEstimated'] as bool? ?? true,
-        updatedAt: _date(data['updatedAt']),
-      );
+      readCatalogFood(id, data, updatedAt: _date(data['updatedAt']));
 
   MealLog _meal(String id, Map<String, dynamic> data) {
     final items = (data['items'] as List? ?? const [])
         .whereType<Map>()
         .map((raw) => Map<String, dynamic>.from(raw))
         .map(
-          (item) => MealItemSnapshot(
-            foodId: item['foodId'] as String? ?? '',
-            name: item['name'] as String? ?? '',
-            grams: _number(item['grams']),
-            nutrition: NutritionTotals(
-              kcal: _number(item['kcal']),
-              proteinG: _number(item['proteinG']),
-              carbsG: _number(item['carbsG']),
-              fatG: _number(item['fatG']),
-            ),
-            sourceLabel: item['sourceLabel'] as String? ?? '',
-            isEstimated: item['isEstimated'] as bool? ?? true,
-            hasNutritionData: [
-              'grams',
-              'kcal',
-              'proteinG',
-              'carbsG',
-              'fatG',
-            ].every((key) => item[key] is num && (item[key] as num).isFinite),
+          (item) => MealItemSnapshot.fromData(
+            item,
+            allowPartial: [3, 4].contains(data['schemaVersion']),
           ),
         )
         .toList(growable: false);
+    final snapshotTotals = sumNutritionTotals(items.map((i) => i.nutrition));
     return MealLog(
       id: id,
       type:
@@ -327,12 +292,16 @@ class FirebaseNutritionRepository implements NutritionRepository {
           MealType.snack,
       consumedAt: _date(data['consumedAt']) ?? DateTime.now(),
       items: items,
-      totals: NutritionTotals(
-        kcal: _number(data['totalKcal']),
-        proteinG: _number(data['totalProteinG']),
-        carbsG: _number(data['totalCarbsG']),
-        fatG: _number(data['totalFatG']),
-      ),
+      totals: [3, 4].contains(data['schemaVersion'])
+          ? snapshotTotals
+          : NutritionTotals(
+              kcal: _number(data['totalKcal']),
+              proteinG: _number(data['totalProteinG']),
+              carbsG: _number(data['totalCarbsG']),
+              fatG: _number(data['totalFatG']),
+              fiberG: snapshotTotals.fiberG,
+              fiberKnown: snapshotTotals.fiberKnown,
+            ),
       source: data['source'] == 'ai_assisted'
           ? MealSource.aiAssisted
           : MealSource.manual,
@@ -340,6 +309,7 @@ class FirebaseNutritionRepository implements NutritionRepository {
       timezoneOffsetMinutes: (data['timezoneOffsetMinutes'] as num?)?.toInt(),
       createdAt: _date(data['createdAt']),
       updatedAt: _date(data['updatedAt']),
+      schemaVersion: (data['schemaVersion'] as num?)?.toInt() ?? 2,
     );
   }
 

@@ -602,3 +602,85 @@ Rules production vẫn khác source: GET chỉ đọc 17:04:32 UTC+07 ngày17/10
 release cập nhật lần cuối 2026-10-13T06:25:21.345792Z; thiếu match của targets,
 favorites và thư viện core (cùng Goals/Quest/Chat trước đó). Hai composite index
 nước/vận động ở trạng thái READY. Không deploy trong C6; production chưa nghiệm thu.
+
+## H2 schema local — 19/10/2026
+
+users/{uid}/meal_templates/{id}: name,1–5items snapshot,schemaVersion1,
+createdAt/updatedAt server; ID ổn định qua create/retry, owner CRUD. Mẫu không có
+ngày/bữa áp dụng; chép items vào bản nháp ngày/bữa đang chọn, không tự log.
+Snapshot bữa/mẫu độc lập nguồn, CRUD mẫu không thay nhật ký. Cleanup client mới
+thêm meal_templates; phải phối hợp nâng client trước production để client cũ
+không bỏ sót collection mới khi xóa tài khoản. Chưa deploy/migrate trong H2.
+Rules local kiểm thử owner/A-B/guest/bounds/timestamps, index single-fieldupdatedAt.
+Chi tiết và rollback trong h2-templates-deployment.md. U2 Rules đã deploy18/10 là
+lịch sử và chưa bao gồm thay đổi H2 này; không coi snapshot metadata cũ là trạng
+thái đồng bộ source hiện tại.
+
+## H3 — snapshot nhãn / dữ liệu ba chất chưa đầy đủ (local, chưa deploy)
+
+Meal schemaVersion 2 giữ nguyên các snapshot gram đầy đủ. SchemaVersion 3 dùng
+khi có chất chưa biết hoặc lượng không phải gram. Mỗi chất vẫn có key nhưng
+null có nghĩa chưa biết; 0 có nghĩa số 0 do người dùng nhập/nhãn công bố.
+Snapshot gram giữ grams >0 và không thêm quantity metadata. Snapshot không phải
+gram lưu grams:null, quantityUnit:ml|serving|entry và quantity>0, tối đa2000.
+Không suy ra khối lượng hoặc mật độ từ thể tích. Mỗi món tối đa10000kcal/1000g
+mỗi macro; cả bữa tối đa20000kcal/2000g mỗi macro biết được.
+
+NutritionTotals giữ tổng phần đã biết với cờ proteinKnown/carbsKnown/fatKnown;
+phép cộng AND coverage, không suy ra phần thiếu. Với meal schema3, reader tính
+lại subtotal/coverage từ snapshot. Wire total macro=null nếu thiếu bất cứ món
+nào; kcal vẫn biết. UI ghi Chưa đủ dữ liệu/— hoặc ≥subtotal, không báo thiếu=0
+hay so phần thiếu với mục tiêu. Export H7 sau này phải đọc cờ coverage và đơn vị,
+không xuất sentinel grams=0 nội bộ thành số đo thật.
+
+meal_templates schema1 cũ; schema2 dùng codec snapshot mở rộng tương tự. Rules
+vẫn1–5 món, tổng giới hạn như meal; tính subtotal để validation không sửa null
+trong payload. Numeric interval được viết math.abs(x-midpoint)<=midpoint nhằm
+giữ đủ5 món dưới1000expressions (https://firebase.google.com/docs/reference/rules/rules.math).
+Các hàm meal/template riêng tránh cộng chi phí thống kê trong meal không cần.
+Món riêng/công thức vẫn dùng đủ macro theo gram; Quick Add không bị ép vào hợp
+đồng đó. Có thể dùng lại bằng Gần đây/bữa mẫu/copy và chỉnh đúng đơn vị snapshot.
+
+Không migration bữa cũ, không sửa catalog/hồ sơ để thêm field sinh lý. Client cũ
+không hiểu schema3/template2. Cần nâng client/cleanup H2 trước khi cho dùng dữ liệu
+mới ở production, deploy Rules riêng có review/ủy quyền; không downgrade sang
+client cũ sau khi đã ghi v3. Backup/rollback phải giữ các document v3, không đổi
+null thành0 để tương thích. Firebase production chưa được deploy trong H0–H3.
+
+## H5 — day_reviews, chưa deploy
+
+Schema và giới hạn đọc theo khoảng, xác nhận đủ bữa có revision, cách xử lý ngày
+trống/macro thiếu/đổi target/đổi múi giờ, rollout client/cleanup và kiểm thử trong
+[h5-period-reports.md](h5-period-reports.md). Collection mới UID-owner only,
+không migration log cũ hoặc index mới. Báo cáo không coi tự có meal là ngày đủ dữ liệu.
+
+
+## H6 — Chất xơ tùy chọn và phiên bản tương thích
+
+Xem h6-fiber.md cho nguồn và quy trình rollout. Catalog/món riêng có fiberGPer100g
+(g/100 g, tùy chọn). Snapshot có fiberG (g); fiberIncomplete:true đánh dấu tổng chỉ
+biết một phần. Không có field là chưa biết; fiberG:0 không kèm cờ là 0 thật.
+Tổng nhật ký/báo cáo tính từ snapshot, giữ cờ thiếu xuyên suốt khi nhân/chia khẩu phần.
+Meal schema 4, custom_foods/recipes schema 2; bản ghi cũ tiếp tục đọc, không migration.
+Bữa mẫu schema 3 chuẩn hóa quantity + quantityUnit cho mọi đơn vị, bỏ macro chưa
+biết (reader phục hồi null). fiberValues cùng độ dài/thứ tự items chứa số hoặc null;
+fiberPartialMask tùy chọn đánh dấu bit của các giá trị chỉ là lower bound. Không
+thêm collection/index. Giới hạn 5 món/6 nguyên liệu, UID, timestamp và chống hạ phiên
+bản vẫn được kiểm tra. Chưa deploy Rules/indexes hoặc cập nhật catalog production.
+
+## H7 — Nháp local và CSV, không đổi schema Firestore
+
+Không collection/Rules/index mới. Android giữ JSON local v1 mã hóa AES-GCM trong
+noBackupFilesDir, khóa AndroidKeyStore theo UID; operationId, mealId khi sửa,
+snapshot, UTC/offset/dateKey và minimumSchema được giữ. Giới hạn20nháp/UID,
+512KiB, hết hạn7ngày và dọn ở lần mở kho tiếp theo. Không migration nhật ký cũ.
+MealDraft.timezoneOffsetOverride chỉ là hợp đồng Dart/local; repository tiếp tục
+ghi dateKey/timezoneOffsetMinutes đã có. Xóa tài khoản dọn local đúng UID sau
+Firestore và trước Auth; callback trễ không tạo lại nháp đã xóa.
+
+CSV healthmate_journal_csv_v1 gồm từng món của meal, water, activity và body_metric;
+không bao gồm toàn bộ hồ sơ/chat/goals/thư viện/draft. Cột schema nguồn, đơn vị,
+UTC/dateKey/offset/basis và status mỗi nutrient giữ missing/0/partial. Tải có giới
+hạn bằng repository H5. UID kiểm tra trực tiếp SDK qua AuthRepository.currentUid,
+thêm generation phiên trước/sau async và picker. Tệp người dùng xuất nằm ngoài
+vòng đời xóa tài khoản. Chi tiết: [h7-private-data.md](h7-private-data.md).

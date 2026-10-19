@@ -7,6 +7,7 @@ import '../../../shared/providers/local_clock_provider.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../models/nutrition_target.dart';
 import '../providers/nutrition_target_providers.dart';
+import 'energy_estimate_dialog.dart';
 
 Future<void> openNutritionTargetForm(
   BuildContext context,
@@ -206,7 +207,25 @@ class _NutritionTargetFormState extends ConsumerState<NutritionTargetForm>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Bạn tự nhập mục tiêu. Ứng dụng không tính BMR/TDEE hoặc đề xuất mức ăn. Giới hạn 20.000 kcal và 5.000 g mỗi chất chỉ là giới hạn kỹ thuật.',
+                    'Bạn tự thiết lập mục tiêu; có thể tham khảo mức duy trì trước khi nhập. Giới hạn 20.000 kcal và 5.000 g mỗi chất chỉ là giới hạn kỹ thuật.',
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey('open-energy-estimate'),
+                    icon: const Icon(Icons.calculate_outlined),
+                    label: const Text('Tham khảo mức duy trì (tùy chọn)'),
+                    onPressed: () async {
+                      final result = await showDialog<double>(
+                        context: context,
+                        builder: (_) => const AccountBoundDialog(
+                          child: EnergyEstimateDialog(),
+                        ),
+                      );
+                      if (!_current || result == null) return;
+                      setState(() {
+                        _fields[0].text = result.toStringAsFixed(0);
+                        _error = null;
+                      });
+                    },
                   ),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(

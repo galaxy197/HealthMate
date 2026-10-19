@@ -80,8 +80,8 @@ class FirebaseNutritionTargetRepository implements NutritionTargetRepository {
     final start = DateTime.parse('${startKey}T00:00:00Z');
     final end = DateTime.parse('${endKey}T00:00:00Z');
     final days = end.difference(start).inDays;
-    if (days < 1 || days > 7) {
-      throw const NutritionTargetFailure('Chỉ tải tối đa một tuần mỗi lần.');
+    if (days < 1 || days > 90) {
+      throw const NutritionTargetFailure('Chỉ tải tối đa 90 ngày mỗi lần.');
     }
     try {
       final results = await (
@@ -94,16 +94,18 @@ class FirebaseNutritionTargetRepository implements NutritionTargetRepository {
             .where('effectiveFromDateKey', isGreaterThan: startKey)
             .where('effectiveFromDateKey', isLessThan: endKey)
             .orderBy('effectiveFromDateKey')
-            .limit(7)
+            .limit(90)
             .get(const GetOptions(source: Source.server)),
       ).wait;
       return [...results.$1.docs, ...results.$2.docs].map(_parse).toList();
     } on FirebaseException {
       throw const NutritionTargetFailure(
-        'Chưa tải được mục tiêu tuần từ máy chủ. Hãy thử lại.',
+        'Chưa tải được mục tiêu cho khoảng ngày từ máy chủ. Hãy thử lại.',
       );
     } catch (_) {
-      throw const NutritionTargetFailure('Dữ liệu mục tiêu tuần không hợp lệ.');
+      throw const NutritionTargetFailure(
+        'Dữ liệu mục tiêu cho khoảng ngày không hợp lệ.',
+      );
     }
   }
 

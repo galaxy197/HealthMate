@@ -66,7 +66,8 @@ mixin ConfirmedSave<T, W extends StatefulWidget> on State<W> {
 }
 
 /// Pageless entry forms must not survive a change of account, including while
-/// they are waiting for server confirmation. No draft is persisted across UIDs.
+/// they are waiting for server confirmation. Local drafts remain isolated by UID;
+/// the old account's form/chooser must never stay visible in the new session.
 class AccountBoundDialog extends ConsumerWidget {
   const AccountBoundDialog({required this.child, super.key});
   final Widget child;
