@@ -14,8 +14,9 @@ class BarcodeScannerService {
   }
 
   Future<void> dispose() async {
-    await _controller?.dispose();
+    final controller = _controller;
     _controller = null;
+    await controller?.dispose();
   }
 
   Future<void> toggleTorch() async {

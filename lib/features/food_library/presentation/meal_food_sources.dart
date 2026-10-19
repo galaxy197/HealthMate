@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../nutrition/data/unified_food_search_service.dart';
+import '../../nutrition/models/food_catalog_search.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
 import '../models/favorite_food.dart';
@@ -159,8 +160,8 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
       label: Text(label, style: TextStyle(fontSize: 11, color: color)),
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-      backgroundColor: color.withOpacity(0.1),
-      side: BorderSide(color: color.withOpacity(0.3), width: 1),
+      backgroundColor: color.withValues(alpha: 0.1),
+      side: BorderSide(color: color.withValues(alpha: 0.3), width: 1),
     );
   }
   Widget _catalogTile(FoodCatalogItem food, {bool removable = false, FoodResultSource? source}) {

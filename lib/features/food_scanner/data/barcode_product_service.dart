@@ -78,8 +78,15 @@ class BarcodeProductService {
     NutritionTotals? nutrition;
 
     if (nutriments != null) {
-      final kcal = _parseDouble(nutriments['energy-kcal_100g']) ??
-                   _parseDouble(nutriments['energy_100g'])?.let((kj) => kj / 4.184);
+      // Try energy-kcal first, then convert from kJ if needed
+      double? kcal = _parseDouble(nutriments['energy-kcal_100g']);
+      if (kcal == null) {
+        final kj = _parseDouble(nutriments['energy_100g']);
+        if (kj != null) {
+          kcal = kj / 4.184; // Convert kJ to kcal
+        }
+      }
+
       final protein = _parseDouble(nutriments['proteins_100g']);
       final carbs = _parseDouble(nutriments['carbohydrates_100g']);
       final fat = _parseDouble(nutriments['fat_100g']);
@@ -119,8 +126,4 @@ class BarcodeProductService {
   void dispose() {
     _client.close();
   }
-}
-
-extension<T> on T {
-  R let<R>(R Function(T) block) => block(this);
 }

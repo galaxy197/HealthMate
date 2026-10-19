@@ -291,13 +291,10 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
           MealItemSnapshot(
             foodId: 'barcode_${result.barcode}',
             name: result.name,
-            brand: result.brand,
             grams: result.servingSizeG ?? 100,
-            kcal: result.nutrition!.kcal,
-            proteinG: result.nutrition!.proteinG,
-            carbsG: result.nutrition!.carbsG,
-            fatG: result.nutrition!.fatG,
-            source: FoodDataSource.user,
+            nutrition: result.nutrition!,
+            sourceLabel: result.source,
+            isEstimated: true, // Barcode data is considered estimated
           ),
         );
         _error = null;
