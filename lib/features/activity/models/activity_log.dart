@@ -18,12 +18,14 @@ class ActivityLogDraft {
     required this.durationMinutes,
     required this.performedAt,
     this.note = '',
+    this.caloriesBurned,
   });
 
   final ActivityType type;
   final int durationMinutes;
   final DateTime performedAt;
   final String note;
+  final double? caloriesBurned; // Optional calories estimation
 
   int get timezoneOffsetMinutes => performedAt.timeZoneOffset.inMinutes;
   String get dateKey =>
@@ -39,6 +41,7 @@ class ActivityLog {
     required this.dateKey,
     required this.timezoneOffsetMinutes,
     required this.note,
+    this.caloriesBurned,
     this.createdAt,
     this.updatedAt,
   });
@@ -50,6 +53,7 @@ class ActivityLog {
   final String dateKey;
   final int timezoneOffsetMinutes;
   final String note;
+  final double? caloriesBurned; // Optional calories estimation
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -58,11 +62,15 @@ class ActivityLog {
     durationMinutes: durationMinutes,
     performedAt: performedAt,
     note: note,
+    caloriesBurned: caloriesBurned,
   );
 }
 
 int totalActivityMinutes(Iterable<ActivityLog> logs) =>
     logs.fold(0, (sum, log) => sum + log.durationMinutes);
+
+double totalCaloriesBurned(Iterable<ActivityLog> logs) =>
+    logs.fold(0.0, (sum, log) => sum + (log.caloriesBurned ?? 0));
 
 abstract final class ActivityValidation {
   static const maxNoteLength = 200;
