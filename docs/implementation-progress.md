@@ -1873,3 +1873,63 @@ Bổ sung chốt hồi quy H7 trên bố cục cuối:
   ảnh journal-android.png lấy từ core lượt đã qua, đã kiểm tra bằng mắt.
 
 Bản sao cuối gồm nguồn/tài liệu chưa commit và log kiểm chứng: D:\HealthMateMaintenanceQA\h0-h7-complete-20261019-191713. Hạn mức được kiểm tra trước tắt máy; không đợi xuống dưới5% vì công việc đã hoàn tất.
+
+## 20/10/2026 — Sửa lỗi build barcode trên code GitHub hiện tại
+
+Phạm vi: đồng bộ GitHub và sửa lỗi `await controller.dispose()` trong ảnh người
+dùng gửi; không triển khai thêm giai đoạn hoặc refactor luồng tìm món.
+
+- Đã đọc AGENTS.md, kiểm tra trạng thái/diff, Flutter, dependencies, Android và
+  các caller của scanner. Working tree sạch trước khi sửa. `git fetch origin`
+  và `git pull --ff-only origin main`: Already up to date, HEAD/origin/main đều
+  `8702565` (không cần ghi đè hoặc merge thay đổi cục bộ).
+- `pubspec.lock` và package_config cùng trỏ `mobile_scanner 4.0.1`.
+  SDK cài trên máy khai báo `void MobileScannerController.dispose()`;
+  dùng `await` với kết quả void gây lỗi compile, không phải lỗi Kotlin.
+  BarcodeScannerService.dispose chuyển sang void và gọi controller.dispose()
+  đồng bộ; giữ reset controller về null trước khi giải phóng. Caller trong
+  State.dispose vốn không await nên không cần sửa màn hình.
+- Analyze ban đầu có 8 error, 24 info. Ngoài scanner còn 7 lỗi truy cập
+  FoodCatalogItem.per100g nullable trong test. Thêm non-null assertions cho
+  các fixture vốn yêu cầu có dữ liệu dinh dưỡng; giữ nguyên expected values,
+  không thay bằng 0, bỏ test hoặc đổi nullable contract của model.
+
+File sửa:
+- lib/features/food_scanner/data/barcode_scanner_service.dart
+- integration_test/core_acceptance_test.dart
+- test/firebase_production_qa.dart
+- test/firebase_repository_integration.dart
+- test/h6_fiber_test.dart
+- docs/implementation-progress.md
+
+Kiểm tra thực tế (Flutter 3.44.1, Dart 3.12.1):
+- `dart format` 5 file Dart sửa: 0 file cần đổi định dạng, exit 0.
+- `flutter analyze --no-pub`: **0 error, 0 warning, 23 info**, exit 1;
+  chưa đạt analyze sạch. Info gồm withOpacity deprecated, avoid_print và http
+  đang nằm ở dev_dependencies nhưng được import trong lib. Không tắt lint.
+  Logs: build/barcode-analyze-before.log và barcode-analyze-after.log.
+- `flutter test --no-pub --reporter expanded`: **406 qua, 48 lỗi**, 49s,
+  exit 1. Log đầy đủ: build/barcode-flutter-test.log. Các nhóm lỗi:
+  core_journal 9, core_scope 6, food_catalog 3, food_library 7,
+  maintenance_regression 6, nutrition_targets 6, nutrition 1, progress 6,
+  u1_ux 4. Có lỗi không tìm thấy widget/source cũ và RenderFlex overflow
+  ở bố cục chữ lớn. Chưa sửa các nhóm này trong nhiệm vụ sửa build barcode.
+- `flutter test --no-pub test/food_scanner_test.dart test/h6_fiber_test.dart
+  --reporter expanded`: **12/12 qua**, exit 0;
+  build/barcode-related-test.log. Đây là test scanner ảnh và fiber hiện có,
+  không phải bằng chứng camera barcode đã được kiểm thử trên điện thoại.
+  Log có fallback SQLite chưa init/USDA400 trong widget harness; test vẫn qua,
+  không che những thông báo này hoặc coi đó là kiểm thử API thành công.
+- `flutter build apk --debug --no-pub`: **thành công**, assembleDebug 54.1s,
+  exit 0; build/barcode-build-debug.log. APK tại
+  build/app/outputs/flutter-apk/app-debug.apk.
+  KGP warning với các plugin Firebase/mobile_scanner vẫn còn; không chặn
+  build hiện tại. Không nâng package/AGP/Kotlin để xử lý cảnh báo riêng này.
+
+Người dùng: dừng phiên debug lỗi rồi F5 lại, chọn điện thoại Android; cần thử
+quyền camera và mở/đóng barcode trên máy thật. Chưa chạy/cài APK lên điện thoại
+hoặc chạy các test emulator/production QA trong lượt này. Chưa xác nhận toàn bộ
+app ổn định vì full suite còn 48 lỗi. Không thêm package, không sửa Rules/index,
+không deploy Firebase, không commit/push thay đổi sửa lỗi. Đề xuất công việc
+tiếp theo: xem xét riêng lỗi hồi quy giao diện/tìm món và khai báo dependency
+http trong bản GitHub mới; chưa triển khai.

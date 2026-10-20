@@ -176,8 +176,8 @@ void main() {
       expect(rows.length, 4);
       for (final row in rows) {
         final food = readCatalogFood(row['id'] as String, row);
-        expect(food.per100g.fiberG, expected[food.id]);
-        expect(food.per100g.fiberKnown, true);
+        expect(food.per100g!.fiberG, expected[food.id]);
+        expect(food.per100g!.fiberKnown, true);
         expect(
           row['fiberSourceUrl'],
           startsWith('https://fdc.nal.usda.gov/food-details/'),
@@ -191,7 +191,7 @@ void main() {
           readCatalogFood(
             food.id,
             {...row}..remove('fiberGPer100g'),
-          ).per100g.fiberKnown,
+          ).per100g!.fiberKnown,
           false,
         );
       }

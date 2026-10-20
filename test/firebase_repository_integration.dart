@@ -153,7 +153,7 @@ void main() {
       );
       expect(yogurt.brand, 'TH true YOGURT');
       expect(yogurt.forGrams(50).kcal, closeTo(47.45, .001));
-      final phoPer100g = pho.per100g;
+      final phoPer100g = pho.per100g!;
       final phoServingGrams = pho.servingGrams!;
       final draft = MealDraft(
         type: MealType.snack,

@@ -484,7 +484,7 @@ void main() {
           alice,
           FoodSourceKind.recipe,
           recipeId,
-        ))!.asFood().per100g.kcal,
+        ))!.asFood().per100g!.kcal,
         250,
       );
       await checkpoint('06-create-personal-and-recipe');

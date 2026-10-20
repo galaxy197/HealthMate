@@ -13,11 +13,12 @@ class BarcodeScannerService {
     return _controller!;
   }
 
-  Future<void> dispose() async {
+  void dispose() {
     final controller = _controller;
     _controller = null;
     if (controller != null) {
-      await controller.dispose();
+      // mobile_scanner 4.x exposes a synchronous dispose() API.
+      controller.dispose();
     }
   }
 

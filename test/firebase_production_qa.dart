@@ -255,7 +255,7 @@ void main() {
           uid,
           FoodSourceKind.custom,
           customId,
-        ))!.asFood().per100g.kcal,
+        ))!.asFood().per100g!.kcal,
         200,
       );
       final recipe = FoodRecipe(
@@ -272,7 +272,7 @@ void main() {
           uid,
           FoodSourceKind.recipe,
           recipeId,
-        ))!.asFood().per100g.kcal,
+        ))!.asFood().per100g!.kcal,
         250,
       );
       final favorites = FirebaseFavoriteFoodRepository(db);
