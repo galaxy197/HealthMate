@@ -10,11 +10,11 @@ abstract final class DesignTokens {
   // COLOR PALETTE - Modern Minimalist
   // ============================================================================
 
-  /// Base colors - Deep navy foundation
-  static const navy900 = Color(0xFF0F172A);  // Deep navy
-  static const navy800 = Color(0xFF1E293B);  // Navy
-  static const navy700 = Color(0xFF334155);
-  static const navy600 = Color(0xFF475569);
+  /// Base colors - MyFitnessPal-style dark navy
+  static const navy900 = Color(0xFF1C1F2E);  // MyFitnessPal dark bg
+  static const navy800 = Color(0xFF282B3B);  // Card bg
+  static const navy700 = Color(0xFF363A4D);  // Elevated card
+  static const navy600 = Color(0xFF4A5068);
   static const navy500 = Color(0xFF64748B);
   static const navy400 = Color(0xFF94A3B8);
   static const navy300 = Color(0xFFCBD5E1);
@@ -22,14 +22,20 @@ abstract final class DesignTokens {
   static const navy100 = Color(0xFFF1F5F9);
   static const navy50 = Color(0xFFF8FAFC);
 
-  /// Primary accent - Electric cyan
-  static const cyan600 = Color(0xFF0891B2);  // Cyan dark
-  static const cyan500 = Color(0xFF06B6D4);  // Electric cyan (primary)
-  static const cyan400 = Color(0xFF22D3EE);  // Cyan bright
-  static const cyan300 = Color(0xFF67E8F9);
-  static const cyan200 = Color(0xFFA5F3FC);
-  static const cyan100 = Color(0xFFCFFAFE);
-  static const cyan50 = Color(0xFFECFEFF);
+  /// Primary accent - MyFitnessPal blue
+  static const blue600 = Color(0xFF1E3A8A);  // Dark blue
+  static const blue500 = Color(0xFF2B5FB8);  // MyFitnessPal blue (primary)
+  static const blue400 = Color(0xFF3B82F6);  // Bright blue
+  static const blue300 = Color(0xFF60A5FA);
+  static const blue200 = Color(0xFF93C5FD);
+  static const blue100 = Color(0xFFDBEAFE);
+  static const blue50 = Color(0xFFEFF6FF);
+
+  /// Accent colors - MyFitnessPal style
+  static const cyan500 = Color(0xFF06B6D4);  // Carbs color
+  static const purple500 = Color(0xFFA855F7);  // Fat color
+  static const orange500 = Color(0xFFF97316);  // Protein color
+  static const yellow500 = Color(0xFFF59E0B);  // Premium button
 
   /// Secondary accent - Warm orange
   static const orange600 = Color(0xFFEA580C);  // Orange dark
@@ -40,14 +46,14 @@ abstract final class DesignTokens {
   static const orange100 = Color(0xFFFFEDD5);
   static const orange50 = Color(0xFFFFF7ED);
 
-  /// Metric-specific colors (updated for modern palette)
+  /// Metric-specific colors (MyFitnessPal style)
   static const waterPrimary = cyan500;
-  static const waterLight = cyan200;
-  static const waterDark = cyan600;
+  static const waterLight = Color(0xFF67E8F9);
+  static const waterDark = Color(0xFF0891B2);
 
   static const mealPrimary = orange500;
-  static const mealLight = orange200;
-  static const mealDark = orange600;
+  static const mealLight = Color(0xFFFDBA74);
+  static const mealDark = Color(0xFFEA580C);
 
   static const activityPrimary = Color(0xFF10B981);  // Emerald
   static const activityLight = Color(0xFFA7F3D0);
@@ -57,11 +63,16 @@ abstract final class DesignTokens {
   static const weightLight = Color(0xFFDDD6FE);
   static const weightDark = Color(0xFF7C3AED);
 
+  /// Macro colors (MyFitnessPal style)
+  static const carbsColor = cyan500;      // Cyan for carbs
+  static const fatColor = purple500;      // Purple for fat
+  static const proteinColor = orange500;  // Orange for protein
+
   /// Semantic colors
   static const success = Color(0xFF10B981);
   static const warning = orange500;
   static const error = Color(0xFFEF4444);
-  static const info = cyan500;
+  static const info = blue500;
 
   // ============================================================================
   // TYPOGRAPHY
