@@ -13,7 +13,7 @@ import '../../features/weekly_reflection/providers/weekly_reflection_providers.d
 
 import '../config/app_feature_flags.dart';
 
-enum _ExtraAction { weight }
+enum _ExtraAction { weight, quests, chat }
 
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -23,7 +23,7 @@ class AppShell extends ConsumerWidget {
   static const _visibleDestinations = [
     (
       branch: 0,
-      label: 'Tổng quan',
+      label: 'Hôm nay',
       icon: Icons.home_outlined,
       selected: Icons.home_rounded,
       key: ValueKey('nav-dashboard'),
@@ -38,15 +38,15 @@ class AppShell extends ConsumerWidget {
     (
       branch: 5,
       label: 'Tiến độ',
-      icon: Icons.insights_outlined,
-      selected: Icons.insights_rounded,
+      icon: Icons.bar_chart_outlined,
+      selected: Icons.bar_chart_rounded,
       key: ValueKey('nav-progress'),
     ),
     (
       branch: 4,
-      label: 'Cá nhân',
-      icon: Icons.person_outline_rounded,
-      selected: Icons.person_rounded,
+      label: 'Thêm',
+      icon: Icons.more_horiz,
+      selected: Icons.more_horiz,
       key: ValueKey('nav-profile'),
     ),
   ];
@@ -67,6 +67,10 @@ class AppShell extends ConsumerWidget {
       builder: (_) => const _QuickActionSheet(),
     );
     if (action == null || !context.mounted) return;
+    if (action == _ExtraAction.quests || action == _ExtraAction.chat) {
+      _selectBranch(action == _ExtraAction.quests ? 2 : 3);
+      return;
+    }
     if (action == _ExtraAction.weight) {
       final uid = ref.read(authSessionProvider).value?.uid;
       if (uid == null) return;
@@ -111,8 +115,12 @@ class AppShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final showRail = constraints.maxWidth >= AppSpacing.railBreakpoint;
+        final currentBranch = switch (navigationShell.currentIndex) {
+          2 || 3 => 4, // Goals and chat are accessed through More.
+          final branch => branch,
+        };
         final visibleIndex = _visibleDestinations.indexWhere(
-          (destination) => destination.branch == navigationShell.currentIndex,
+          (destination) => destination.branch == currentBranch,
         );
         return Scaffold(
           body: SafeArea(
@@ -161,7 +169,7 @@ class AppShell extends ConsumerWidget {
           bottomNavigationBar: showRail
               ? null
               : _FloatingNavigationBar(
-                  currentBranch: navigationShell.currentIndex,
+                  currentBranch: currentBranch,
                   destinations: _visibleDestinations,
                   onSelect: _selectBranch,
                   onQuickAdd: () => _showQuickActions(context, ref),
@@ -198,22 +206,12 @@ class _FloatingNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.xs,
-        AppSpacing.md,
-        AppSpacing.sm,
-      ),
+      minimum: const EdgeInsets.fromLTRB(8, 4, 8, 8),
       child: Material(
-        color: scheme.surfaceContainerLowest,
-        elevation: 3,
+        color: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
         shadowColor: scheme.shadow.withValues(alpha: 0.12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.navigationRadius),
-          side: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: 0.65),
-          ),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
           height: 60 + MediaQuery.textScalerOf(context).scale(24),
@@ -238,7 +236,11 @@ class _FloatingNavigationBar extends StatelessWidget {
                     heroTag: 'quick-add-bottom',
                     tooltip: 'Thêm ghi nhận',
                     onPressed: onQuickAdd,
-                    child: const Icon(Icons.add_rounded, size: 30),
+                    backgroundColor: scheme.primary,
+                    foregroundColor: scheme.onPrimary,
+                    elevation: 0,
+                    shape: const CircleBorder(),
+                    child: const Icon(Icons.add_rounded, size: 32),
                   ),
                 ),
               ),
@@ -372,6 +374,20 @@ class _QuickActionSheet extends ConsumerWidget {
             label: 'Thêm cân nặng',
             onTap: () => Navigator.pop(context, _ExtraAction.weight),
           ),
+          const Divider(),
+          _SheetAction(
+            key: const ValueKey('quick-action-quests'),
+            icon: Icons.flag_outlined,
+            label: 'Mục tiêu và nhiệm vụ',
+            onTap: () => Navigator.pop(context, _ExtraAction.quests),
+          ),
+          if (ref.watch(appFeatureFlagsProvider).chatbotEnabled)
+            _SheetAction(
+              key: const ValueKey('quick-action-chat'),
+              icon: Icons.forum_outlined,
+              label: 'Trò chuyện cùng HealthMate',
+              onTap: () => Navigator.pop(context, _ExtraAction.chat),
+            ),
         ],
       ),
     );

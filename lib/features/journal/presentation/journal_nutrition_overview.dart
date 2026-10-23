@@ -125,12 +125,8 @@ class JournalNutritionOverview extends ConsumerWidget {
                 );
               },
             ),
-            if (target != null && !target.hasMacros)
-              const Text('Chưa đặt mục tiêu cho ba chất'),
             if (totals != null && !totals.hasCompleteMacros)
-              const Text(
-                'Nhật ký chưa đủ số liệu ba chất. Dấu — không có nghĩa là 0; chưa so sánh phần thiếu với mục tiêu.',
-              ),
+              const Text('Dấu —: chưa có số liệu, không phải 0.'),
             Wrap(
               spacing: 8,
               children: [

@@ -44,8 +44,32 @@ class ProfileScreen extends ConsumerWidget {
 
     return FeaturePage(
       title: 'Không gian cá nhân',
-      subtitle: 'Hồ sơ và lịch sử thể trạng chỉ thuộc về tài khoản của bạn.',
+      subtitle: 'Hồ sơ, tài khoản và cài đặt.',
       children: [
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                key: const ValueKey('open-goals-quests'),
+                leading: const Icon(Icons.flag_outlined),
+                title: const Text('Mục tiêu và nhiệm vụ hằng ngày'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => context.go(AppRoutes.quest),
+              ),
+              if (ref.watch(appFeatureFlagsProvider).chatbotEnabled) ...[
+                const Divider(height: 1),
+                ListTile(
+                  key: const ValueKey('open-chat'),
+                  leading: const Icon(Icons.forum_outlined),
+                  title: const Text('Trò chuyện cùng HealthMate'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => context.go(AppRoutes.chat),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
         if (profileAction.isLoading) const LinearProgressIndicator(),
         if (profileAction.error case final ProfileFailure error) ...[
           _InlineError(
@@ -171,24 +195,6 @@ class ProfileScreen extends ConsumerWidget {
         Card(
           child: Column(
             children: [
-              ListTile(
-                key: const ValueKey('open-goals-quests'),
-                leading: const Icon(Icons.flag_outlined),
-                title: const Text('Mục tiêu và nhiệm vụ hằng ngày'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => context.go(AppRoutes.quest),
-              ),
-              const Divider(height: 1),
-              if (ref.watch(appFeatureFlagsProvider).chatbotEnabled) ...[
-                ListTile(
-                  key: const ValueKey('open-chat'),
-                  leading: const Icon(Icons.forum_outlined),
-                  title: const Text('Trò chuyện cùng HealthMate'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => context.go(AppRoutes.chat),
-                ),
-                const Divider(height: 1),
-              ],
               ListTile(
                 key: const ValueKey('open-about'),
                 leading: const Icon(Icons.info_outline_rounded),
@@ -492,8 +498,6 @@ class _ProfileCard extends StatelessWidget {
                               : profile!.displayName,
                           style: theme.textTheme.titleMedium,
                         ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(profile!.email),
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           profile!.heightCm == null

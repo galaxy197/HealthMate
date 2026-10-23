@@ -40,11 +40,15 @@ giữ hai tài khoản Auth. [Bằng chứng U2](docs/firebase/u2/README.md).
 Không đổi App Check/billing/indexes, không migration hoặc tác động dữ liệu thật.
 Điện thoại thật, Android production UI và bản release ký phát hành vẫn chưa nghiệm thu.
 
-Bản mặc định tập trung vào dinh dưỡng, cân nặng, nước và vận động cơ bản.
-Chatbot và Food Scanner **tạm tắt** bằng hai cờ cục bộ
-`HEALTHMATE_ENABLE_CHATBOT=false`, `HEALTHMATE_ENABLE_FOOD_SCANNER=false`.
-Không cần truyền define khi chạy bản core. Mã nguồn, dependency, cấu hình Firebase/
-App Check và lịch sử AI được giữ; không chạy probe/smoke AI cloud trong C1.
+Bản mặc định hiển thị Chatbot và Food Scanner. Thanh dưới có 5 ô:
+**Hôm nay · Nhật ký · + · Tiến độ · Thêm**. Bấm **+ → Quét món** để mở scanner;
+**Thêm** có lối vào Mục tiêu/Nhiệm vụ và Chat. Trong form thêm bữa, bấm
+**Quét mã vạch** để mở camera mã vạch. AI vẫn kiểm tra hồ sơ 18+, sự đồng ý và
+cấu hình Firebase/App Check; chỉ mở menu không tự gửi dữ liệu đến AI.
+
+Muốn chạy bản chỉ có tính năng cơ bản, truyền cả hai cờ cục bộ:
+`--dart-define=HEALTHMATE_ENABLE_CHATBOT=false`
+`--dart-define=HEALTHMATE_ENABLE_FOOD_SCANNER=false`.
 Các mô tả AI bên dưới là luồng đã bảo toàn cho bản bật cờ, không phải tính năng
 đang mở trong bản core. Bật lại AI cần yêu cầu riêng và không bỏ qua kiểm tra tuổi,
 consent, App Check hoặc điều kiện backend.

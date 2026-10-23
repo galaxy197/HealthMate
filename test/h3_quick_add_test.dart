@@ -59,7 +59,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('250 kcal / — kcal'), findsOneWidget);
       expect(find.text('— / — g'), findsNWidgets(3));
-      expect(find.textContaining('Dấu — không có nghĩa là 0'), findsOneWidget);
+      expect(
+        find.text('Dấu —: chưa có số liệu, không phải 0.'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );

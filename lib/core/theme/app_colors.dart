@@ -10,56 +10,56 @@ abstract final class AppColors {
   // ============================================================================
 
   /// Canvas/Scaffold background - Off-white
-  static const lightCanvas = DesignTokens.navy50;  // #F8FAFC
+  static const lightCanvas = DesignTokens.navy50; // #F8FAFC
 
   /// Surface - Pure white cards
   static const lightSurface = Color(0xFFFFFFFF);
 
   /// Surface muted - Subtle gray
-  static const lightSurfaceMuted = DesignTokens.navy100;  // #F1F5F9
+  static const lightSurfaceMuted = DesignTokens.navy100; // #F1F5F9
 
   /// Primary - Electric cyan
-  static const lightPrimary = DesignTokens.cyan500;  // #06B6D4
+  static const lightPrimary = Color(0xFF2459A3);
 
   /// On primary - Dark navy (readable on cyan)
-  static const lightOnPrimary = DesignTokens.navy900;  // #0F172A
+  static const lightOnPrimary = Color(0xFFFFFFFF);
 
   /// Text - Dark navy
-  static const lightText = DesignTokens.navy900;  // #0F172A
+  static const lightText = DesignTokens.navy900; // #0F172A
 
   /// Text muted - Mid navy
-  static const lightTextMuted = DesignTokens.navy600;  // #475569
+  static const lightTextMuted = DesignTokens.navy600; // #475569
 
   /// Outline - Light gray
-  static const lightOutline = DesignTokens.navy200;  // #E2E8F0
+  static const lightOutline = DesignTokens.navy200; // #E2E8F0
 
   // ============================================================================
   // DARK THEME COLORS
   // ============================================================================
 
   /// Canvas - True black for OLED
-  static const darkCanvas = Color(0xFF000000);
+  static const darkCanvas = Color(0xFF171824);
 
   /// Surface - Dark navy
-  static const darkSurface = DesignTokens.navy900;  // #0F172A
+  static const darkSurface = Color(0xFF252832);
 
   /// Surface elevated - Slightly lighter navy
-  static const darkSurfaceElevated = DesignTokens.navy800;  // #1E293B
+  static const darkSurfaceElevated = DesignTokens.navy800; // #1E293B
 
   /// Primary - Bright cyan (more vibrant for dark)
-  static const darkPrimary = DesignTokens.cyan400;  // #22D3EE
+  static const darkPrimary = Color(0xFF91BAFF);
 
   /// On primary - Dark navy
-  static const darkOnPrimary = DesignTokens.navy900;  // #0F172A
+  static const darkOnPrimary = Color(0xFF10233F);
 
   /// Text - Off-white
-  static const darkText = DesignTokens.navy50;  // #F8FAFC
+  static const darkText = DesignTokens.navy50; // #F8FAFC
 
   /// Text muted - Light gray
-  static const darkTextMuted = DesignTokens.navy400;  // #94A3B8
+  static const darkTextMuted = DesignTokens.navy400; // #94A3B8
 
   /// Outline - Dark gray
-  static const darkOutline = DesignTokens.navy700;  // #334155
+  static const darkOutline = DesignTokens.navy700; // #334155
 }
 
 @immutable
@@ -78,38 +78,32 @@ class AppMetricColors extends ThemeExtension<AppMetricColors> {
   /// Updated metric colors with modern palette
   static const light = AppMetricColors(
     // Water - Electric cyan
-    waterContainer: DesignTokens.cyan100,      // Light cyan background
-    onWaterContainer: DesignTokens.cyan600,    // Dark cyan text
-
+    waterContainer: DesignTokens.cyan100, // Light cyan background
+    onWaterContainer: Color(0xFF12616F), // Dark cyan text
     // Meal - Warm orange
-    mealContainer: DesignTokens.orange100,     // Light orange background
-    onMealContainer: DesignTokens.orange600,   // Dark orange text
-
+    mealContainer: DesignTokens.orange100, // Light orange background
+    onMealContainer: Color(0xFF8A3B0B), // Dark orange text
     // Activity - Emerald green
-    activityContainer: DesignTokens.activityLight,  // Light green background
-    onActivityContainer: DesignTokens.activityDark, // Dark green text
-
+    activityContainer: DesignTokens.activityLight, // Light green background
+    onActivityContainer: Color(0xFF176244), // Dark green text
     // Weight - Purple
-    weightContainer: DesignTokens.weightLight,      // Light purple background
-    onWeightContainer: DesignTokens.weightDark,     // Dark purple text
+    weightContainer: DesignTokens.weightLight, // Light purple background
+    onWeightContainer: Color(0xFF6D28D9),
   );
 
   static const dark = AppMetricColors(
     // Water - Electric cyan (vibrant for dark)
-    waterContainer: Color(0xFF164E63),         // Dark cyan background
-    onWaterContainer: DesignTokens.cyan300,    // Light cyan text
-
+    waterContainer: Color(0xFF164E63), // Dark cyan background
+    onWaterContainer: DesignTokens.cyan300, // Light cyan text
     // Meal - Warm orange
-    mealContainer: Color(0xFF7C2D12),          // Dark orange background
-    onMealContainer: DesignTokens.orange300,   // Light orange text
-
+    mealContainer: Color(0xFF7C2D12), // Dark orange background
+    onMealContainer: DesignTokens.orange300, // Light orange text
     // Activity - Emerald green
-    activityContainer: Color(0xFF065F46),      // Dark green background
-    onActivityContainer: Color(0xFF6EE7B7),    // Light green text
-
+    activityContainer: Color(0xFF065F46), // Dark green background
+    onActivityContainer: Color(0xFF6EE7B7), // Light green text
     // Weight - Purple
-    weightContainer: Color(0xFF581C87),        // Dark purple background
-    onWeightContainer: Color(0xFFC4B5FD),      // Light purple text
+    weightContainer: Color(0xFF581C87), // Dark purple background
+    onWeightContainer: Color(0xFFC4B5FD), // Light purple text
   );
 
   final Color waterContainer;

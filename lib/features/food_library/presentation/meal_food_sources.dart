@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../nutrition/data/unified_food_search_service.dart';
@@ -49,29 +50,65 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   List<FoodSearchResult> _searchResults = [];
   bool _isSearching = false;
   String? _searchError;
+  Timer? _searchDebounce;
+  int _searchGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _query = TextEditingController(text: widget.initialSearch);
     _query.addListener(_onSearchChanged);
+    if (widget.initialSearch.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _performUnifiedSearch();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchGeneration++;
     _query.removeListener(_onSearchChanged);
     _query.dispose();
     super.dispose();
   }
 
   void _onSearchChanged() {
-    if (_source == _FoodSource.search) {
-      _performUnifiedSearch();
+    _searchDebounce?.cancel();
+    _searchGeneration++;
+    if (!mounted) return;
+    if (_source != _FoodSource.search) {
+      setState(() {});
+      return;
     }
+    final query = _query.text.trim();
+    setState(() {
+      _searchResults =
+          searchFoodCatalog(
+                ref.read(foodCatalogProvider).value ??
+                    const <FoodCatalogItem>[],
+                query,
+              )
+              .map(
+                (food) => FoodSearchResult(
+                  food: food,
+                  source: FoodResultSource.firestore,
+                ),
+              )
+              .toList();
+      _isSearching = query.isNotEmpty;
+      _searchError = null;
+    });
+    if (query.isEmpty) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted && _source == _FoodSource.search) _performUnifiedSearch();
+    });
   }
 
   Future<void> _performUnifiedSearch() async {
     final query = _query.text.trim();
+    final generation = ++_searchGeneration;
     if (query.isEmpty) {
       setState(() {
         _searchResults = [];
@@ -82,6 +119,19 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     }
 
     setState(() {
+      _searchResults =
+          searchFoodCatalog(
+                ref.read(foodCatalogProvider).value ??
+                    const <FoodCatalogItem>[],
+                query,
+              )
+              .map(
+                (food) => FoodSearchResult(
+                  food: food,
+                  source: FoodResultSource.firestore,
+                ),
+              )
+              .toList();
       _isSearching = true;
       _searchError = null;
     });
@@ -97,7 +147,9 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
         limit: 50,
       );
 
-      if (mounted) {
+      if (mounted &&
+          generation == _searchGeneration &&
+          _query.text.trim() == query) {
         setState(() {
           _searchResults = results;
           _isSearching = false;
@@ -105,7 +157,9 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          generation == _searchGeneration &&
+          _query.text.trim() == query) {
         setState(() {
           _searchError = e.toString();
           _isSearching = false;
@@ -133,9 +187,9 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   }
 
   bool _matches(String name) {
-    // Fallback for non-search tabs
-    final normalized = name.toLowerCase().trim();
-    final queryNormalized = _query.text.toLowerCase().trim();
+    // Apply the same Vietnamese normalization to every food source.
+    final normalized = normalizeFoodSearch(name);
+    final queryNormalized = normalizeFoodSearch(_query.text);
     return normalized.contains(queryNormalized);
   }
 
@@ -147,31 +201,25 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     ],
   );
 
-  Widget _dataSourceBadge(FoodResultSource source) {
-    final (icon, color, label) = switch (source) {
-      FoodResultSource.firestore => (Icons.store, Colors.blue, 'Local'),
-      FoodResultSource.cache => (Icons.save_alt, Colors.green, 'Cache'),
-      FoodResultSource.usdaApi => (Icons.cloud, Colors.orange, 'USDA'),
-      FoodResultSource.user => (Icons.person, Colors.purple, 'Của bạn'),
-    };
-
-    return Chip(
-      avatar: Icon(icon, size: 16, color: color),
-      label: Text(label, style: TextStyle(fontSize: 11, color: color)),
-      padding: EdgeInsets.zero,
-      visualDensity: VisualDensity.compact,
-      backgroundColor: color.withValues(alpha: 0.1),
-      side: BorderSide(color: color.withValues(alpha: 0.3), width: 1),
-    );
-  }
-  Widget _catalogTile(FoodCatalogItem food, {bool removable = false, FoodResultSource? source}) {
+  Widget _dataSourceBadge(FoodResultSource source) => Text(switch (source) {
+    FoodResultSource.firestore => 'Danh mục',
+    FoodResultSource.cache => 'Đã lưu trên máy',
+    FoodResultSource.usdaApi => 'USDA',
+    FoodResultSource.user => 'Món riêng',
+  }, style: Theme.of(context).textTheme.bodySmall);
+  Widget _catalogTile(
+    FoodCatalogItem food, {
+    bool removable = false,
+    FoodResultSource? source,
+  }) {
     final busy = ref.watch(favoriteFoodControllerProvider).isLoading;
     return ListTile(
       key: ValueKey('${removable ? 'favorite' : 'catalog'}-food-${food.id}'),
       contentPadding: EdgeInsets.zero,
-      title: Row(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(food.name)),
+          Text(food.name),
           if (source != null) _dataSourceBadge(source),
         ],
       ),
@@ -214,7 +262,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
 
   Widget _search() {
     // Show loading indicator
-    if (_isSearching) {
+    if (_isSearching && _searchResults.isEmpty) {
       return const Column(
         children: [
           LinearProgressIndicator(),
@@ -238,22 +286,36 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
       );
     }
 
-    // Show empty state
+    // Browse the actual catalog immediately; typing is optional.
     if (_query.text.trim().isEmpty) {
-      return const Column(
-        children: [
-          Icon(Icons.search, size: 48, color: Colors.grey),
-          SizedBox(height: 8),
-          Text('Nhập tên món để tìm kiếm từ 50,000+ món ăn'),
-          SizedBox(height: 4),
-          Text(
-            'Nguồn: Local catalog, USDA database, món của bạn',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ],
+      final catalog = ref.watch(foodCatalogProvider);
+      return catalog.when(
+        skipLoadingOnRefresh: false,
+        skipLoadingOnReload: false,
+        loading: () => const LinearProgressIndicator(),
+        error: (_, _) => _retry(
+          'Chưa tải được danh mục món.',
+          () => ref.invalidate(foodCatalogProvider),
+        ),
+        data: (foods) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (foods.isEmpty)
+              const Text(
+                'Chưa có món trong danh mục. Bạn có thể nhập món riêng.',
+              ),
+            for (final food in foods.take(_visible)) _catalogTile(food),
+            if (foods.length > _visible)
+              TextButton.icon(
+                key: const ValueKey('more-catalog-foods'),
+                onPressed: () => setState(() => _visible += 12),
+                icon: const Icon(Icons.expand_more),
+                label: const Text('Xem thêm món'),
+              ),
+          ],
+        ),
       );
     }
-
     // Show search results with badges
     if (_searchResults.isEmpty) {
       return const Column(
@@ -273,7 +335,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Tìm thấy ${_searchResults.length} món',
+          'Kết quả phù hợp',
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 8),
@@ -436,6 +498,9 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
 
   @override
   Widget build(BuildContext context) {
+    if (_source == _FoodSource.search) {
+      ref.watch(foodCatalogProvider);
+    }
     if (!_initialResolved && widget.initialSearch.isEmpty) {
       final recent = ref.watch(recentMealsProvider);
       if (recent.hasValue && !recent.isLoading && !recent.hasError) {

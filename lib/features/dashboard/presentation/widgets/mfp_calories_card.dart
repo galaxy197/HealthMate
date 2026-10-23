@@ -1,110 +1,95 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/design_tokens.dart';
+import 'package:intl/intl.dart';
+import '../../../../core/widgets/app_card.dart';
 
-/// MyFitnessPal-style calories summary card
-/// Features:
-/// - "0 cal / 2,420" display
-/// - Progress bar
-/// - "2,420 left" on right
 class MfpCaloriesCard extends StatelessWidget {
-  final double consumed;
-  final double target;
-  final double? burned; // Optional exercise calories
-
   const MfpCaloriesCard({
     required this.consumed,
-    required this.target,
-    this.burned,
+    this.target,
+    this.onEditTarget,
+    this.targetStatus,
+    this.editKey,
     super.key,
   });
-
+  final double? consumed;
+  final double? target;
+  final VoidCallback? onEditTarget;
+  final String? targetStatus;
+  final Key? editKey;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final remaining = target - consumed + (burned ?? 0);
-    final progress = (consumed / target).clamp(0.0, 1.0);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: DesignTokens.navy800,
-        borderRadius: BorderRadius.circular(12),
-      ),
+    final number = NumberFormat('#,##0', 'vi');
+    final validTarget = target != null && target!.isFinite && target! > 0;
+    final remaining = validTarget && consumed != null
+        ? target! - consumed!
+        : null;
+    return AppCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header: "Calories"
-          Text(
-            'Calories',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Main row: Consumed / Target + Remaining
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
             children: [
-              // Consumed / Target
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: consumed.toStringAsFixed(0),
-                      style: theme.textTheme.headlineLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 36,
-                      ),
-                    ),
-                    TextSpan(
-                      text: ' cal',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: DesignTokens.navy400,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    TextSpan(
-                      text: ' / ${target.toStringAsFixed(0)}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: DesignTokens.navy400,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+              Expanded(
+                child: Text('Năng lượng', style: theme.textTheme.titleMedium),
               ),
-
-              // Remaining
+              if (onEditTarget != null)
+                IconButton(
+                  key: editKey,
+                  tooltip: 'Mục tiêu dinh dưỡng',
+                  onPressed: onEditTarget,
+                  icon: const Icon(Icons.tune_rounded),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 8,
+            children: [
               Text(
-                '${remaining.toStringAsFixed(0)} left',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: DesignTokens.navy300,
-                  fontWeight: FontWeight.w600,
+                '${consumed == null ? '—' : number.format(consumed)} kcal đã ghi',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
+              if (remaining != null)
+                Text(
+                  '${remaining >= 0 ? 'Còn lại' : 'Đã vượt'} ${number.format(remaining.abs())} kcal',
+                  style: theme.textTheme.titleSmall,
+                ),
             ],
           ),
           const SizedBox(height: 12),
-
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: DesignTokens.navy700,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                consumed > target
-                    ? DesignTokens.error
-                    : DesignTokens.blue500,
+          if (validTarget) ...[
+            Text(
+              'Mục tiêu ${number.format(target)} kcal',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: consumed == null
+                  ? ColoredBox(
+                      color: theme.scaffoldBackgroundColor,
+                      child: const SizedBox(height: 10),
+                    )
+                  : LinearProgressIndicator(
+                      value: (consumed! / target!).clamp(0.0, 1.0),
+                      minHeight: 10,
+                      backgroundColor: theme.scaffoldBackgroundColor,
+                    ),
+            ),
+          ] else
+            Text(
+              targetStatus ?? 'Chưa đặt mục tiêu',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
+          if (consumed == null) const Text('Chưa có tổng nhật ký'),
         ],
       ),
     );

@@ -11,9 +11,9 @@ abstract final class DesignTokens {
   // ============================================================================
 
   /// Base colors - MyFitnessPal-style dark navy
-  static const navy900 = Color(0xFF1C1F2E);  // MyFitnessPal dark bg
-  static const navy800 = Color(0xFF282B3B);  // Card bg
-  static const navy700 = Color(0xFF363A4D);  // Elevated card
+  static const navy900 = Color(0xFF1C1F2E); // MyFitnessPal dark bg
+  static const navy800 = Color(0xFF282B3B); // Card bg
+  static const navy700 = Color(0xFF363A4D); // Elevated card
   static const navy600 = Color(0xFF4A5068);
   static const navy500 = Color(0xFF64748B);
   static const navy400 = Color(0xFF94A3B8);
@@ -23,23 +23,30 @@ abstract final class DesignTokens {
   static const navy50 = Color(0xFFF8FAFC);
 
   /// Primary accent - MyFitnessPal blue
-  static const blue600 = Color(0xFF1E3A8A);  // Dark blue
-  static const blue500 = Color(0xFF2B5FB8);  // MyFitnessPal blue (primary)
-  static const blue400 = Color(0xFF3B82F6);  // Bright blue
+  static const blue600 = Color(0xFF1E3A8A); // Dark blue
+  static const blue500 = Color(0xFF2B5FB8); // MyFitnessPal blue (primary)
+  static const blue400 = Color(0xFF3B82F6); // Bright blue
   static const blue300 = Color(0xFF60A5FA);
   static const blue200 = Color(0xFF93C5FD);
   static const blue100 = Color(0xFFDBEAFE);
   static const blue50 = Color(0xFFEFF6FF);
 
+  /// Cyan scale used by the existing themes and water metric cards.
+  static const cyan600 = Color(0xFF0891B2);
+  static const cyan500 = Color(0xFF06B6D4); // Carbs color
+  static const cyan400 = Color(0xFF22D3EE);
+  static const cyan300 = Color(0xFF67E8F9);
+  static const cyan200 = Color(0xFFA5F3FC);
+  static const cyan100 = Color(0xFFCFFAFE);
+  static const cyan50 = Color(0xFFECFEFF);
+
   /// Accent colors - MyFitnessPal style
-  static const cyan500 = Color(0xFF06B6D4);  // Carbs color
-  static const purple500 = Color(0xFFA855F7);  // Fat color
-  static const orange500 = Color(0xFFF97316);  // Protein color
-  static const yellow500 = Color(0xFFF59E0B);  // Premium button
+  static const purple500 = Color(0xFFA855F7); // Fat color
+  static const yellow500 = Color(0xFFF59E0B); // Premium button
 
   /// Secondary accent - Warm orange
-  static const orange600 = Color(0xFFEA580C);  // Orange dark
-  static const orange500 = Color(0xFFF97316);  // Warm orange (secondary)
+  static const orange600 = Color(0xFFEA580C); // Orange dark
+  static const orange500 = Color(0xFFF97316); // Warm orange (secondary)
   static const orange400 = Color(0xFFFB923C);
   static const orange300 = Color(0xFFFDBA74);
   static const orange200 = Color(0xFFFED7AA);
@@ -55,18 +62,18 @@ abstract final class DesignTokens {
   static const mealLight = Color(0xFFFDBA74);
   static const mealDark = Color(0xFFEA580C);
 
-  static const activityPrimary = Color(0xFF10B981);  // Emerald
+  static const activityPrimary = Color(0xFF10B981); // Emerald
   static const activityLight = Color(0xFFA7F3D0);
   static const activityDark = Color(0xFF059669);
 
-  static const weightPrimary = Color(0xFF8B5CF6);  // Purple
+  static const weightPrimary = Color(0xFF8B5CF6); // Purple
   static const weightLight = Color(0xFFDDD6FE);
   static const weightDark = Color(0xFF7C3AED);
 
   /// Macro colors (MyFitnessPal style)
-  static const carbsColor = cyan500;      // Cyan for carbs
-  static const fatColor = purple500;      // Purple for fat
-  static const proteinColor = orange500;  // Orange for protein
+  static const carbsColor = cyan500; // Cyan for carbs
+  static const fatColor = purple500; // Purple for fat
+  static const proteinColor = orange500; // Orange for protein
 
   /// Semantic colors
   static const success = Color(0xFF10B981);
@@ -78,9 +85,9 @@ abstract final class DesignTokens {
   // TYPOGRAPHY
   // ============================================================================
 
-  /// Font family - Inter for clean, modern feel
-  /// Note: Need to add Inter font to assets
-  static const fontFamily = 'Inter';
+  /// Bundled font with Vietnamese glyphs; no network font loading.
+  /// Assets and font license are declared in pubspec.yaml and assets/fonts.
+  static const fontFamily = 'BeVietnamPro';
   static const fontFamilyFallback = 'BeVietnamPro';
 
   /// Font weights
@@ -102,17 +109,17 @@ abstract final class DesignTokens {
   // ============================================================================
 
   static const double space0 = 0;
-  static const double space4 = 4;     // xs
-  static const double space8 = 8;     // sm
-  static const double space12 = 12;   // md-sm
-  static const double space16 = 16;   // md
-  static const double space20 = 20;   // md-lg
-  static const double space24 = 24;   // lg
-  static const double space32 = 32;   // xl
-  static const double space40 = 40;   // 2xl
-  static const double space48 = 48;   // 3xl
-  static const double space64 = 64;   // 4xl
-  static const double space80 = 80;   // 5xl
+  static const double space4 = 4; // xs
+  static const double space8 = 8; // sm
+  static const double space12 = 12; // md-sm
+  static const double space16 = 16; // md
+  static const double space20 = 20; // md-lg
+  static const double space24 = 24; // lg
+  static const double space32 = 32; // xl
+  static const double space40 = 40; // 2xl
+  static const double space48 = 48; // 3xl
+  static const double space64 = 64; // 4xl
+  static const double space80 = 80; // 5xl
 
   // ============================================================================
   // BORDER RADIUS - Softer than before
@@ -127,10 +134,10 @@ abstract final class DesignTokens {
   static const double radiusFull = 999;
 
   /// Component-specific radius
-  static const double cardRadius = radiusLg;      // 20px (was 24px)
-  static const double buttonRadius = radiusMd;    // 16px (was 18px)
-  static const double inputRadius = radiusMd;     // 16px
-  static const double chipRadius = radiusFull;    // pill shape
+  static const double cardRadius = radiusXl;
+  static const double buttonRadius = radiusMd; // 16px (was 18px)
+  static const double inputRadius = radiusMd; // 16px
+  static const double chipRadius = radiusFull; // pill shape
 
   // ============================================================================
   // SHADOWS - Subtle elevation
@@ -138,7 +145,7 @@ abstract final class DesignTokens {
 
   static const List<BoxShadow> shadowSm = [
     BoxShadow(
-      color: Color(0x0D000000),  // 5% opacity
+      color: Color(0x0D000000), // 5% opacity
       blurRadius: 4,
       offset: Offset(0, 1),
     ),
@@ -146,7 +153,7 @@ abstract final class DesignTokens {
 
   static const List<BoxShadow> shadowMd = [
     BoxShadow(
-      color: Color(0x1A000000),  // 10% opacity
+      color: Color(0x1A000000), // 10% opacity
       blurRadius: 8,
       offset: Offset(0, 2),
     ),
@@ -154,7 +161,7 @@ abstract final class DesignTokens {
 
   static const List<BoxShadow> shadowLg = [
     BoxShadow(
-      color: Color(0x26000000),  // 15% opacity
+      color: Color(0x26000000), // 15% opacity
       blurRadius: 16,
       offset: Offset(0, 4),
     ),
@@ -181,7 +188,7 @@ abstract final class DesignTokens {
 
   static const Curve curveEaseOut = Curves.easeOut;
   static const Curve curveEaseInOut = Curves.easeInOut;
-  static const Curve curveSpring = Curves.easeOutCubic;  // Spring-like
+  static const Curve curveSpring = Curves.easeOutCubic; // Spring-like
 
   // ============================================================================
   // SIZES

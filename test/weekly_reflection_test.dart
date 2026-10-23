@@ -65,6 +65,7 @@ BodyMetric weight(String id, DateTime day, double kg) => BodyMetric(
 );
 
 Future<void> openWeek(WidgetTester tester) async {
+  await openDashboardDetails(tester);
   final finder = find.byKey(const ValueKey('open-weekly-reflection'));
   await Scrollable.ensureVisible(tester.element(finder), alignment: 0.2);
   await tester.pumpAndSettle();
@@ -266,6 +267,7 @@ void main() {
     final n = FakeNutritionRepository(meals: [meal('week-current', start, 130)])
       ..rangePending = gate;
     await pumpApp(tester, dashboardNow: sunday, nutritionRepository: n);
+    await openDashboardDetails(tester);
     final open = find.byKey(const ValueKey('open-weekly-reflection'));
     await Scrollable.ensureVisible(tester.element(open), alignment: 0.2);
     await tester.pumpAndSettle();
@@ -297,7 +299,10 @@ void main() {
         waterRepository: w,
         activityRepository: a,
       );
-      expect(n.activeDayListeners, 1);
+      expect(
+        n.activeDayListeners,
+        2,
+      ); // Selected day and previous-day meal reuse.
       expect(w.activeDayListeners, 1);
       expect(a.activeDayListeners, 1);
       await tester.tap(find.byKey(const ValueKey('nav-profile')));
@@ -307,7 +312,10 @@ void main() {
       expect(a.activeDayListeners, 0);
       await tester.tap(find.byKey(const ValueKey('nav-dashboard')));
       await tester.pumpAndSettle();
-      expect(n.activeDayListeners, 1);
+      expect(
+        n.activeDayListeners,
+        2,
+      ); // Selected day and previous-day meal reuse.
       expect(w.activeDayListeners, 1);
       expect(a.activeDayListeners, 1);
     },
@@ -342,6 +350,7 @@ void main() {
         goalsRepository: repo,
         nutritionRepository: n,
       );
+      await openDashboardDetails(tester);
       expect(find.text('Nước đã ghi: 0 / 1000 ml'), findsOneWidget);
       expect(find.textContaining('Đã hoàn thành'), findsOneWidget);
       expect(
@@ -368,7 +377,10 @@ void main() {
     container.invalidate(dashboardClockProvider);
     await tester.pumpAndSettle();
     expect(n.watchedDateKeys.last, '2026-10-19');
-    expect(n.activeDayListeners, 1);
+    expect(
+      n.activeDayListeners,
+      2,
+    ); // Selected day and previous-day meal reuse.
   });
 
   testWidgets('clock refreshes on resume and disposes its timer', (

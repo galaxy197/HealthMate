@@ -1933,3 +1933,182 @@ app ổn định vì full suite còn 48 lỗi. Không thêm package, không sử
 không deploy Firebase, không commit/push thay đổi sửa lỗi. Đề xuất công việc
 tiếp theo: xem xét riêng lỗi hồi quy giao diện/tìm món và khai báo dependency
 http trong bản GitHub mới; chưa triển khai.
+
+## 20/10/2026 — Sửa lỗi bảng màu sau commit giao diện ba0557d
+
+Phạm vi: sửa các lỗi compile trong ảnh người dùng gửi sau khi chạy bản giao diện
+mới. Git sạch trước sửa, HEAD ba0557d. Đã đối chiếu design_tokens.dart,
+app_colors.dart, DashboardHeroSection, AppTheme và phiên bản tokens trước đó.
+
+- Commit giao diện xóa thang cyan trong khi theme/hero vẫn tham chiếu các màu,
+  đồng thời khai báo orange500 hai lần với cùng giá trị.
+- Khôi phục cyan600/400/300/200/100/50 theo đúng giá trị trước commit; giữ
+  cyan500, các màu navy/blue và các component MyFitnessPal mới. Bỏ duy nhất
+  khai báo orange500 bị trùng, giữ màu orange500 hiện có cho macro/semantic.
+- File nguồn sửa: lib/core/theme/design_tokens.dart. Chạy dart format trên
+  file này; các thay đổi spacing comment khác trong diff do formatter.
+- Tài liệu cập nhật: docs/implementation-progress.md. Không đổi nghiệp vụ,
+  dependency, Android Gradle/Kotlin, Firebase Rules hoặc indexes.
+
+Kiểm tra thực tế:
+- `dart format lib/core/theme/design_tokens.dart`: thành công; kiểm tra lại
+  `--output=none --set-exit-if-changed` không cần thay đổi.
+- `flutter --no-version-check analyze --no-pub`: **0 error, 0 warning,
+  23 info**, exit 1, 6.1s. Chưa đạt analyze sạch; vẫn có các lint withOpacity,
+  print, http dependency đã nêu ở báo cáo sửa barcode. Logs:
+  build/palette-analyze-before.log và build/palette-analyze-after.log.
+- `flutter --no-version-check test --no-pub --reporter expanded`:
+  **406 qua, 48 lỗi**, exit 1, 47s; build/palette-flutter-test.log.
+  Đối chiếu chính xác tên từng case lỗi với build/barcode-flutter-test.log:
+  hai tập cùng 48 case, không có case lỗi thêm/bớt. Chưa sửa các lỗi giao diện,
+  tìm món/fixture cũ ngoài phạm vi khôi phục tokens; không bỏ test/đổi expected.
+- `flutter --no-version-check build apk --debug --no-pub`: **thành công**,
+  exit 0, assembleDebug 25.1s; build/palette-build-debug.log.
+  APK: build/app/outputs/flutter-apk/app-debug.apk. KGP warning vẫn xuất hiện
+  nhưng không chặn bản build này. Không tuyên bố đã kiểm thử trên máy thật.
+
+Người dùng: dừng phiên debug lỗi rồi F5 lại từ lib/main.dart và chọn điện thoại.
+Cần kiểm tra giao diện sáng/tối trên máy thật. Không commit/push hoặc deploy
+Firebase trong lượt sửa lỗi này. Tiếp theo đề xuất: xử lý riêng 48 case hồi quy
+đã ghi nhận và 23 info; không tự mở rộng nhiệm vụ sang các thay đổi đó.
+
+## 20/10/2026 — Hoàn thành đợt UI/UX theo ảnh MyFitnessPal
+
+1. **Giai đoạn:** tích hợp lại trải nghiệm theo năm ảnh tham chiếu người dùng;
+   không triển khai giai đoạn backend khác. Bảo toàn bản sửa tokens chưa commit
+   từ lượt trước. Nền Git vẫn ba0557d, không reset/pull đè thay đổi cục bộ.
+2. **Đã hoàn thành:** Hôm nay chọn ngày, header giữ khi cuộn; calo/macro thật;
+   bốn thẻ bữa, ghi bữa đúng loại/ngày, dùng lại bữa trước phải xác nhận; thêm nước
+   nhanh; Hôm nay–Tiến độ–Thêm và +; tab biểu đồ năng lượng/chất/cân nặng/nước/
+   vận động; chi tiết báo cáo, 30/90 ngày và nút xuất CSV thật. Mục tiêu/nhiệm vụ
+   có nhãn ngày đang xem. Các route Auth/Nhật ký/Quest/Chat/Cá nhân vẫn được giữ.
+3. **File chính:** core/theme/app_colors.dart, design_tokens.dart;
+   core/widgets/app_shell.dart, tracking_page.dart; dashboard_screen.dart,
+   dashboard_goals_card.dart và ba mfp_*_card.dart; progress_screen.dart,
+   progress_overview.dart; journal_screen.dart, journal_meal_entry.dart;
+   meal_form_dialog.dart, meal_food_sources.dart. Test mới mfp_ui_test.dart,
+   mfp_search_test.dart, fake_food_search_service.dart; cập nhật các test UI và
+   fixture ProviderScope/DI. Danh sách/thiết kế: [mfp-ui-redesign.md](mfp-ui-redesign.md).
+4. **Kiểm thử cuối trên code cuối:**
+   - Dart format trên 25 file Dart thay đổi: kiểm tra lại 0 file cần format.
+   - `flutter --no-version-check test --no-pub --reporter expanded`:
+     **468/468 qua, 52s, exit 0**, build/mfp-flutter-complete.log.
+     Gồm 454 test cũ và 14 test mới; không bỏ case hoặc hạ expected để che lỗi.
+   - `flutter --no-version-check analyze --no-pub`: **0 error, 0 warning,
+     21 info**, 7.7s, **exit 1**, build/mfp-analyze-complete.log. Chưa analyze sạch:
+     withOpacity cũ, print trong unified search, http nằm ở dev_dependencies.
+     Không disable lint hoặc nâng dependencies để làm xanh báo cáo.
+   - `flutter --no-version-check build apk --debug --no-pub`: **thành công,
+     assembleDebug 16.4s, exit 0**, build/mfp-build-complete.log. APK:
+     build/app/outputs/flutter-apk/app-debug.apk. KGP warning vẫn còn.
+   - 24 ảnh widget QA: docs/ux/mfp/, sáng/tối, 390×844, textScale 1.0/1.5;
+     dùng font asset thật, dữ liệu tổng hợp. Đã xem các ảnh Hôm nay, Bữa ăn,
+     Tiến độ, Cân nặng, Macro. Suite cũ cũng chạy layout 360/390/412, chữ đến 2.0.
+   - Test tương phản >=4.5:1 cho chữ chính/phụ, nút và bốn cặp màu chỉ số;
+     ngày trống/loading/error, đổi ngày khi đang tải, mục tiêu lỗi riêng biệt;
+     copy không ghi trước xác nhận; tab báo cáo chỉ một lần đọc range; export
+     mở đúng dialog; hai test tìm kiếm trả kết quả đảo thứ tự vẫn giữ query mới.
+5. **Cần người dùng làm:** dừng debug cũ, F5 từ lib/main.dart; chọn Thêm →
+   Giao diện → Tối để xem kiểu tối trong ảnh. Kiểm tra máy thật theo checklist
+   trong mfp-ui-redesign.md, đặc biệt bàn phím/chữ lớn/camera/offline/xuất CSV.
+6. **Vấn đề/giới hạn:** 21 info chưa xử lý; chưa QA thiết bị thật hoặc xác minh
+   USDA/Open Food Facts/mã vạch online trong lượt này. Widget test dùng fake
+   external search để không truy cập API thật hoặc plugin SQLite trên host.
+   Chưa chạy lại security emulator vì không đổi Rules. Không đổi schema,
+   indexes, pubspec/dependencies, Android config, AI hoặc billing. Không commit,
+   push, deploy Firebase hoặc nhập dữ liệu production.
+7. **Tiếp theo đề xuất:** nghiệm thu trên điện thoại và chỉnh chi tiết theo phản
+   hồi thực tế; chưa triển khai giai đoạn mới.
+
+Những lỗi từng ghi ở đợt sửa build (406 qua/48 lỗi) là kết quả lịch sử trước đợt
+UI này; trạng thái cuối hiện tại là 468/468 qua. Đã sửa luồng duyệt món trống,
+search trả chậm, ProviderScope thiếu ở fixture cũ và layout/locator do đổi giao
+điện; không che những lượt thất bại. Log phát triển, gồm fixture ảnh cân nặng
+thiếu createdAt/updatedAt trước khi được bổ sung, được giữ trong build/mfp-*.
+
+### 2026-10-20 — Điều hướng 5 ô và hiển thị lại tính năng
+
+1. **Phạm vi:** yêu cầu bổ sung sau đợt UI MyFitnessPal; chỉ sửa điều hướng và
+   khả năng tìm thấy tính năng sẵn có, không triển khai giai đoạn nghiệp vụ mới.
+2. **Đã hoàn thành:** thanh điện thoại có đúng 5 ô Hôm nay / Nhật ký / + / Tiến độ /
+   Thêm, + ở giữa. Menu + có Quét món, thêm bữa/nước/vận động/cân nặng và lối tắt
+   Mục tiêu/Nhiệm vụ, Chat. Hai mục sau cũng được đưa lên đầu màn Cá nhân (Thêm).
+   Khi mở Quest/Chat, Thêm vẫn được đánh dấu đang chọn. Quét mã vạch được đưa ra
+   phần chung của form bữa ăn nên không bị ẩn khi dùng MealFoodSources.
+   Nút này chặn mở khi đang lưu/bỏ nháp và khi đã đủ 5 món.
+3. **File chính:** lib/core/widgets/app_shell.dart,
+   lib/core/config/app_feature_flags.dart,
+   lib/features/dashboard/presentation/dashboard_screen.dart (đổi key icon nhật ký
+   trên header để tránh trùng key tab mới),
+   lib/features/profile/presentation/profile_screen.dart,
+   lib/features/nutrition/presentation/meal_form_dialog.dart,
+   test/navigation_features_test.dart, test/core_scope_test.dart,
+   test/core_journal_test.dart, README.md và docs/mfp-ui-redesign.md.
+4. **Kiểm thử thực tế:** dart format 8 file Dart của đợt này qua, kiểm tra lại 0 file
+   thay đổi; flutter test --no-pub --reporter expanded qua **485/485** trong 60 giây;
+   flutter analyze --no-pub còn **21 info, 0 warning, 0 error**, exit 1;
+   flutter build apk --debug --no-pub qua, assembleDebug 26,3 giây. Log nằm ở
+   build/navigation-full-test-final.log, build/navigation-analyze-final.log,
+   build/navigation-build.log. Bộ điều hướng/core ban đầu qua 50 test.
+   Một lượt full trước đó có 484 qua/1 lỗi locator sửa khẩu phần ở dưới vùng nhìn;
+   test được bổ sung thao tác cuộn thật, không bỏ assertion dữ liệu; 36 test nhật ký
+   sau sửa và toàn bộ suite sau cùng đều qua.
+5. **Cần người dùng làm:** dừng phiên chạy cũ và F5 lại (để áp dụng cờ compile-time);
+   kiểm tra camera quét ảnh/mã vạch, điều kiện AI, mạng/App Check trên máy thật.
+   Mặc định Scanner/Chat hiển thị, không cần define=true; nếu launch cũ truyền
+   define=false thì bỏ chúng. Vẫn hỗ trợ build core-only qua hai define=false.
+6. **Giới hạn:** chưa QA camera hoặc gọi dịch vụ AI/API mã vạch thật trong lượt này.
+   Việc hiện nút không chứng minh cloud/camera đã hoạt động. Kiểm tra hồ sơ 18+,
+   consent trước gửi AI, quyền UID, luồng xác nhận lưu bữa vẫn được giữ. Mở tab/menu
+   không tự gửi ảnh/câu hỏi. 21 info và cảnh báo Kotlin plugin còn tồn tại.
+   Giữ toàn bộ thay đổi chưa commit trước đó; không sửa package/schema/Rules/index,
+   không commit/push/deploy hoặc thay dữ liệu Firebase production.
+7. **Tiếp theo đề xuất:** nghiệm thu 5 ô và scanner/chat trên điện thoại; chưa thực hiện
+   giai đoạn mới.
+
+### 2026-10-20 — Rút gọn thông tin ở các màn chính
+
+1. **Phạm vi:** phản hồi UI quá nhiều thông tin; chỉ tinh gọn trình bày và cách mở
+   chi tiết, không đổi nghiệp vụ hay triển khai giai đoạn mới.
+2. **Đã hoàn thành:** Hôm nay ưu tiên kcal/macro/bữa/ghi nhanh. Mục tiêu dinh dưỡng,
+   Goal/Quest và tổng kết tuần chuyển vào “Mục tiêu và tổng kết” mặc định đóng,
+   chỉ dựng nội dung khi mở. Bỏ nút tiến độ trùng với tab, dòng UTC cố định chuyển
+   vào tooltip ngày. Thẻ chỉ số nhỏ hơn, bớt nhãn lặp; thẻ bữa bớt câu rỗng và giới
+   hạn tên dài (nhật ký vẫn xem đủ). Nút ⓘ mở hướng dẫn dinh dưỡng/nước/vận động/
+   khẩu phần. Nước chỉ hiện ml; form bữa đếm n/5 ngắn. Cá nhân bỏ email lặp.
+   Thanh dưới 5 ô và Scanner/Chat vẫn được giữ. Thông báo lỗi, thao tác lưu, xác
+   nhận và consent AI/nhãn ước tính không bị ẩn. Dấu — vẫn phân biệt với 0.
+3. **File:** danh sách đầy đủ theo khu vực ở docs/compact-ui.md; 2 widget chung mới
+   details_disclosure.dart và information_button.dart; các màn Dashboard/Journal,
+   meal_form_dialog/meal_log_section, water_log_section, Profile; thêm
+   test/compact_ui_test.dart và cập nhật thao tác mở chi tiết/nhãn trong test cũ.
+4. **Kiểm thử:** dart format 20 file Dart thuộc lượt này, kiểm tra lại 0 thay đổi;
+   flutter test --no-pub --reporter expanded **490/490 qua**, 65 giây, exit 0;
+   flutter analyze --no-pub **21 info, 0 warning/error**, exit 1 (21,7 giây);
+   flutter build apk --debug --no-pub qua, assembleDebug 49,1 giây, exit 0.
+   Log build/compact-full-final.log, compact-analyze.log, compact-build.log.
+   Các lượt phát triển có lỗi text/locator sau đổi chữ và mở chi tiết; đã sửa cách
+   thao tác/giới hạn finder, không bỏ assertion tính toán, không skip test. Lượt
+   full trước cuối 489 qua/1 lỗi nhãn thiếu macro; cuối cùng giữ giải thích ngắn
+   “Dấu —: chưa có số liệu, không phải 0.” và toàn bộ test qua.
+5. **Cần người dùng làm:** chạy lại app, kiểm tra bố cục/cỡ chữ/sáng tối trên điện
+   thoại; bấm mục mở rộng và ⓘ khi cần chi tiết. Hướng dẫn ở docs/compact-ui.md.
+6. **Giới hạn:** chỉ QA widget/render và build; chưa thử tương tác thiết bị thật,
+   camera hoặc gọi API AI/mã vạch. 21 info và cảnh báo Kotlin plugin còn tồn tại.
+   Không đổi nguồn dữ liệu, package, schema, Rules/indexes, không commit/push/
+   deploy hay cập nhật dữ liệu Firebase production; bảo toàn thay đổi trước đó.
+7. **Tiếp theo đề xuất:** nghiệm thu trực quan trên điện thoại, chờ phản hồi;
+   không tự triển khai thêm.
+
+### 2026-10-23 — Đồng bộ mã nguồn theo yêu cầu GitHub
+
+- Phạm vi: commit/push toàn bộ thay đổi UI/test/tài liệu đang có; không làm giai đoạn mới.
+- Đã fetch và kiểm tra main không lệch origin/main trước khi gom commit; giữ nguyên
+  nội dung sửa trước đó, không reset/clean hoặc loại bỏ chức năng.
+- Kiểm tra trước commit: format 40 file không cần sửa; toàn suite 490/490 qua,
+  analyze 21 info cũ, 0 warning/error (exit 1); kiểm tra diff whitespace qua.
+- Nội dung gồm UI Hôm nay/Tiến độ, thanh 5 ô, lối vào Scanner/Chat/Quest, tìm món,
+  phần chi tiết thu gọn, test/fake repository, ảnh fixture và docs/chat-handoff.md.
+- Danh sách/rủi ro chi tiết ở docs/mfp-ui-redesign.md, docs/compact-ui.md,
+  docs/test-report.md. Không cài dependency, đổi schema/Rules/indexes hoặc deploy
+  Firebase. Mã commit và xác nhận remote được cung cấp sau khi push thành công.

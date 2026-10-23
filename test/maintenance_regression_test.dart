@@ -1,3 +1,4 @@
+import 'support/fake_food_search_service.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -246,23 +247,25 @@ void main() {
           );
           MealDraft? result;
           await tester.pumpWidget(
-            MaterialApp(
-              locale: const Locale('vi'),
-              supportedLocales: const [Locale('vi')],
-              localizationsDelegates: GlobalMaterialLocalizations.delegates,
-              home: Builder(
-                builder: (context) => Scaffold(
-                  body: TextButton(
-                    onPressed: () async {
-                      result = await showDialog<MealDraft>(
-                        context: context,
-                        builder: (_) => MealFormDialog(
-                          catalog: exists ? [changed] : [],
-                          initialItems: [old],
-                        ),
-                      );
-                    },
-                    child: const Text('Mở'),
+            testFoodScope(
+              MaterialApp(
+                locale: const Locale('vi'),
+                supportedLocales: const [Locale('vi')],
+                localizationsDelegates: GlobalMaterialLocalizations.delegates,
+                home: Builder(
+                  builder: (context) => Scaffold(
+                    body: TextButton(
+                      onPressed: () async {
+                        result = await showDialog<MealDraft>(
+                          context: context,
+                          builder: (_) => MealFormDialog(
+                            catalog: exists ? [changed] : [],
+                            initialItems: [old],
+                          ),
+                        );
+                      },
+                      child: const Text('Mở'),
+                    ),
                   ),
                 ),
               ),

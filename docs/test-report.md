@@ -1086,3 +1086,99 @@ Bổ sung chốt hồi quy H7 trên bố cục cuối:
   ảnh journal-android.png lấy từ core lượt đã qua, đã kiểm tra bằng mắt.
 
 Bản sao cuối gồm nguồn/tài liệu chưa commit và log kiểm chứng: D:\HealthMateMaintenanceQA\h0-h7-complete-20261019-191713. Hạn mức được kiểm tra trước tắt máy; không đợi xuống dưới5% vì công việc đã hoàn tất.
+
+## 20/10/2026 — UI/UX theo ảnh tham chiếu MyFitnessPal
+
+Trên nền ba0557d cùng bản sửa palette cục bộ; chưa commit/push/deploy.
+Báo cáo chi tiết: [mfp-ui-redesign.md](mfp-ui-redesign.md).
+
+| Kiểm tra | Kết quả thực tế | Chứng cứ |
+| --- | --- | --- |
+| Format file Dart thay đổi | 25 file, 0 cần format ở lần kiểm tra cuối | Dart formatter exit 0 |
+| Flutter unit/widget đầy đủ | **468/468 qua**, 52s, exit 0 | build/mfp-flutter-complete.log |
+| Analyze | **0 error, 0 warning, 21 info**, exit 1 | build/mfp-analyze-complete.log |
+| APK Android debug | **Build thành công**, 16.4s, exit 0 | build/mfp-build-complete.log |
+| Ảnh widget QA | 24 ảnh, sáng/tối, cỡ chữ 1.0/1.5 | docs/ux/mfp/README.md |
+
+Các info còn lại: withOpacity ở widget cũ, print của unified search và http
+chưa khai báo trong dependencies chính. KGP warning xuất hiện lúc build.
+Không gọi các info này là analyze thành công hoàn toàn.
+
+14 test mới kiểm tra tương phản 4,5:1, dữ liệu thật qua fake repository, ngày
+trống, phản hồi ngày cũ đến trễ, trạng thái tải/lỗi mục tiêu, mục tiêu tự đặt,
+copy bữa chỉ lưu sau xác nhận, tab dùng chung range, xuất CSV mở đúng dialog,
+retry báo cáo và search đảo thứ tự ở cả form standalone và thư viện món.
+Các test cũ giữ xác nhận số liệu/UID/quyền thao tác/nháp/operation ID; cập nhật
+cách mở báo cáo chi tiết và vùng bấm sau khi đổi UI. Hai fixture standalone
+được bọc ProviderScope theo ConsumerStatefulWidget hiện tại. Không xóa test.
+
+Các kết quả 48 hoặc 65 case lỗi trong log phát triển là các lượt trước sửa,
+không phải trạng thái cuối. Toàn bộ suite trên source cuối qua 468 case.
+Không chạy lại Firestore emulator/security hoặc production QA; không sửa Rules,
+indexes/schema hoặc package. Chưa kiểm chứng camera/API online trên máy thật.
+
+### 2026-10-20 — Thanh dưới 5 ô, hiện lại Scanner/Chat
+
+- dart format 8 file Dart thuộc lượt sửa: qua, kiểm tra lại 0 thay đổi.
+- flutter test --no-pub --reporter expanded: **485/485 qua**, 60 giây, exit 0.
+  Log build/navigation-full-test-final.log. Thêm 16 widget test về 5 ô ở rộng
+  320/390, textScale 1/1,5/2 và sáng/tối; tab chuyển đúng route, + ở giữa, vùng
+  bấm >=48; mở Scanner không gọi camera/AI, Mục tiêu/Chat mở từ + và Thêm;
+  barcode có mặt trong form thật dùng sourcesBuilder kể cả khi AI tắt.
+  Thêm test mặc định cờ hiển thị mà không khởi tạo Firebase/AI. Các test core-only
+  vẫn kiểm tra hai cờ false chặn AI và đường dẫn trực tiếp như trước.
+- flutter analyze --no-pub: **21 info, 0 warning, 0 error**, exit 1. Đây là các
+  info withOpacity/print/http có sẵn; không gọi analyze sạch. Lượt phát triển đầu
+  có thêm 1 info thiếu ngoặc trong test mới, đã sửa.
+- flutter build apk --debug --no-pub: qua, assembleDebug 26,3 giây, exit 0.
+  APK build/app/outputs/flutter-apk/app-debug.apk; cảnh báo KGP còn tồn tại.
+- Một lượt full trước sửa test cuộn có 484 qua/1 lỗi do locator Sửa khẩu phần
+  chưa được dựng vì ngoài viewport; đã bổ sung scrollUntilVisible, giữ nguyên
+  assertion ngày/loại/khẩu phần/tổng và dữ liệu gốc. 36 test nhật ký riêng qua
+  sau sửa, rồi toàn suite cuối qua 485. Log lỗi giữ ở build/navigation-full-test.log.
+- Đã xem ảnh widget render today-dark-1.0.png: 5 ô hiện đúng. Ảnh trong docs/ux/mfp
+  tiếp tục là fixture tổng hợp, không phải dữ liệu thật hay kiểm tra điện thoại.
+- Không chạy camera/AI/Open Food Facts thật, không thay/deploy Rules/indexes, không
+  kiểm thử lại security emulator; các kiểm tra AI eligibility/consent hiện có vẫn qua.
+
+### 2026-10-20 — Rút gọn UI, mở chi tiết theo nhu cầu
+
+- Format 20 file Dart của đợt này: qua, kiểm tra lại 0 thay đổi.
+- flutter test --no-pub --reporter expanded: **490/490 qua**, 65 giây, exit 0.
+  Log build/compact-full-final.log. 5 test mới xác nhận nội dung phụ không dựng
+  hoặc đọc Goals trước khi mở; mở/đóng vẫn giữ các chức năng; nút thông tin mở
+  đúng giải thích và đóng được ở cỡ chữ 1/1,5/2; Barcode/Save còn trong form thật.
+  Các test mục tiêu/weekly được cập nhật mở mục tổng kết trước khi kiểm tra;
+  giữ nguyên assertions dữ liệu/UID/lưu/tổng/cạnh tranh async.
+- flutter analyze --no-pub: **21 info, 0 warning/error**, exit 1, 21,7 giây.
+  Không gọi analyze sạch. Log build/compact-analyze.log.
+- flutter build apk --debug --no-pub: qua, assembleDebug 49,1 giây, exit 0.
+  Log build/compact-build.log. APK build/app/outputs/flutter-apk/app-debug.apk.
+- Các lượt phát triển đầu có lỗi finder sau đổi nhãn hoặc do nội dung mặc định
+  đóng; đã cập nhật tương tác mở/đóng đúng header, scoped finder trạng thái tải.
+  Lượt full trước cuối 489 qua/1 lỗi copy cảnh báo macro thiếu; sửa thành câu ngắn
+  vẫn phân biệt — với 0, cập nhật assertion, toàn suite cuối qua 490. Không skip.
+- Đã xem ảnh Today dark 1.0 được render lại: bỏ dòng UTC cố định và đoạn giải thích
+  macro, thấy phần Bữa ăn sớm hơn; 5 ô vẫn rõ. Bộ ảnh fixture sáng/tối và chữ lớn
+  tiếp tục sinh từ widget test, không phải kiểm tra trên điện thoại thật.
+- Không chạy lại security emulator hay API/camera thật; không đổi nghiệp vụ,
+  Firebase Rules/indexes/schema, dependency hoặc triển khai production.
+
+### 2026-10-23 — Kiểm tra trước khi đồng bộ GitHub
+
+- Theo yêu cầu người dùng, gom đầy đủ các thay đổi UI, thanh điều hướng 5 ô,
+  Scanner/Chat, rút gọn nội dung, test, ảnh fixture và tài liệu bàn giao để commit/push.
+- git fetch origin: main và origin/main cùng ở ba0557d trước khi tạo commit mới,
+  không có commit remote cần hợp nhất.
+- dart format --output=none --set-exit-if-changed trên 40 file Dart thay đổi/mới:
+  0 file cần sửa, exit 0.
+- flutter test --no-pub --reporter expanded: **490/490 qua**, 64 giây, exit 0;
+  log build/github-push-test.log.
+- flutter analyze --no-pub: **21 info, 0 warning/error**, 87,3 giây, exit 1;
+  log build/github-push-analyze.log. Không gọi analyze sạch.
+- Kiểm tra diff whitespace: qua. Rà soát danh sách file và mẫu private key/token
+  phổ biến: không thấy mẫu khớp trong các file sẽ đưa lên; không đưa build, log,
+  credential hoặc file cục bộ bị ignore vào commit. Ảnh UI dùng fixture tổng hợp.
+- Không sửa mã nguồn nghiệp vụ trong lượt đồng bộ, không chạy lại build APK;
+  kết quả build gần nhất của chính thay đổi này là bản debug qua ngày 20/10.
+  Không deploy Firebase; kết quả push và mã commit xác nhận sau khi GitHub nhận.

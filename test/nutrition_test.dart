@@ -182,7 +182,7 @@ void main() {
     for (final macro in ['30 / — g', '40 / — g', '10 / — g']) {
       expect(find.text(macro), findsOneWidget);
     }
-    expect(find.text('250 ml · 0,25 lít'), findsOneWidget);
+    expect(find.text('250 ml'), findsWidgets);
     expect(find.text('30 phút'), findsWidgets);
     expect(find.textContaining('Món yesterday'), findsNothing);
 
@@ -193,7 +193,7 @@ void main() {
     for (final macro in ['5 / — g', '7 / — g', '2 / — g']) {
       expect(find.text(macro), findsOneWidget);
     }
-    expect(find.text('900 ml · 0,90 lít'), findsOneWidget);
+    expect(find.text('900 ml'), findsWidgets);
     expect(find.text('90 phút'), findsWidgets);
     expect(find.textContaining('Món today-a'), findsNothing);
 
@@ -203,7 +203,7 @@ void main() {
     expect(find.text('0 kcal / — kcal'), findsOneWidget);
     expect(find.text('0 / — g'), findsNWidgets(3));
     expect(
-      find.textContaining('Chưa có bữa ăn nào trong ngày này.'),
+      find.textContaining('Chưa có bữa ăn. Chọn Thêm để bắt đầu.'),
       findsOneWidget,
     );
   });
@@ -255,7 +255,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: 'journal');
 
-    expect(find.textContaining('Chọn Thêm ở bữa để bắt đầu'), findsOneWidget);
+    expect(find.textContaining('Chọn Thêm để bắt đầu'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const ValueKey('add-meal')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add-meal')));

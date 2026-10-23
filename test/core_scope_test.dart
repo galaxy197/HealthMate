@@ -46,37 +46,48 @@ void main() {
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
   test(
-    'default build disables both AI flags before Firebase is initialized',
+    'default build exposes AI entry points without starting AI or Firebase',
     () async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
       final flags = container.read(appFeatureFlagsProvider);
-      expect(flags.chatbotEnabled, isFalse);
-      expect(flags.foodScannerEnabled, isFalse);
-      await expectLater(
-        container
-            .read(knowledgeServiceProvider)
-            .explain(KnowledgeTopic.balancedMeals)
-            .toList(),
-        throwsA(isA<ChatFailure>()),
-      );
-      await expectLater(
-        Future.sync(
-          () => container
-              .read(foodScannerServiceProvider)
-              .analyze(bytes: Uint8List.fromList([1]), mimeType: 'image/png'),
-        ),
-        throwsA(
-          isA<FoodScannerFailure>().having(
-            (error) => error.message,
-            'message',
-            contains('tạm tắt'),
-          ),
-        ),
-      );
+      expect(flags.chatbotEnabled, isTrue);
+      expect(flags.foodScannerEnabled, isTrue);
+      expect(container.exists(knowledgeServiceProvider), isFalse);
+      expect(container.exists(foodScannerServiceProvider), isFalse);
       expect(container.exists(authSessionProvider), isFalse);
     },
   );
+  test('explicit core-only configuration blocks both AI services', () async {
+    final container = ProviderContainer(
+      overrides: [
+        appFeatureFlagsProvider.overrideWithValue(const AppFeatureFlags()),
+      ],
+    );
+    addTearDown(container.dispose);
+    await expectLater(
+      container
+          .read(knowledgeServiceProvider)
+          .explain(KnowledgeTopic.balancedMeals)
+          .toList(),
+      throwsA(isA<ChatFailure>()),
+    );
+    await expectLater(
+      Future.sync(
+        () => container
+            .read(foodScannerServiceProvider)
+            .analyze(bytes: Uint8List.fromList([1]), mimeType: 'image/png'),
+      ),
+      throwsA(
+        isA<FoodScannerFailure>().having(
+          (error) => error.message,
+          'message',
+          contains('tạm tắt'),
+        ),
+      ),
+    );
+    expect(container.exists(authSessionProvider), isFalse);
+  });
 
   for (final width in [360.0, 390.0, 412.0]) {
     for (final scale in [1.0, 1.5, 2.0]) {

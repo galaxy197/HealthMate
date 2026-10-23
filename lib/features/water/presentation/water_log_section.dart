@@ -35,8 +35,7 @@ class WaterLogSection extends StatelessWidget {
     return DailyLogSectionCard<WaterLog>(
       icon: Icons.water_drop_outlined,
       title: 'Nước uống',
-      summary:
-          '${number.format(total)} ml · ${NumberFormat('0.00', 'vi_VN').format(total / 1000)} lít',
+      summary: '${number.format(total)} ml',
       description: 'Tổng theo ngày đã chọn, dựa trên các lần bạn tự ghi.',
       addKey: const ValueKey('add-water'),
       addLabel: 'Ghi nước uống',

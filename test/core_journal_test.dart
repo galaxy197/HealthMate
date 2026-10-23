@@ -625,6 +625,16 @@ void main() {
           )
           .onChanged!(MealType.dinner);
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byTooltip('Sửa khẩu phần'),
+        180,
+        scrollable: find
+            .descendant(
+              of: find.byType(MealFormDialog),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tapVisible(tester, find.byTooltip('Sửa khẩu phần'));
       await tester.enterText(find.byKey(const ValueKey('meal-grams')), '100');
       await tester.tap(find.text('Xác nhận'));

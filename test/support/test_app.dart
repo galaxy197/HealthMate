@@ -1,3 +1,5 @@
+import 'package:healthmate/features/nutrition/data/unified_food_search_service.dart';
+import 'fake_food_search_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +42,31 @@ import 'fake_private_local_data.dart';
 import 'package:healthmate/core/data/private_local_data.dart';
 import 'package:healthmate/features/meal_drafts/data/meal_draft_store.dart';
 
+Future<void> openDashboardDetails(
+  WidgetTester tester, {
+  bool settle = true,
+}) async {
+  final disclosure = find.byKey(const ValueKey('dashboard-details'));
+  if (disclosure.evaluate().isEmpty ||
+      find.byKey(const ValueKey('dashboard-goals')).evaluate().isNotEmpty) {
+    return;
+  }
+  await tester.ensureVisible(disclosure);
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+  await tester.tap(
+    find.descendant(of: disclosure, matching: find.byType(ExpansionTile)),
+  );
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+}
+
 Future<ProviderContainer> pumpApp(
   WidgetTester tester, {
   Size size = const Size(390, 844),
@@ -51,6 +78,7 @@ Future<ProviderContainer> pumpApp(
   FoodScannerService? foodScannerService,
   FakeHealthProfileRepository? profileRepository,
   FakeNutritionRepository? nutritionRepository,
+  UnifiedFoodSearchService? foodSearchService,
   FakeWaterRepository? waterRepository,
   FakeActivityRepository? activityRepository,
   FakeGoalsRepository? goalsRepository,
@@ -92,6 +120,9 @@ Future<ProviderContainer> pumpApp(
   final library = libraryRepository ?? FakeFoodLibraryRepository();
   final container = ProviderContainer(
     overrides: [
+      unifiedFoodSearchProvider.overrideWithValue(
+        foodSearchService ?? FakeFoodSearchService(),
+      ),
       privateLocalDataProvider.overrideWithValue(
         privateLocalData ?? FakePrivateLocalData(available: false),
       ),

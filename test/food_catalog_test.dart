@@ -1,3 +1,4 @@
+import 'support/fake_food_search_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,27 +29,29 @@ Future<void> _pump(
   ValueChanged<MealDraft?>? onSaved,
 }) async {
   await tester.pumpWidget(
-    MaterialApp(
-      locale: const Locale('vi'),
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      supportedLocales: const [Locale('vi')],
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(
-          context,
-        ).copyWith(textScaler: TextScaler.linear(scale)),
-        child: child!,
-      ),
-      home: Builder(
-        builder: (context) => Scaffold(
-          body: TextButton(
-            onPressed: () async {
-              final draft = await showDialog<MealDraft>(
-                context: context,
-                builder: (_) => MealFormDialog(catalog: catalog),
-              );
-              onSaved?.call(draft);
-            },
-            child: const Text('Mở bữa ăn'),
+    testFoodScope(
+      MaterialApp(
+        locale: const Locale('vi'),
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [Locale('vi')],
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                final draft = await showDialog<MealDraft>(
+                  context: context,
+                  builder: (_) => MealFormDialog(catalog: catalog),
+                );
+                onSaved?.call(draft);
+              },
+              child: const Text('Mở bữa ăn'),
+            ),
           ),
         ),
       ),

@@ -160,8 +160,8 @@ class MealLogSection extends StatelessWidget {
                   catalog.isEmpty &&
                           !catalogState.hasError &&
                           !catalogState.isLoading
-                      ? 'Danh mục chưa có dữ liệu. Bạn vẫn có thể nhập món ngoài danh mục. Chưa có bữa ăn nào trong ngày này.'
-                      : 'Chưa có bữa ăn nào trong ngày này. Chọn Thêm ở bữa để bắt đầu.',
+                      ? 'Chưa có bữa ăn. Bạn có thể nhập món ngoài danh mục.'
+                      : 'Chưa có bữa ăn. Chọn Thêm để bắt đầu.',
                 ),
               if (catalogState.hasError)
                 const Text(

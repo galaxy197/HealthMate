@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/information_button.dart';
 import '../models/daily_log_failure.dart';
 
 class DailyLogSectionCard<T> extends StatelessWidget {
@@ -50,15 +51,11 @@ class DailyLogSectionCard<T> extends StatelessWidget {
                 Icon(icon, color: theme.colorScheme.primary),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(child: Text(title, style: theme.textTheme.titleLarge)),
+                InformationButton(title: 'Về $title', message: description),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(summary, style: theme.textTheme.headlineSmall),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              description,
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-            ),
             const SizedBox(height: AppSpacing.md),
             FilledButton.icon(
               key: addKey,

@@ -46,7 +46,7 @@ class DashboardGoalsCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Mục tiêu hôm nay',
+            'Mục tiêu · ${DateFormat('dd/MM').format(today)}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -64,7 +64,7 @@ class DashboardGoalsCard extends ConsumerWidget {
                   .toList();
               if (active.isEmpty) {
                 return const Text(
-                  'Chưa có mục tiêu đang theo dõi hôm nay. Bạn có thể tự chọn mục tiêu phù hợp.',
+                  'Chưa có mục tiêu đang theo dõi trong ngày này. Bạn có thể tự chọn mục tiêu phù hợp.',
                 );
               }
               return Column(
@@ -118,7 +118,7 @@ class DashboardGoalsCard extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Nhiệm vụ hôm nay',
+            'Nhiệm vụ · ${DateFormat('dd/MM').format(today)}',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -132,7 +132,7 @@ class DashboardGoalsCard extends ConsumerWidget {
             ),
             data: (value) => Text(
               value == null
-                  ? 'Mở trang nhiệm vụ để nhận gợi ý hôm nay.'
+                  ? 'Mở trang nhiệm vụ để xem gợi ý.'
                   : '${value.title} · ${value.status.label}',
             ),
           ),

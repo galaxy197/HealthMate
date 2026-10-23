@@ -127,7 +127,7 @@ void main() {
       ),
     );
     expect(
-      find.textContaining('Chưa có bữa ăn nào trong ngày này.'),
+      find.textContaining('Chưa có bữa ăn. Chọn Thêm để bắt đầu.'),
       findsOneWidget,
     );
   });
@@ -194,7 +194,7 @@ void main() {
 
     expect(waterActions, 3);
     expect(activityActions, 3);
-    expect(find.text('250 ml · 0,25 lít'), findsOneWidget);
+    expect(find.text('250 ml'), findsWidgets);
     expect(find.text('30 phút'), findsWidgets);
   });
 

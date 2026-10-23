@@ -14,6 +14,7 @@ import 'package:healthmate/features/nutrition/models/nutrition_models.dart';
 import 'package:healthmate/features/nutrition_targets/models/nutrition_target.dart';
 import 'package:healthmate/features/nutrition_targets/providers/nutrition_target_providers.dart';
 import 'package:healthmate/features/nutrition_targets/presentation/nutrition_target_form.dart';
+import 'package:healthmate/features/nutrition_targets/presentation/nutrition_target_card.dart';
 import 'support/fake_auth_repository.dart';
 import 'support/fake_nutrition_repository.dart';
 import 'support/fake_nutrition_target_repository.dart';
@@ -69,6 +70,7 @@ FakeNutritionTargetRepository seeded([NutritionTarget? value]) {
 }
 
 Future<void> openForm(WidgetTester tester) async {
+  await openDashboardDetails(tester);
   final entry = find.byKey(const ValueKey('edit-nutrition-target-2026-10-17'));
   await tester.ensureVisible(entry);
   await tester.pumpAndSettle();
@@ -127,6 +129,7 @@ void main() {
         targetRepository: repository,
         nutritionRepository: nutrition,
       );
+      await openDashboardDetails(tester);
       expect(find.text('Vượt 200 kcal'), findsOneWidget);
       expect(find.text('Vượt 50 g'), findsOneWidget);
       expect(find.text('Vượt 20 g'), findsNWidgets(2));
@@ -462,7 +465,14 @@ void main() {
       );
       await tester.pump();
       await tester.pump();
-      expect(find.text('Đang tải mục tiêu…'), findsOneWidget);
+      await openDashboardDetails(tester, settle: false);
+      expect(
+        find.descendant(
+          of: find.byType(NutritionTargetCard),
+          matching: find.text('Đang tải mục tiêu…'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Chưa đặt mục tiêu'), findsNothing);
       repository.failRead = true;
       repository.pendingRead!.complete();
@@ -470,9 +480,14 @@ void main() {
       expect(find.textContaining('Không coi lỗi tải'), findsOneWidget);
       expect(find.text('Chưa đặt mục tiêu'), findsNothing);
       repository.failRead = false;
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Thử tải lại mục tiêu')),
+        alignment: .4,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Thử tải lại mục tiêu'));
       await tester.pumpAndSettle();
-      expect(find.text('Chưa đặt mục tiêu'), findsOneWidget);
+      expect(find.text('Chưa đặt mục tiêu'), findsNWidgets(2));
     },
   );
   testWidgets(
@@ -498,6 +513,7 @@ void main() {
         targetRepository: repository,
         nutritionRepository: nutrition,
       );
+      await openDashboardDetails(tester);
       expect(find.text('Còn 600 kcal'), findsOneWidget);
       container.read(appRouterProvider).go(AppRoutes.journal);
       await tester.pumpAndSettle();
@@ -527,6 +543,7 @@ void main() {
         targetRepository: repository,
         nutritionRepository: nutrition,
       );
+      await openDashboardDetails(tester);
       expect(find.textContaining('chưa tính còn/vượt'), findsOneWidget);
       expect(find.text('Còn 1800 kcal'), findsNothing);
     },

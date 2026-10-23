@@ -24,7 +24,7 @@ void main() {
     expect(find.text('Chào buổi sáng, HealthMate Tester'), findsOneWidget);
     expect(find.text('Thứ Ba, 13 tháng 10'), findsOneWidget);
     expect(find.byKey(const ValueKey('dashboard-empty')), findsOneWidget);
-    expect(find.byKey(const ValueKey('dashboard-today-card')), findsNothing);
+    expect(find.byKey(const ValueKey('dashboard-today-card')), findsOneWidget);
     expect(find.textContaining('kcal còn lại'), findsNothing);
     expect(find.textContaining('Gemini'), findsNothing);
     expect(tester.takeException(), isNull);

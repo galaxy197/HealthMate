@@ -33,13 +33,19 @@ final today = DateTime(2027, 1, 1, 12);
 
 Future<void> tapVisible(WidgetTester tester, String key) async {
   final finder = find.byKey(ValueKey(key));
-  await Scrollable.ensureVisible(tester.element(finder), alignment: .2);
-  await tester.pump();
+  for (var frame = 0; frame < 3; frame++) {
+    await tester.pump();
+    await Scrollable.ensureVisible(tester.element(finder), alignment: .3);
+    await tester.pump();
+  }
   await tester.tap(finder);
 }
 
+// Historical per-day targets remain available from the new report details action.
 Future<void> openProgress(WidgetTester tester) async {
   await tester.tap(find.byKey(const ValueKey('nav-progress')));
+  await tester.pumpAndSettle();
+  await tapVisible(tester, 'progress-details');
   await tester.pumpAndSettle();
 }
 
@@ -142,6 +148,11 @@ void main() {
       );
       expect(n.rangeCalls, 0);
       await openProgress(tester);
+      if (find.text('Trở về biểu đồ').evaluate().isEmpty) {
+        await tapVisible(tester, 'progress-details');
+        await tester.pump();
+        await tester.pump();
+      }
       expect(find.text('600 kcal đã ghi'), findsOneWidget);
       expect(find.text('Đạm 60 g · Tinh bột 120 g · Béo 30 g'), findsOneWidget);
       expect(
@@ -192,6 +203,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('nav-profile')));
       await tester.pumpAndSettle();
       expect(find.text('Không gian cá nhân'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('nav-dashboard')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('nav-journal')));
       await tester.pumpAndSettle();
       expect(n.activeDayListeners, 1);
@@ -242,6 +255,11 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('nav-progress')));
       await tester.pump();
       await tester.pump();
+      if (find.text('Trở về biểu đồ').evaluate().isEmpty) {
+        await tapVisible(tester, 'progress-details');
+        await tester.pump();
+        await tester.pump();
+      }
       expect(find.text('600 kcal đã ghi'), findsOneWidget);
       expect(find.text('Chưa đặt mục tiêu cho ngày này.'), findsNothing);
       t.failRead = true;
@@ -251,6 +269,11 @@ void main() {
         find.textContaining('Chưa tải được mục tiêu tuần.'),
         findsOneWidget,
       );
+      if (find.text('Trở về biểu đồ').evaluate().isEmpty) {
+        await tapVisible(tester, 'progress-details');
+        await tester.pump();
+        await tester.pump();
+      }
       expect(find.text('600 kcal đã ghi'), findsOneWidget);
       t.failRead = false;
       await tapVisible(tester, 'retry-week-targets');
@@ -344,6 +367,9 @@ void main() {
     await tester.pump();
     container.read(appRouterProvider).go(AppRoutes.progress);
     await tester.pump();
+    await tapVisible(tester, 'progress-details');
+    await tester.pump();
+    await tester.pump();
     await tester.pump();
     auth.emitUser(const AuthUser(uid: 'user-b', email: 'b@example.com'));
     profile.emitProfile(profileForUid('user-b'));
@@ -351,6 +377,10 @@ void main() {
     gate.complete();
     await tester.pumpAndSettle();
     expect(find.textContaining('7777'), findsNothing);
+    if (find.text('Trở về biểu đồ').evaluate().isEmpty) {
+      await tapVisible(tester, 'progress-details');
+      await tester.pumpAndSettle();
+    }
     await openDailyDetails(tester);
     expect(find.text('Chưa đặt mục tiêu cho ngày này.'), findsNWidgets(7));
     expect(tester.takeException(), isNull);
@@ -436,7 +466,7 @@ void main() {
       expect(find.textContaining('Chưa có nhật ký bữa ăn'), findsNothing);
       gate.complete();
       await tester.pumpAndSettle();
-      await tapVisible(tester, 'retry-week');
+      await tapVisible(tester, 'retry-progress-overview');
       await tester.pumpAndSettle();
       expect(find.textContaining('Chưa có nhật ký bữa ăn'), findsOneWidget);
     },
@@ -498,6 +528,9 @@ void main() {
             ),
           );
           container.read(appRouterProvider).go(AppRoutes.progress);
+          await tester.pump();
+          await tapVisible(tester, 'progress-details');
+          await tester.pump();
           await tester.pumpAndSettle();
           expect(find.byKey(const ValueKey('progress-screen')), findsOneWidget);
           final push = container
