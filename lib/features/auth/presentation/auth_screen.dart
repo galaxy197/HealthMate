@@ -24,6 +24,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _confirmation = TextEditingController();
   bool _registering = false;
   bool _hidePassword = true;
+  bool _resetDialogOpen = false;
 
   @override
   void dispose() {
@@ -65,24 +66,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   Future<void> _forgotPassword() async {
     ref.read(accountSecurityControllerProvider.notifier).clearError();
-    final email = await showResetPasswordDialog(
-      context,
-      initialEmail: _email.text,
-    );
-    if (email == null || !mounted) return;
-    final sent = await ref
-        .read(accountSecurityControllerProvider.notifier)
-        .sendPasswordResetEmail(email);
-    if (sent && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Nếu email thuộc một tài khoản, Firebase sẽ gửi hướng dẫn đặt lại mật khẩu.',
-            ),
-          ),
-        );
+    setState(() => _resetDialogOpen = true);
+    try {
+      await showResetPasswordDialog(context, initialEmail: _email.text);
+    } finally {
+      if (mounted) setState(() => _resetDialogOpen = false);
     }
   }
 
@@ -92,7 +80,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final action = ref.watch(authControllerProvider);
     final accountAction = ref.watch(accountSecurityControllerProvider);
     final busy = action.isLoading || accountAction.isLoading;
-    final error = accountAction.error ?? action.error;
+    final error = _resetDialogOpen
+        ? action.error
+        : accountAction.error ?? action.error;
     return Scaffold(
       body: SafeArea(
         child: FeaturePage(
@@ -154,7 +144,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           decoration: InputDecoration(
                             labelText: 'Mật khẩu',
                             helperText: _registering
-                                ? 'Ít nhất 6 ký tự. Nên kết hợp chữ, số và ký hiệu.'
+                                ? 'Ít nhất 8 ký tự. Nên kết hợp chữ, số và ký hiệu.'
                                 : null,
                             helperMaxLines: 3,
                             prefixIcon: const Icon(Icons.lock_outline),
@@ -253,6 +243,42 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 ? 'Đã có tài khoản? Đăng nhập'
                                 : 'Chưa có tài khoản? Đăng ký',
                           ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        const Row(
+                          children: [
+                            Expanded(child: Divider()),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              child: Text('hoặc'),
+                            ),
+                            Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        OutlinedButton.icon(
+                          key: const ValueKey('auth-google'),
+                          icon: Image.asset(
+                            'assets/branding/google_g.png',
+                            width: 20,
+                            height: 20,
+                            excludeFromSemantics: true,
+                          ),
+                          onPressed: busy
+                              ? null
+                              : () {
+                                  FocusScope.of(context).unfocus();
+                                  ref
+                                      .read(
+                                        accountSecurityControllerProvider
+                                            .notifier,
+                                      )
+                                      .clearError();
+                                  ref
+                                      .read(authControllerProvider.notifier)
+                                      .signInWithGoogle();
+                                },
+                          label: const Text('Tiếp tục với Google'),
                         ),
                       ],
                     ),

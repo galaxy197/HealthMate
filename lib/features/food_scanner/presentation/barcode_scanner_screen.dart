@@ -3,7 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../data/barcode_scanner_service.dart';
 import '../data/barcode_product_service.dart';
+import '../models/barcode_product_models.dart';
 import 'barcode_product_detail_sheet.dart';
+
+final barcodeMealScannerProvider =
+    Provider<Future<BarcodeMealSelection?> Function(BuildContext)>(
+      (ref) =>
+          (context) => Navigator.push<BarcodeMealSelection>(
+            context,
+            MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+          ),
+    );
 
 /// Màn hình quét barcode full-screen
 class BarcodeScannerScreen extends ConsumerStatefulWidget {
@@ -59,7 +69,7 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
 
       if (product != null) {
         // Hiển thị thông tin sản phẩm
-        final result = await showModalBottomSheet<BarcodeProduct>(
+        final result = await showModalBottomSheet<BarcodeMealSelection>(
           context: context,
           isScrollControlled: true,
           builder: (_) => BarcodeProductDetailSheet(product: product),
@@ -73,7 +83,7 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
       } else {
         // Không tìm thấy sản phẩm
         if (!mounted) return;
-        await showDialog(
+        final enterManually = await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Không tìm thấy sản phẩm'),
@@ -84,8 +94,7 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.pop(context); // Đóng dialog
-                  Navigator.pop(context); // Đóng scanner
+                  Navigator.pop(context, true);
                 },
                 child: const Text('Nhập thủ công'),
               ),
@@ -96,6 +105,10 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
             ],
           ),
         );
+        if (enterManually == true) {
+          if (mounted) Navigator.pop(context);
+          return;
+        }
       }
 
       // Resume camera để quét tiếp
@@ -113,7 +126,11 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('Lỗi tra cứu'),
-          content: Text('Không thể tra cứu sản phẩm: $e'),
+          content: Text(
+            e is BarcodeLookupFailure
+                ? e.message
+                : 'Chưa thể quét mã. Hãy thử lại hoặc nhập thủ công.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -138,7 +155,7 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black.withOpacity(0.5),
+        backgroundColor: Colors.black.withValues(alpha: 0.5),
         foregroundColor: Colors.white,
         title: const Text('Quét mã vạch'),
         actions: [
@@ -159,10 +176,7 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
       body: Stack(
         children: [
           // Camera preview
-          MobileScanner(
-            controller: _controller,
-            onDetect: _onDetect,
-          ),
+          MobileScanner(controller: _controller, onDetect: _onDetect),
 
           // Scan guide overlay
           Center(
@@ -216,10 +230,7 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
                 ),
                 child: const Text(
                   'Đặt mã vạch vào giữa khung để quét',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
               ),

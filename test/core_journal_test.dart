@@ -441,7 +441,7 @@ void main() {
         .read(favoriteFoodControllerProvider.notifier)
         .setFavorite('rice-cooked', true);
     await tester.pump();
-    auth.emitUser(const AuthUser(uid: 'bob', email: 'bob@example.test'));
+    auth.emitUser(const AuthUser(emailVerified: true, uid: 'bob', email: 'bob@example.test'));
     await tester.pumpAndSettle();
     favorites.pending!.complete();
     await tester.pumpAndSettle();
@@ -805,8 +805,15 @@ void main() {
             ),
           );
           expect(favorites.byUid['test-uid'], hasLength(1));
-          await tester.ensureVisible(
+          await tester.scrollUntilVisible(
             find.byKey(const ValueKey('favorite-food-rice-cooked')),
+            -150,
+            scrollable: find
+                .descendant(
+                  of: find.byKey(const ValueKey('meal-manual-content')),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
           );
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);

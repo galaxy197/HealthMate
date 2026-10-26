@@ -353,7 +353,7 @@ class _QuickActionSheet extends ConsumerWidget {
           _SheetAction(
             key: const ValueKey('quick-action-meal'),
             icon: Icons.restaurant_menu_rounded,
-            label: 'Thêm bữa ăn thủ công',
+            label: 'Thêm bữa ăn',
             onTap: () => Navigator.pop(context, JournalQuickAction.addMeal),
           ),
           _SheetAction(

@@ -2,6 +2,7 @@
 // production main/bootstrap, use a real account, or use the default Firebase app.
 import 'dart:convert';
 import 'dart:io';
+import 'support/emulator_email_actions.dart';
 import 'package:intl/intl.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +13,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
+import 'package:healthmate/features/wellness/data/energy_repository.dart';
+import 'package:healthmate/features/wellness/providers/energy_providers.dart';
 import 'package:healthmate/app.dart';
 import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:healthmate/core/utils/local_date_key.dart';
@@ -27,6 +30,7 @@ import 'package:healthmate/features/food_library/providers/favorite_food_provide
 import 'package:healthmate/features/food_library/providers/food_library_providers.dart';
 import 'package:healthmate/features/nutrition/data/firebase_nutrition_repository.dart';
 import 'package:healthmate/features/nutrition/models/nutrition_models.dart';
+import 'package:healthmate/features/nutrition/data/food_local_database.dart';
 import 'package:healthmate/features/nutrition/providers/nutrition_providers.dart';
 import 'package:healthmate/features/nutrition/presentation/meal_form_dialog.dart';
 import 'package:healthmate/features/nutrition/presentation/quick_add_dialog.dart';
@@ -45,6 +49,7 @@ import 'package:healthmate/features/meal_templates/data/meal_template_repository
 import 'package:healthmate/features/meal_templates/providers/meal_template_providers.dart';
 import 'package:healthmate/features/reports/data/day_review_repository.dart';
 import 'package:healthmate/features/reports/providers/report_providers.dart';
+import 'package:healthmate/features/progress/presentation/progress_overview.dart';
 
 const _project = 'demo-healthmate-rules';
 const _host = '10.0.2.2';
@@ -123,13 +128,26 @@ Future<void> pickDate(WidgetTester tester, DateTime date) async {
   await waitFor(tester, find.byType(DatePickerDialog), absent: true);
 }
 
-Future<void> register(WidgetTester tester, String email) async {
+Future<void> register(
+  WidgetTester tester,
+  String email,
+  FirebaseAuth auth,
+) async {
   await waitFor(tester, keyed('auth-toggle'));
   await tap(tester, keyed('auth-toggle'));
   await enter(tester, 'auth-email', email);
   await enter(tester, 'auth-password', _password);
   await enter(tester, 'auth-confirmation', _password);
   await tap(tester, keyed('auth-submit'));
+  await waitFor(tester, keyed('verification-check'));
+  await verifyEmulatorEmail(
+    auth,
+    projectId: _project,
+    host: _host,
+    send: false,
+    reload: false,
+  );
+  await tap(tester, keyed('verification-check'));
   await waitFor(tester, keyed('onboarding-name'));
 }
 
@@ -188,12 +206,71 @@ void main() {
   if (!const bool.fromEnvironment('HEALTHMATE_CORE_EMULATOR_TESTS') ||
       !Platform.isAndroid ||
       !_project.startsWith('demo-') ||
-      const bool.fromEnvironment('HEALTHMATE_ENABLE_CHATBOT') ||
-      const bool.fromEnvironment('HEALTHMATE_ENABLE_FOOD_SCANNER')) {
+      const bool.fromEnvironment(
+        'HEALTHMATE_ENABLE_CHATBOT',
+        defaultValue: true,
+      ) ||
+      const bool.fromEnvironment(
+        'HEALTHMATE_ENABLE_FOOD_SCANNER',
+        defaultValue: true,
+      )) {
     throw StateError(
       'Use the Android QA runner with the fixed demo backend and AI disabled.',
     );
   }
+
+  testWidgets(
+    'Stage10 public SQLite cache preserves zero and hides legacy private rows',
+    (tester) async {
+      final cache = FoodLocalDatabase.instance;
+      const id = 'usda_stage10_cache_fixture';
+      const privateId = 'stage10_private_cache_fixture';
+      await cache.cacheFood(
+        const FoodCatalogItem(
+          id: id,
+          name: 'Stage10 cache fixture',
+          category: 'fixture',
+          servingBasis: ServingBasis.per100g,
+          sourceLabel: 'Synthetic QA',
+          isEstimated: true,
+          dataSource: FoodDataSource.usda,
+          kcalPer100g: 130,
+          proteinGPer100g: 2.69,
+          carbsGPer100g: 28.17,
+          fatGPer100g: .28,
+          fiberGPer100g: 0,
+        ),
+      );
+      final db = await cache.database;
+      try {
+        final restored = (await cache.getFoodById(id))!;
+        expect(restored.nutritionPer100g.kcal, 130);
+        expect(restored.nutritionPer100g.fiberKnown, true);
+        expect(restored.nutritionPer100g.fiberG, 0);
+        final row = (await db.query(
+          'foods',
+          where: 'id = ?',
+          whereArgs: [id],
+        )).single;
+        await db.insert('foods', {
+          ...row,
+          'id': privateId,
+          'data_source': 'user',
+        });
+        expect(await cache.getFoodById(privateId), isNull);
+        expect(
+          (await cache.searchFoods('Stage10 cache fixture')).map((f) => f.id),
+          isNot(contains(privateId)),
+        );
+      } finally {
+        await db.delete(
+          'foods',
+          where: 'id IN (?, ?)',
+          whereArgs: [id, privateId],
+        );
+      }
+    },
+  );
 
   testWidgets(
     'C6 Android core acceptance with real Firebase repositories',
@@ -228,6 +305,9 @@ void main() {
           ),
           healthProfileRepositoryProvider.overrideWithValue(profile),
           nutritionRepositoryProvider.overrideWithValue(nutrition),
+          energyRepositoryProvider.overrideWithValue(
+            FirebaseEnergyRepository(db),
+          ),
           nutritionTargetRepositoryProvider.overrideWithValue(targets),
           dayReviewRepositoryProvider.overrideWithValue(dayReviews),
           foodLibraryRepositoryProvider.overrideWithValue(library),
@@ -295,7 +375,7 @@ void main() {
         }
       }
 
-      await register(tester, emailA);
+      await register(tester, emailA, auth);
       await onboard(tester, 'C6 QA Alice');
       final alice = auth.currentUser!.uid;
       expect(
@@ -312,6 +392,7 @@ void main() {
         ),
       );
       container.invalidate(nutritionTargetProvider);
+      await tap(tester, keyed('dashboard-details'));
       await tap(tester, keyed('edit-nutrition-target-${localDateKey(_today)}'));
       await enter(tester, 'target-kcal', '2000');
       await enter(tester, 'target-protein', '100');
@@ -332,6 +413,8 @@ void main() {
       await tap(tester, keyed('nav-journal'));
       await waitFor(tester, keyed('add-meal-lunch'));
       await waitFor(tester, find.text('0 kcal / 2000 kcal'));
+      // A target-save SnackBar can temporarily cover an otherwise visible button.
+      await waitFor(tester, find.byType(SnackBar), absent: true);
       // Native first viewport proof: no reveal/ensureVisible before measuring.
       final journalViewport = tester.getRect(
         find.byType(CustomScrollView).first,
@@ -420,17 +503,46 @@ void main() {
         69.5,
       );
       await tap(tester, keyed('nav-progress'));
-      await waitFor(
-        tester,
-        find.textContaining('Nước: 350 ml · Vận động: 25 phút'),
-      );
+      await waitFor(tester, keyed('progress-trend-kcal'));
+      // Global quick actions reset the journal date to today, even when the
+      // journal previously displayed yesterday. Verify the current week here.
       final progressViewport = tester.getRect(
         find.byType(CustomScrollView).first,
       );
       final chart = tester.getRect(keyed('weekly-chart'));
       expect(chart.top, lessThan(progressViewport.bottom));
-      expect(keyed('weekly-range').hitTestable(), findsOneWidget);
-      expect(keyed('weekly-kcal-summary').hitTestable(), findsOneWidget);
+      expect(keyed('previous-week').hitTestable(), findsOneWidget);
+      expect(
+        tester
+            .widget<RecordedTrendCard>(keyed('progress-trend-kcal'))
+            .points
+            .map((p) => p.value),
+        contains(260),
+      );
+      await tap(tester, keyed('progress-tab-2'));
+      await waitFor(tester, keyed('progress-trend-water'));
+      expect(
+        tester
+            .widget<RecordedTrendCard>(keyed('progress-trend-water'))
+            .points
+            .map((p) => p.value),
+        contains(350),
+      );
+      expect(
+        tester
+            .widget<RecordedTrendCard>(keyed('progress-trend-activity'))
+            .points
+            .map((p) => p.value),
+        contains(25),
+      );
+      expect(
+        find.descendant(
+          of: keyed('progress-trend-water'),
+          matching: find.text('350 ml'),
+        ),
+        findsOneWidget,
+      );
+      await tap(tester, keyed('progress-tab-0'));
       debugPrint('U1_VIEWPORT progress chart=$chart body=$progressViewport');
       await capture('c6-02-progress');
       await checkpoint('05-water-activity-weight-progress');
@@ -545,6 +657,12 @@ void main() {
       await checkpoint('07-edit-delete-source-keeps-history');
 
       await tap(tester, keyed('nav-dashboard'));
+      await waitFor(tester, keyed('dashboard-details'));
+      if (keyed(
+        'edit-nutrition-target-${localDateKey(_today)}',
+      ).evaluate().isEmpty) {
+        await tap(tester, keyed('dashboard-details'));
+      }
       await tap(tester, keyed('edit-nutrition-target-${localDateKey(_today)}'));
       await enter(tester, 'target-kcal', '2100');
       await db.disableNetwork();
@@ -606,7 +724,7 @@ void main() {
       tester.platformDispatcher.textScaleFactorTestValue = 2;
       await tester.pump(const Duration(milliseconds: 300));
       await tap(tester, keyed('nav-progress'));
-      await waitFor(tester, find.textContaining('Nước: 350 ml'));
+      await waitFor(tester, keyed('progress-trend-kcal'));
       await capture('c6-03-dark-large-text');
       tester.platformDispatcher.clearTextScaleFactorTestValue();
       await tester.pump(const Duration(milliseconds: 300));
@@ -841,12 +959,13 @@ void main() {
       await profileRoot();
       await tap(tester, keyed('sign-out'));
       await waitFor(tester, keyed('auth-email'));
-      await register(tester, emailB);
+      await register(tester, emailB, auth);
       await onboard(tester, 'C6 QA Bob');
       final bob = auth.currentUser!.uid;
       expect(bob, isNot(alice));
       await tap(tester, keyed('nav-progress'));
       await tap(tester, keyed('report-window-7'));
+      await tap(tester, keyed('progress-details'));
       await waitFor(
         tester,
         find.textContaining('Chưa có nhật ký bữa ăn, nước hoặc vận động'),

@@ -3,6 +3,7 @@
 // Run only with the demo Auth + Firestore emulators; see docs/test-report.md.
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
+import 'support/emulator_email_actions.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -42,6 +43,9 @@ import 'package:healthmate/features/chatbot/data/firebase_chat_repository.dart';
 import 'package:healthmate/features/chatbot/models/chat_models.dart';
 import 'package:healthmate/features/meal_templates/data/meal_template_repository.dart';
 import 'package:healthmate/features/meal_templates/models/meal_template.dart';
+import 'package:healthmate/features/wellness/data/wellness_repository.dart';
+import 'package:healthmate/features/wellness/data/energy_repository.dart';
+import 'package:healthmate/features/wellness/models/energy_budget.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -94,13 +98,16 @@ void main() {
     db.useFirestoreEmulator('127.0.0.1', 8080, automaticHostMapping: false);
     authentication = FirebaseAuthRepository(auth);
     profiles = FirebaseHealthProfileRepository(db);
-    nutrition = FirebaseNutritionRepository(db);
+    // This suite tests real Firestore data. UI assets are verified separately
+    // in Flutter/native tests; Chrome's SDK test harness has no asset channel.
+    nutrition = FirebaseNutritionRepository(db, catalogLoader: () async => []);
     water = FirebaseWaterRepository(db);
     activities = FirebaseActivityRepository(db);
     goals = FirebaseGoalsRepository(db);
     chats = FirebaseChatRepository(db);
     await authentication.register(email: aliceEmail, password: password);
     alice = auth.currentUser!.uid;
+    await verifyEmulatorEmail(auth, projectId: projectId, host: '127.0.0.1');
   });
 
   tearDownAll(() async {
@@ -304,6 +311,7 @@ void main() {
       await authentication.signOut();
       await authentication.register(email: bobEmail, password: password);
       bob = auth.currentUser!.uid;
+      await verifyEmulatorEmail(auth, projectId: projectId, host: '127.0.0.1');
       expect(bob, isNot(alice));
       await expectLater(
         db.doc('users/$alice').get(const GetOptions(source: Source.server)),
@@ -1761,6 +1769,253 @@ void main() {
   );
 
   test(
+    'wellness sleep timer persists, finishes idempotently and isolates UID',
+    () async {
+      await authentication.signIn(email: aliceEmail, password: password);
+      final repo = WellnessRepository(db);
+      await repo.startSleep(alice);
+      final start = (await repo.watchSleepStart(alice).first)!;
+      await expectLater(repo.startSleep(alice), throwsFormatException);
+      final began = start.subtract(const Duration(hours: 8)),
+          end = DateTime.now();
+      await repo.saveSleep(
+        alice,
+        began,
+        end,
+        finishTimer: true,
+        expectedTimerStart: start,
+      );
+      await repo.saveSleep(
+        alice,
+        began,
+        end,
+        finishTimer: true,
+        expectedTimerStart: start,
+      );
+      expect(
+        (await db
+                .doc('users/$alice/wellness_state/sleep')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        false,
+      );
+      expect(
+        await repo.watchSleepStart(alice).firstWhere((value) => value == null),
+        isNull,
+      );
+      final history = await repo.watchSleepLogs(alice).first;
+      expect(history, hasLength(1));
+      expect(history.single.start, began);
+      await repo.saveSleep(
+        alice,
+        began.add(const Duration(minutes: 15)),
+        end,
+        id: history.single.id,
+      );
+      await authentication.signIn(email: bobEmail, password: password);
+      await expectLater(
+        repo.watchSleepLogs(alice).first,
+        throwsA(isA<FirebaseException>()),
+      );
+      await authentication.signIn(email: aliceEmail, password: password);
+    },
+  );
+
+  test(
+    'wellness plan remains separate until confirmation and preserves v5 nutrition snapshot',
+    () async {
+      await authentication.signIn(email: aliceEmail, password: password);
+      final repo = WellnessRepository(db), now = DateTime.now();
+      final future = DateTime(now.year, now.month, now.day + 2, 12);
+      const food = FoodCatalogItem(
+        id: 'wellness-fixture',
+        name: 'Wellness fixture',
+        category: 'Fixture',
+        servingBasis: ServingBasis.per100g,
+        sourceLabel: 'Synthetic',
+        isEstimated: true,
+        per100g: NutritionTotals(
+          kcal: 120,
+          proteinG: 6,
+          carbsG: 15,
+          fatG: 4,
+          fiberKnown: true,
+          extraNutrients: {'sodium': 120, 'sugar': 0},
+        ),
+      );
+      final items = List.filled(5, MealItemSnapshot.fromCatalog(food, 100));
+      final planned = MealDraft(
+        type: MealType.lunch,
+        consumedAt: future,
+        items: items,
+        source: MealSource.manual,
+      );
+      await repo.savePlan(alice, planned);
+      await repo.savePlan(alice, planned);
+      final plans = await repo.watchPlans(alice, localDateOnly(future)).first;
+      expect(plans, hasLength(1));
+      expect(plans.single.items.last.nutrition.extraNutrients['sodium'], 120);
+      expect(
+        await nutrition.loadRange(
+          alice,
+          localDateOnly(future),
+          DateTime(future.year, future.month, future.day + 1),
+        ),
+        isEmpty,
+      );
+      final actual = MealDraft(
+        type: MealType.lunch,
+        consumedAt: now,
+        items: items,
+        source: MealSource.manual,
+      );
+      await repo.savePlan(alice, actual);
+      final id = '${actual.dateKey}-lunch';
+      expect(await repo.existingPlanMeal(alice, id), false);
+      await nutrition.addMeal(
+        uid: alice,
+        draft: actual,
+        operationId: 'plan-$id',
+      );
+      await nutrition.addMeal(
+        uid: alice,
+        draft: actual,
+        operationId: 'plan-$id',
+      );
+      await repo.markPlanLogged(alice, id);
+      final meals = await nutrition.loadRange(
+        alice,
+        localDateOnly(now),
+        DateTime(now.year, now.month, now.day + 1),
+      );
+      final saved = meals.singleWhere((m) => m.id == 'plan-$id');
+      expect(saved.schemaVersion, 5);
+      expect(saved.items, hasLength(5));
+      expect(saved.totals.extraNutrients['sodium'], 600);
+      expect(saved.totals.extraNutrients['sugar'], 0);
+      await expectLater(repo.savePlan(alice, actual), throwsFormatException);
+      await repo.deletePlan(alice, id);
+      expect(await repo.existingPlanMeal(alice, id), true);
+    },
+  );
+
+  test(
+    'wellness step synchronization never lowers an existing day and denies other UID',
+    () async {
+      await authentication.signIn(email: aliceEmail, password: password);
+      final repo = WellnessRepository(db), now = DateTime.now();
+      final data = <String, dynamic>{
+        'day': localDateKey(now),
+        'steps': 120,
+        'startedAt': now
+            .subtract(const Duration(minutes: 5))
+            .millisecondsSinceEpoch,
+        'measuredAt': now.millisecondsSinceEpoch,
+        'timezoneOffsetMinutes': now.timeZoneOffset.inMinutes,
+      };
+      await repo.syncSteps(alice, data);
+      await repo.syncSteps(alice, {...data, 'steps': 10});
+      expect((await repo.watchStepDays(alice).first).single.steps, 120);
+      await authentication.signIn(email: bobEmail, password: password);
+      await expectLater(
+        repo.watchStepDays(alice).first,
+        throwsA(isA<FirebaseException>()),
+      );
+      await authentication.signIn(email: aliceEmail, password: password);
+    },
+  );
+
+  test(
+    'wellness preferences and confirmed step budget persist and isolate cached UID',
+    () async {
+      await authentication.signIn(email: aliceEmail, password: password);
+      final repo = FirebaseEnergyRepository(db), now = DateTime.now();
+      await repo.savePreferences(
+        alice,
+        const WellnessPreferences(
+          stepLengthCm: 75,
+          baselineSteps: 4000,
+          sleepGoalMinutes: 480,
+        ),
+      );
+      expect((await repo.watchPreferences(alice).first).sleepGoalMinutes, 480);
+      final targets = FirebaseNutritionTargetRepository(db);
+      await targets.save(
+        alice,
+        NutritionTarget(
+          effectiveFromDateKey: localDateKey(now),
+          kcalTarget: 1800,
+        ),
+      );
+      final adjustment = EnergyAdjustment(
+        dateKey: localDateKey(now),
+        timezoneOffsetMinutes: now.timeZoneOffset.inMinutes,
+        steps: 6000,
+        baselineSteps: 4000,
+        stepLengthCm: 75,
+        weightKg: 70,
+        weightMeasuredAt: now.subtract(const Duration(days: 1)),
+        targetFromDateKey: localDateKey(now),
+        baseKcalTarget: 1800,
+        kcal: 50,
+      );
+      await repo.saveAdjustment(alice, adjustment);
+      final loaded = (await repo
+          .watchAdjustment(alice, localDateKey(now))
+          .first)!;
+      expect(loaded.kcal, 50);
+      expect(
+        (await repo.loadAdjustments(
+          alice,
+          localDateOnly(now),
+          DateTime(now.year, now.month, now.day + 1),
+        )).single.kcal,
+        50,
+      );
+      expect(
+        (await targets.loadForDay(alice, localDateKey(now)))!.kcalTarget,
+        1800,
+      );
+      await authentication.signIn(email: bobEmail, password: password);
+      await expectLater(
+        repo.watchPreferences(alice).first,
+        throwsA(isA<FirebaseException>()),
+      );
+      await expectLater(
+        repo.watchAdjustment(alice, localDateKey(now)).first,
+        throwsA(isA<FirebaseException>()),
+      );
+      await authentication.signIn(email: aliceEmail, password: password);
+      await repo.clearAdjustment(alice, localDateKey(now));
+      expect(
+        (await db
+                .doc('users/$alice/energy_adjustments/${localDateKey(now)}')
+                .get(const GetOptions(source: Source.server)))
+            .exists,
+        false,
+      );
+      await repo.saveAdjustment(
+        alice,
+        adjustment,
+      ); // Account cleanup must remove this.
+      final sleepRepo = WellnessRepository(db);
+      await sleepRepo.saveSleep(
+        alice,
+        now.subtract(const Duration(hours: 9)),
+        now.subtract(const Duration(hours: 1)),
+        id: 'insight-range',
+      );
+      expect(
+        (await sleepRepo.loadSleepRange(
+          alice,
+          now.subtract(const Duration(days: 30)),
+          now,
+        )).any((s) => s.id == 'insight-range'),
+        true,
+      );
+    },
+  );
+  test(
     'reauthenticated password change and account cleanup remove data before Auth',
     () async {
       await authentication.reauthenticateWithPassword(password);
@@ -1787,6 +2042,12 @@ void main() {
         'recipes',
         'meal_templates',
         'day_reviews',
+        'sleep_logs',
+        'wellness_state',
+        'step_logs',
+        'energy_adjustments',
+        'wellness_preferences',
+        'meal_plans',
         'chat_sessions',
       ]) {
         expect(

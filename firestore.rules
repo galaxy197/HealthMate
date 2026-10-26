@@ -3,7 +3,67 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function owns(uid) {
-      return request.auth != null && request.auth.uid == uid;
+      return request.auth != null && request.auth.token.email_verified == true
+        && request.auth.uid == uid && accountAllowed(uid);
+    }
+
+    function accountAllowed(uid) {
+      let control = get(/databases/$(database)/documents/account_controls/$(uid));
+      return control == null || control.data.status == 'active';
+    }
+
+    function admin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.enabled == true;
+    }
+
+    function adminFields() {
+      return ['updatedAt','updatedBy','lastAdminOperationId'];
+    }
+
+    function audited(kind, id, changes) {
+      let d = request.resource.data;
+      let a = getAfter(/databases/$(database)/documents/admin_audit/$(d.lastAdminOperationId)).data;
+      return admin() && d.updatedAt == request.time && d.updatedBy == request.auth.uid
+        && d.lastAdminOperationId is string && d.lastAdminOperationId.size() <= 100
+        && !exists(/databases/$(database)/documents/admin_audit/$(d.lastAdminOperationId))
+        && a.actorUid == request.auth.uid && a.entityType == kind && a.entityId == id
+        && a.at == request.time && a.changedFields.toSet() == changes;
+    }
+
+    function alias(s) { return s is string && s.size() > 0 && s.size() <= 100; }
+    function aliases(a) {
+      return a is list && a.size() <= 8
+        && (a.size()<1 || alias(a[0])) && (a.size()<2 || alias(a[1]))
+        && (a.size()<3 || alias(a[2])) && (a.size()<4 || alias(a[3]))
+        && (a.size()<5 || alias(a[4])) && (a.size()<6 || alias(a[5]))
+        && (a.size()<7 || alias(a[6])) && (a.size()<8 || alias(a[7]));
+    }
+
+    function catalogFields() {
+      return ['name','alternateNames','category','servingBasis','unit',
+        'kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','fiberGPer100g',
+        'sourceLabel','sourceUrl','isEstimated','isActive','servingLabel','servingGrams'];
+    }
+
+    function validAdminFood() {
+      let d = request.resource.data;
+      return alias(d.name) && aliases(d.alternateNames) && alias(d.category)
+        && d.servingBasis == 'per_100g' && d.unit == 'g'
+        && d.kcalPer100g is number && d.kcalPer100g >= 0 && d.kcalPer100g <= 1000
+        && d.proteinGPer100g is number && d.proteinGPer100g >= 0 && d.proteinGPer100g <= 100
+        && d.carbsGPer100g is number && d.carbsGPer100g >= 0 && d.carbsGPer100g <= 100
+        && d.fatGPer100g is number && d.fatGPer100g >= 0 && d.fatGPer100g <= 100
+        && d.proteinGPer100g + d.carbsGPer100g + d.fatGPer100g <= 101
+        && (d.get('fiberGPer100g',null)==null || (d.fiberGPer100g is number && d.fiberGPer100g>=0 && d.fiberGPer100g<=100))
+        && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
+        && d.sourceUrl is string && d.sourceUrl.size()<=500 && d.sourceUrl.matches('https://.+')
+        && d.isEstimated is bool && d.isActive is bool
+        && ((d.get('servingLabel',null)==null && d.get('servingGrams',null)==null)
+          || (d.servingLabel is string && d.servingLabel.size()>0 && d.servingLabel.size()<=60
+            && d.servingGrams is number && d.servingGrams>0 && d.servingGrams<=2000));
     }
 
     function validProfile() {
@@ -71,8 +131,25 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function validExtras(n) {
+      return n is map && (n.size()==0 || (n.keys().hasOnly([
+        'sugar','saturatedFat','sodium','potassium','calcium','iron','vitaminC','cholesterol'])
+        && math.abs(n.get('sugar',0)-1000)<=1000
+        && math.abs(n.get('saturatedFat',0)-1000)<=1000
+        && math.abs(n.get('sodium',0)-50000)<=50000
+        && math.abs(n.get('potassium',0)-50000)<=50000
+        && math.abs(n.get('calcium',0)-50000)<=50000
+        && math.abs(n.get('iron',0)-5000)<=5000
+        && math.abs(n.get('vitaminC',0)-50000)<=50000
+        && math.abs(n.get('cholesterol',0)-50000)<=50000));
+    }
+
+    function validExtraVector(v) { return v.matches('^$|^\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\]$'); }
+    function validExtraVectors(v,n) { return v.split('\\|').size()==n && v.matches('^\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\](\\|\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\]){0,5}$'); }
+
+
     function validMealItem(i) {
-      let extra=i.keys().size()-9;
+      let extra=i.size()-9;
       let g=i.grams;
       let k=i.kcal;
       let p=i.proteinG;
@@ -104,11 +181,11 @@ service cloud.firestore {
       let complete=p!=null && c!=null && f!=null;
       let items=data.items;
       // Every allowed key is read below, so a missing required key fails.
-      return data.keys().size()==13
+      return data.size()==13
         && data.mealType.matches('^(breakfast|lunch|dinner|snack)$')
         && data.consumedAt <= request.time + duration.value(5, 'm')
         && validDateKeyAndTimezone(data, data.consumedAt)
-        && (v==2 ? validMealItems(items) : validFlexibleItems(items,complete))
+        && (v==5 ? validEnrichedItems(items) : v==2 ? validMealItems(items) : validFlexibleItems(items,complete))
         && math.abs(k-10000)<=10000
         && (p==null ? v>=3 : math.abs(p-1000)<=1000)
         && (c==null ? v>=3 : math.abs(c-1000)<=1000)
@@ -116,7 +193,7 @@ service cloud.firestore {
         && data.source in ['manual', 'ai_assisted']
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
-        && v is int && v in [2,3,4];
+        && v is int && v in [2,3,4,5];
     }
 
     // abs(x-midpoint)<=midpoint is the same closed numeric interval as
@@ -158,36 +235,54 @@ service cloud.firestore {
         && q>0 && q<=2000 && i.quantityUnit.matches('^(g|ml|serving|entry)$');
       return {'valid':valid,'k':k,'p':p,'c':c,'f':f};
     }
+    function validEnrichedItem(i) {
+      let extra=i.size()-11;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && i.quantity>0 && i.quantity<=2000 && i.quantityUnit.matches('^(g|ml|serving|entry)$')
+        && math.abs(i.kcal-5000)<=5000
+        && (p==null || math.abs(p-500)<=500) && (c==null || math.abs(c-500)<=500)
+        && (f==null || math.abs(f-500)<=500)
+        && validExtraVector(i.nutrientVectorV1);
+    }
+    function validEnrichedItems(items) {
+      let n=items.size();
+      return items is list && n>0 && n<=5 && validEnrichedItem(items[0])
+        && (n<2 || validEnrichedItem(items[1])) && (n<3 || validEnrichedItem(items[2]))
+        && (n<4 || validEnrichedItem(items[3])) && (n<5 || validEnrichedItem(items[4]));
+    }
     function fullFlexibleItem(i) {
       let g=i.grams;
-      let extra=i.keys().size()-(g==null?11:9);
+      let extra=i.size()-(g==null?11:9);
       let k=i.kcal;
       let p=i.proteinG;
       let c=i.carbsG;
       let f=i.fatG;
-      let q=i.get('quantity',0);
       return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
         && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
         && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
         && math.abs(k-5000)<=5000
         && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
-        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
           : (g>0 && g<=2000));
     }
     function validFlexibleItem(i) {
       let g=i.grams;
-      let extra=i.keys().size()-(g==null?11:9);
+      let extra=i.size()-(g==null?11:9);
       let k=i.kcal;
       let p=i.proteinG;
       let c=i.carbsG;
       let f=i.fatG;
-      let q=i.get('quantity',0);
       let valid=(extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
         && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
         && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
         && math.abs(k-5000)<=5000
         && (p==null || math.abs(p-500)<=500) && (c==null || math.abs(c-500)<=500) && (f==null || math.abs(f-500)<=500)
-        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
           : (g>0 && g<=2000));
       return valid;
     }
@@ -207,9 +302,7 @@ service cloud.firestore {
         && data.timezoneOffsetMinutes is int
         && data.timezoneOffsetMinutes >= -720
         && data.timezoneOffsetMinutes <= 840
-        && localTime.year() == int(parts[0])
-        && localTime.month() == int(parts[1])
-        && localTime.day() == int(parts[2]);
+        && localTime.date() == timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
     }
 
     function validWaterLog() {
@@ -309,8 +402,69 @@ service cloud.firestore {
     }
 
     match /food_catalog/{foodId} {
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read: if request.auth != null && request.auth.token.email_verified == true && accountAllowed(request.auth.uid);
+      allow create: if request.resource.data.keys().hasOnly(catalogFields().concat(adminFields()))
+        && foodId.matches('[a-z0-9-]{1,100}') && validAdminFood()
+        && audited('food_catalog',foodId,request.resource.data.keys().toSet());
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(catalogFields().concat(adminFields()))
+        && validAdminFood() && audited('food_catalog',foodId,request.resource.data.diff(resource.data).affectedKeys());
+      allow delete: if false;
+    }
+
+    match /admin_roles/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+
+    match /user_directory/{uid} {
+      allow read: if admin() || owns(uid);
+      allow create, update: if owns(uid)
+        && request.resource.data.keys().hasOnly(['displayName','email','createdAt','updatedAt'])
+        && request.resource.data.displayName == get(/databases/$(database)/documents/users/$(uid)).data.displayName
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt is timestamp && request.resource.data.updatedAt == request.time
+        && ((!exists(/databases/$(database)/documents/user_directory/$(uid)) && request.resource.data.createdAt==request.time)
+          || request.resource.data.createdAt==resource.data.createdAt);
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /account_controls/{uid} {
+      allow get: if admin() || (request.auth != null && request.auth.uid == uid);
+      allow list: if admin();
+      allow create, update: if admin() && request.auth.uid != uid
+        && !exists(/databases/$(database)/documents/admin_roles/$(uid))
+        && exists(/databases/$(database)/documents/user_directory/$(uid))
+        && request.resource.data.keys().hasOnly(['status','reason','updatedAt','updatedBy','lastAdminOperationId'])
+        && request.resource.data.status in ['active','suspended']
+        && request.resource.data.reason is string && request.resource.data.reason.size()>0 && request.resource.data.reason.size()<=200
+        && audited('account_controls',uid,request.resource.data.keys().toSet());
+      allow delete: if false;
+    }
+
+    match /app_config/{id} {
+      allow read: if request.auth != null && request.auth.token.email_verified == true && accountAllowed(request.auth.uid);
+      allow create, update: if id=='runtime' && admin()
+        && request.resource.data.keys().hasOnly(['chatbotEnabled','foodScannerEnabled','maintenanceMode','maintenanceMessage','updatedAt','updatedBy','lastAdminOperationId'])
+        && request.resource.data.chatbotEnabled is bool && request.resource.data.foodScannerEnabled is bool
+        && request.resource.data.maintenanceMode is bool
+        && request.resource.data.maintenanceMessage is string && request.resource.data.maintenanceMessage.size()<=300
+        && (!request.resource.data.maintenanceMode || request.resource.data.maintenanceMessage.size()>0)
+        && audited('app_config',id,request.resource.data.keys().toSet());
+      allow delete: if false;
+    }
+
+    match /admin_audit/{auditId} {
+      allow read: if admin();
+      allow create: if admin()
+        && request.resource.data.keys().hasOnly(['actorUid','entityType','entityId','at','changedFields','reason'])
+        && request.resource.data.actorUid==request.auth.uid && request.resource.data.at==request.time
+        && request.resource.data.entityType in ['food_catalog','account_controls','app_config']
+        && request.resource.data.entityId is string && request.resource.data.entityId.size()>0 && request.resource.data.entityId.size()<=128
+        && request.resource.data.changedFields is list && request.resource.data.changedFields.size()>0 && request.resource.data.changedFields.size()<=30
+        && request.resource.data.reason is string && request.resource.data.reason.size()>0 && request.resource.data.reason.size()<=200
+        && getAfter(/databases/$(database)/documents/$(request.resource.data.entityType)/$(request.resource.data.entityId)).data.lastAdminOperationId==auditId
+        && getAfter(/databases/$(database)/documents/$(request.resource.data.entityType)/$(request.resource.data.entityId)).data.updatedAt==request.time;
+      allow update, delete: if false;
     }
 
     match /users/{uid} {
@@ -346,6 +500,106 @@ service cloud.firestore {
         ]);
 
       allow delete: if owns(uid);
+
+      match /wellness_state/{stateId} {
+        allow read, delete: if owns(uid) && stateId=='sleep';
+        allow create: if owns(uid) && stateId=='sleep'
+          && request.resource.data.keys().hasOnly(['startedAt','schemaVersion'])
+          && request.resource.data.startedAt==request.time
+          && request.resource.data.schemaVersion==1;
+        allow update: if false;
+      }
+
+      match /wellness_preferences/{settingsId} {
+        function validPreferences() {
+          let d=request.resource.data;
+          return settingsId=='main' && d.keys().hasOnly(['stepLengthCm','baselineSteps','sleepGoalMinutes','schemaVersion','updatedAt'])
+            && (d.stepLengthCm==null || (d.stepLengthCm is number && d.stepLengthCm>=20 && d.stepLengthCm<=200))
+            && (d.baselineSteps==null || (d.baselineSteps is int && d.baselineSteps>=0 && d.baselineSteps<=150000))
+            && (d.sleepGoalMinutes==null || (d.sleepGoalMinutes is int && d.sleepGoalMinutes>=60 && d.sleepGoalMinutes<=1440))
+            && d.schemaVersion==1 && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create,update: if owns(uid) && validPreferences();
+      }
+
+      match /energy_adjustments/{day} {
+        function validAdjustment() {
+          let d=request.resource.data;
+          let target=get(/databases/$(database)/documents/users/$(uid)/nutrition_targets/$(d.targetFromDateKey)).data;
+          let extra = d.steps > d.baselineSteps ? d.steps - d.baselineSteps : 0;
+          return d.keys().hasOnly(['dateKey','timezoneOffsetMinutes','steps','baselineSteps','stepLengthCm',
+              'weightKg','weightMeasuredAt','targetFromDateKey','baseKcalTarget','kcal','source','schemaVersion','confirmedAt'])
+            && d.dateKey==day && validDateKeyAndTimezone(d,request.time)
+            && d.steps is int && d.steps>=0 && d.steps<=150000
+            && d.baselineSteps is int && d.baselineSteps>=0 && d.baselineSteps<=150000
+            && d.stepLengthCm is number && d.stepLengthCm>=20 && d.stepLengthCm<=200
+            && d.weightKg is number && d.weightKg>=20 && d.weightKg<=300
+            && d.weightMeasuredAt is timestamp && d.weightMeasuredAt<=request.time
+            && d.weightMeasuredAt>=request.time-duration.value(90,'d')
+            && goalDate(d.targetFromDateKey) && d.targetFromDateKey<=d.dateKey
+            && d.baseKcalTarget==target.kcalTarget && d.targetFromDateKey==target.effectiveFromDateKey
+            && d.kcal is number && d.kcal>0 && d.kcal<=5000
+            && d.kcal <= (extra * d.stepLengthCm / 100000.0 * d.weightKg * 0.5) + 0.001
+            && d.source=='walking_net_v1' && d.schemaVersion==1 && d.confirmedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create,update: if owns(uid) && validAdjustment();
+      }
+
+      match /sleep_logs/{sleepId} {
+        function validSleep() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['startedAt','endedAt','source','createdAt','updatedAt','schemaVersion'])
+            && d.startedAt is timestamp && d.endedAt is timestamp
+            && d.endedAt>d.startedAt && d.endedAt-d.startedAt<=duration.value(24,'h')
+            && d.endedAt<=request.time+duration.value(5,'m')
+            && d.source in ['manual_timer','manual_entry'] && d.schemaVersion==1
+            && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validSleep() && request.resource.data.createdAt==request.time;
+        allow update: if owns(uid) && validSleep() && request.resource.data.createdAt==resource.data.createdAt;
+      }
+
+      match /step_logs/{day} {
+        function validSteps() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['dateKey','steps','trackingStartedAt','measuredAt',
+              'timezoneOffsetMinutes','source','schemaVersion','updatedAt'])
+            && d.dateKey==day && validDateKeyAndTimezone(d,d.measuredAt)
+            && d.steps is int && d.steps>=0 && d.steps<=150000
+            && d.trackingStartedAt is timestamp && d.measuredAt is timestamp
+            && d.trackingStartedAt<=d.measuredAt
+            && d.measuredAt<=request.time+duration.value(5,'m')
+            && d.source=='device_step_counter' && d.schemaVersion==1 && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create,update: if owns(uid) && validSteps();
+      }
+
+      match /meal_plans/{planId} {
+        function validPlan() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['dateKey','mealType','items','createdAt','updatedAt',
+              'schemaVersion','loggedMealId'])
+            && goalDate(d.dateKey) && d.mealType in ['breakfast','lunch','dinner','snack']
+            && planId==d.dateKey+'-'+d.mealType
+            && validEnrichedItems(d.items) && d.schemaVersion==2
+            && (d.get('loggedMealId',null)==null || d.loggedMealId=='plan-'+planId)
+            && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validPlan() && request.resource.data.createdAt==request.time
+          && request.resource.data.get('loggedMealId',null)==null;
+        allow update: if owns(uid) && validPlan()
+          && request.resource.data.createdAt==resource.data.createdAt
+          && (resource.data.get('loggedMealId',null)==null
+            || (request.resource.data.items==resource.data.items
+              && request.resource.data.get('loggedMealId',null)==resource.data.loggedMealId))
+          && (request.resource.data.get('loggedMealId',null)==null
+            || existsAfter(/databases/$(database)/documents/users/$(uid)/meal_logs/$(request.resource.data.loggedMealId)));
+      }
 
       match /body_metrics/{metricId} {
         allow read: if owns(uid);
@@ -428,8 +682,8 @@ service cloud.firestore {
         function alias(value) { return value is string && value.size()>0 && value.size()<=60; }
         function validFood() {
           let d=request.resource.data;
-          return d.keys().hasOnly(['name','alternateNames','servingBasis','kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','fiberGPer100g','defaultServingGrams','servingLabel','servingGrams','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
-            && (d.get('fiberGPer100g',null)==null || math.abs(d.fiberGPer100g-50)<=50)
+          return d.keys().hasOnly(['name','alternateNames','servingBasis','kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','fiberGPer100g','extraNutrientsPer100g','defaultServingGrams','servingLabel','servingGrams','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
+            && validExtras(d.get('extraNutrientsPer100g',{})) && (d.get('fiberGPer100g',null)==null || math.abs(d.fiberGPer100g-50)<=50)
             && d.name is string && d.name.size()>=2 && d.name.size()<=100
             && d.alternateNames is list && d.alternateNames.size()<=5
             && (d.alternateNames.size()<1 || alias(d.alternateNames[0]))
@@ -445,7 +699,8 @@ service cloud.firestore {
             && d.defaultServingGrams is number && d.defaultServingGrams>0 && d.defaultServingGrams<=2000
             && ((d.servingLabel==null && d.servingGrams==null) || (d.servingLabel is string && d.servingLabel.size()>0 && d.servingLabel.size()<=40 && d.servingGrams is number && d.servingGrams>0 && d.servingGrams<=2000))
             && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
-            && d.isEstimated is bool && d.schemaVersion is int && d.schemaVersion in [1,2]
+            && d.isEstimated is bool && d.schemaVersion is int && d.schemaVersion in [1,2,3]
+            && (!d.keys().hasAny(['extraNutrientsPer100g']) || d.schemaVersion==3)
             && d.createdAt is timestamp && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
@@ -455,7 +710,7 @@ service cloud.firestore {
 
       match /recipes/{recipeId} {
         function ingredient(item) {
-      let extra=item.keys().size()-9;
+      let extra=item.size()-9;
           // Regex length checks also enforce string type, reducing repeated
           // expressions without skipping any ingredient or allowed-field check.
           let grams=item.grams;
@@ -471,22 +726,20 @@ service cloud.firestore {
             && item.sourceLabel.matches('(?s)^.{1,160}$') && item.isEstimated is bool;
         }
         function validRecipe() {
-                    let d=request.resource.data;
+          let d=request.resource.data;
           let items=d.ingredients;
-          return d.keys().size()==9
-            && d.name is string && d.name.size()>=2 && d.name.size()<=100
-            && d.yieldGrams is number && d.yieldGrams>0 && d.yieldGrams<=20000
-            && (d.servingsCount==null || (d.servingsCount is number && d.servingsCount>0 && d.servingsCount<=1000))
-            && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
-            && d.isEstimated==true && d.schemaVersion is int && d.schemaVersion in [1,2]
+          return d.size()==(d.schemaVersion==3?10:9)
+            && d.name.matches('(?s)^.{2,100}$')
+            && math.abs(d.yieldGrams-10000)<=10000 && d.yieldGrams>0
+            && (d.servingsCount==null || (math.abs(d.servingsCount-500)<=500 && d.servingsCount>0))
+            && d.sourceLabel.matches('(?s)^.{1,160}$')
+            && d.isEstimated==true && d.schemaVersion is int && d.schemaVersion in [1,2,3]
             && d.createdAt is timestamp && d.updatedAt==request.time
             && items is list && items.size()>0 && items.size()<=6
-            && ingredient(items[0])
-            && (items.size()<2 || ingredient(items[1]))
-            && (items.size()<3 || ingredient(items[2]))
-            && (items.size()<4 || ingredient(items[3]))
-            && (items.size()<5 || ingredient(items[4]))
-            && (items.size()<6 || ingredient(items[5]));
+            && ingredient(items[0]) && (items.size()<2 || ingredient(items[1]))
+            && (items.size()<3 || ingredient(items[2])) && (items.size()<4 || ingredient(items[3]))
+            && (items.size()<5 || ingredient(items[4])) && (items.size()<6 || ingredient(items[5]))
+            && (d.schemaVersion!=3 || validExtraVectors(d.nutrientVectorsV1,items.size()));
         }
         allow read,delete: if owns(uid);
         allow create: if owns(uid) && validRecipe() && request.resource.data.createdAt==request.time;
@@ -544,13 +797,13 @@ service cloud.firestore {
             && a.f+b.f+c.f+d.f+e.f<=2000;
         }
         function item(i) {
-      let extra=i.keys().size()-9;
+      let extra=i.size()-9-(i.keys().hasAny(['nutrientVectorV1'])?1:0);
           let g=i.grams;
           let k=i.kcal;
           let p=i.proteinG;
           let c=i.carbsG;
           let f=i.fatG;
-          return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+          return validExtraVector(i.get('nutrientVectorV1','')) && (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
             && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
             && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
             && g>0 && g<=2000 && math.abs(k-5000)<=5000
@@ -565,19 +818,23 @@ service cloud.firestore {
             && (n<4 || fiberValue(values[3])) && (n<5 || fiberValue(values[4]));
         }
         function compactShape(d,n) {
-          return d.keys().size()==6 || (d.keys().size()==7 && d.fiberPartialMask is int && d.fiberPartialMask>0 && d.fiberPartialMask<math.pow(2,n));
+          let count=d.size()-(d.schemaVersion==4?1:0);
+          return count==6 || (count==7 && d.fiberPartialMask is int && d.fiberPartialMask>0 && d.fiberPartialMask<math.pow(2,n));
         }
+
+
         function validTemplate(updating) {
                     let d=request.resource.data;
           let v=d.schemaVersion;
           let items=d.items;
           let n=items.size();
           return (updating ? (d.createdAt==resource.data.createdAt && v>=resource.data.schemaVersion) : d.createdAt==request.time)
-            && (v==3?compactShape(d,n):d.keys().size()==5)
+            && (v>=3?compactShape(d,n):d.size()==5)
             && d.name.matches('(?s)^.{2,80}$')
-            && v in [1,2,3] && d.updatedAt==request.time
-            && n<=5 && (v!=3 || validFiberValues(d.fiberValues,n))
-            && (v==3 ? compactTemplate(items,n) : v==2 ? flexibleTemplate(items,n) : (item(items[0]) && (n<2 || item(items[1]))
+            && v in [1,2,3,4] && d.updatedAt==request.time
+            && n<=5 && (v<3 || validFiberValues(d.fiberValues,n))
+            && (v!=4 || validExtraVectors(d.nutrientVectorsV1,n))
+            && (v>=3 ? compactTemplate(items,n) : v==2 ? flexibleTemplate(items,n) : (item(items[0]) && (n<2 || item(items[1]))
             && (n<3 || item(items[2])) && (n<4 || item(items[3]))
             && (n<5 || item(items[4]))
             && sum(items,'kcal',n)<=20000
@@ -665,7 +922,7 @@ service cloud.firestore {
               'createdAt', 'updatedAt', 'schemaVersion'])
             && d.title is string && d.title.size() > 0 && d.title.size() <= 80
             && d.messageCount is int && d.messageCount >= 2
-            && d.messageCount <= 40 && d.messageCount % 2 == 0
+            && d.messageCount <= 100 && d.messageCount % 2 == 0
             && d.lastTurnId is string && d.lastTurnId.matches('^[a-zA-Z0-9]{20}$')
             && d.schemaVersion == 1 && d.createdAt is timestamp
             && d.updatedAt == request.time

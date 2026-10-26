@@ -47,6 +47,11 @@ app.*.map.json
 # Local Firebase emulator state and credentials are never app source.
 .firebase/
 /rules-tests/node_modules/
+**/node_modules/
+**/.wrangler/
+.dev.vars*
+*.apk
+*.aab
 *-debug.log
 .env
 .env.*

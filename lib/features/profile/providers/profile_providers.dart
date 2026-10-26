@@ -19,7 +19,7 @@ final healthProfileRepositoryProvider = Provider<HealthProfileRepository>(
 
 final profileBootstrapProvider = FutureProvider<void>((ref) async {
   final user = ref.watch(authSessionProvider).value;
-  if (user == null) return;
+  if (user == null || !user.emailVerified) return;
   await ref
       .watch(healthProfileRepositoryProvider)
       .ensureProfile(uid: user.uid, email: user.email ?? '')
@@ -33,7 +33,7 @@ final profileBootstrapProvider = FutureProvider<void>((ref) async {
 
 final userProfileProvider = StreamProvider<UserProfile?>((ref) async* {
   final user = ref.watch(authSessionProvider).value;
-  if (user == null) {
+  if (user == null || !user.emailVerified) {
     yield null;
     return;
   }
@@ -48,7 +48,7 @@ final bodyMetricsProvider = StreamProvider.autoDispose<List<BodyMetric>>((
   ref,
 ) async* {
   final user = ref.watch(authSessionProvider).value;
-  if (user == null) {
+  if (user == null || !user.emailVerified) {
     yield const [];
     return;
   }
@@ -60,15 +60,14 @@ final bodyMetricsProvider = StreamProvider.autoDispose<List<BodyMetric>>((
 }, retry: (retryCount, error) => null);
 
 final latestBodyMetricProvider = StreamProvider.autoDispose
-    .family<List<BodyMetric>, DateTime>((ref, day) async* {
+    .family<List<BodyMetric>, DateTime>((ref, day) {
       final uid = ref.watch(
         authSessionProvider.select((session) => session.value?.uid),
       );
       if (uid == null) {
-        yield const [];
-        return;
+        return Stream.value(const []);
       }
-      yield* subscriptionStream(
+      return subscriptionStream(
         ref
             .watch(healthProfileRepositoryProvider)
             .watchLatestBodyMetric(uid, day),

@@ -119,10 +119,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
-        home: MealFormDialog(
-          catalog: const [FakeNutritionRepository.rice],
-          recentItems: _meal('recent', DateTime(2026, 10, 13)).items,
+      ProviderScope(
+        child: MaterialApp(
+          home: MealFormDialog(
+            catalog: const [FakeNutritionRepository.rice],
+            recentItems: _meal('recent', DateTime(2026, 10, 13)).items,
+          ),
         ),
       ),
     );

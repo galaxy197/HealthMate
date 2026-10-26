@@ -11,6 +11,8 @@ import '../../weekly_reflection/providers/weekly_reflection_providers.dart';
 import '../../weekly_reflection/models/weekly_reflection.dart';
 import '../../reports/presentation/period_report_panel.dart';
 import 'progress_overview.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/router/app_routes.dart';
 
 class ProgressScreen extends ConsumerStatefulWidget {
   const ProgressScreen({super.key});
@@ -186,6 +188,12 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             ),
           ),
         const SizedBox(height: 24),
+        OutlinedButton.icon(
+          key: const ValueKey('open-weight-progress'),
+          onPressed: () => context.push('${AppRoutes.wellness}?tab=5'),
+          icon: const Icon(Icons.monitor_weight_outlined),
+          label: const Text('Tiến độ cân nặng và ngân sách ăn'),
+        ),
         const HealthDisclaimer(),
       ],
     );

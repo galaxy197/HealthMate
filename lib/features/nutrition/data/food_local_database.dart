@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/nutrition_models.dart';
+import '../models/extra_nutrients.dart';
+import '../models/food_catalog_search.dart';
 
 /// Local SQLite database for food catalog caching
-/// Stores USDA foods, user foods, and search history
+/// Public catalogue cache only. Private foods remain in UID-scoped Firestore.
 class FoodLocalDatabase {
   static final FoodLocalDatabase instance = FoodLocalDatabase._init();
   static Database? _database;
@@ -25,8 +28,31 @@ class FoodLocalDatabase {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _createDB,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE foods ADD COLUMN metadata TEXT');
+          await db.execute(
+            "DELETE FROM recent_foods WHERE food_id IN (SELECT id FROM foods WHERE substr(id,1,3)='vn_')",
+          );
+          await db.execute(
+            "DELETE FROM foods WHERE data_source='local' AND substr(id,1,3)='vn_'",
+          );
+        }
+        if (oldVersion < 2) {
+          // Public USDA rows written by the old parser can contain false zeros.
+          // Invalidate those cache rows only; no journal/private food is deleted.
+          await db.execute(
+            "DELETE FROM recent_foods WHERE food_id IN (SELECT id FROM foods WHERE data_source = 'usda')",
+          );
+          await db.delete(
+            'foods',
+            where: 'data_source = ?',
+            whereArgs: ['usda'],
+          );
+        }
+      },
     );
   }
 
@@ -48,6 +74,7 @@ class FoodLocalDatabase {
         source_label TEXT NOT NULL,
         is_estimated INTEGER NOT NULL,
         brand TEXT,
+        metadata TEXT,
         cached_at INTEGER NOT NULL
       )
     ''');
@@ -82,63 +109,72 @@ class FoodLocalDatabase {
 
   /// Normalize text for search
   String _normalize(String text) {
-    return text.toLowerCase().trim();
+    return normalizeFoodSearch(text);
   }
 
   /// Insert or update food in cache
   Future<void> cacheFood(FoodCatalogItem food) async {
+    _requirePublic(food);
+    if (!_cacheable(food)) return;
     final db = await database;
 
-    await db.insert(
-      'foods',
-      {
+    await db.insert('foods', {
+      'id': food.id,
+      'metadata': _metadata(food),
+      'fdc_id': food.fdcId,
+      'name': food.name,
+      'name_normalized': _normalize(
+        [food.name, ...food.alternateNames].join(' '),
+      ),
+      'category': food.category,
+      'data_source': food.dataSource.wireValue,
+      'kcal': food.kcalPer100g ?? food.nutritionPer100g.kcal,
+      'protein': food.proteinGPer100g ?? food.nutritionPer100g.proteinG,
+      'carbs': food.carbsGPer100g ?? food.nutritionPer100g.carbsG,
+      'fat': food.fatGPer100g ?? food.nutritionPer100g.fatG,
+      'fiber': food.nutritionPer100g.fiberKnown
+          ? food.nutritionPer100g.fiberG
+          : null,
+      'source_label': food.sourceLabel,
+      'is_estimated': food.isEstimated ? 1 : 0,
+      'brand': food.brand,
+      'cached_at': DateTime.now().millisecondsSinceEpoch,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// Batch insert foods
+  Future<void> cacheFoodsBatch(List<FoodCatalogItem> foods) async {
+    for (final food in foods) {
+      _requirePublic(food);
+    }
+    final complete = foods.where(_cacheable).toList();
+    if (complete.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+
+    for (final food in complete) {
+      batch.insert('foods', {
         'id': food.id,
+        'metadata': _metadata(food),
         'fdc_id': food.fdcId,
         'name': food.name,
-        'name_normalized': _normalize(food.name),
+        'name_normalized': _normalize(
+          [food.name, ...food.alternateNames].join(' '),
+        ),
         'category': food.category,
         'data_source': food.dataSource.wireValue,
         'kcal': food.kcalPer100g ?? food.nutritionPer100g.kcal,
         'protein': food.proteinGPer100g ?? food.nutritionPer100g.proteinG,
         'carbs': food.carbsGPer100g ?? food.nutritionPer100g.carbsG,
         'fat': food.fatGPer100g ?? food.nutritionPer100g.fatG,
-        'fiber': food.fiberGPer100g ?? food.nutritionPer100g.fiberG,
+        'fiber': food.nutritionPer100g.fiberKnown
+            ? food.nutritionPer100g.fiberG
+            : null,
         'source_label': food.sourceLabel,
         'is_estimated': food.isEstimated ? 1 : 0,
         'brand': food.brand,
         'cached_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  /// Batch insert foods
-  Future<void> cacheFoodsBatch(List<FoodCatalogItem> foods) async {
-    final db = await database;
-    final batch = db.batch();
-
-    for (final food in foods) {
-      batch.insert(
-        'foods',
-        {
-          'id': food.id,
-          'fdc_id': food.fdcId,
-          'name': food.name,
-          'name_normalized': _normalize(food.name),
-          'category': food.category,
-          'data_source': food.dataSource.wireValue,
-          'kcal': food.kcalPer100g ?? food.nutritionPer100g.kcal,
-          'protein': food.proteinGPer100g ?? food.nutritionPer100g.proteinG,
-          'carbs': food.carbsGPer100g ?? food.nutritionPer100g.carbsG,
-          'fat': food.fatGPer100g ?? food.nutritionPer100g.fatG,
-          'fiber': food.fiberGPer100g ?? food.nutritionPer100g.fiberG,
-          'source_label': food.sourceLabel,
-          'is_estimated': food.isEstimated ? 1 : 0,
-          'brand': food.brand,
-          'cached_at': DateTime.now().millisecondsSinceEpoch,
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
 
     await batch.commit(noResult: true);
@@ -155,7 +191,9 @@ class FoodLocalDatabase {
     final db = await database;
     final normalized = _normalize(query);
 
-    final where = StringBuffer('name_normalized LIKE ?');
+    final where = StringBuffer(
+      "data_source IN ('local','usda') AND name_normalized LIKE ?",
+    );
     final whereArgs = <Object>['%$normalized%'];
 
     if (filterSource != null) {
@@ -180,7 +218,7 @@ class FoodLocalDatabase {
 
     final results = await db.query(
       'foods',
-      where: 'id = ?',
+      where: "id = ? AND data_source IN ('local','usda')",
       whereArgs: [id],
       limit: 1,
     );
@@ -195,7 +233,7 @@ class FoodLocalDatabase {
 
     final results = await db.query(
       'foods',
-      where: 'fdc_id = ?',
+      where: "fdc_id = ? AND data_source IN ('local','usda')",
       whereArgs: [fdcId],
       limit: 1,
     );
@@ -208,13 +246,17 @@ class FoodLocalDatabase {
   Future<List<FoodCatalogItem>> getRecentFoods({int limit = 20}) async {
     final db = await database;
 
-    final results = await db.rawQuery('''
+    final results = await db.rawQuery(
+      '''
       SELECT f.*
       FROM foods f
       INNER JOIN recent_foods r ON f.id = r.food_id
+      WHERE f.data_source IN ('local','usda')
       ORDER BY r.last_used DESC
       LIMIT ?
-    ''', [limit]);
+    ''',
+      [limit],
+    );
 
     return results.map(_foodFromMap).toList();
   }
@@ -223,15 +265,11 @@ class FoodLocalDatabase {
   Future<void> markFoodUsed(String foodId) async {
     final db = await database;
 
-    await db.insert(
-      'recent_foods',
-      {
-        'food_id': foodId,
-        'last_used': DateTime.now().millisecondsSinceEpoch,
-        'use_count': 1,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('recent_foods', {
+      'food_id': foodId,
+      'last_used': DateTime.now().millisecondsSinceEpoch,
+      'use_count': 1,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   /// Clean old cache entries (older than 7 days)
@@ -252,40 +290,46 @@ class FoodLocalDatabase {
   Future<Map<String, int>> getCacheStats() async {
     final db = await database;
 
-    final total = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM foods'),
-    ) ?? 0;
+    final total =
+        Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM foods'),
+        ) ??
+        0;
 
-    final usda = Sqflite.firstIntValue(
-      await db.rawQuery(
-        'SELECT COUNT(*) FROM foods WHERE data_source = ?',
-        [FoodDataSource.usda.wireValue],
-      ),
-    ) ?? 0;
+    final usda =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM foods WHERE data_source = ?',
+            [FoodDataSource.usda.wireValue],
+          ),
+        ) ??
+        0;
 
-    final local = Sqflite.firstIntValue(
-      await db.rawQuery(
-        'SELECT COUNT(*) FROM foods WHERE data_source = ?',
-        [FoodDataSource.local.wireValue],
-      ),
-    ) ?? 0;
+    final local =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM foods WHERE data_source = ?',
+            [FoodDataSource.local.wireValue],
+          ),
+        ) ??
+        0;
 
-    final user = Sqflite.firstIntValue(
-      await db.rawQuery(
-        'SELECT COUNT(*) FROM foods WHERE data_source = ?',
-        [FoodDataSource.user.wireValue],
-      ),
-    ) ?? 0;
+    final user =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM foods WHERE data_source = ?',
+            [FoodDataSource.user.wireValue],
+          ),
+        ) ??
+        0;
 
-    return {
-      'total': total,
-      'usda': usda,
-      'local': local,
-      'user': user,
-    };
+    return {'total': total, 'usda': usda, 'local': local, 'user': user};
   }
 
   FoodCatalogItem _foodFromMap(Map<String, Object?> map) {
+    final metadata = map['metadata'] is String
+        ? jsonDecode(map['metadata'] as String) as Map<String, dynamic>
+        : <String, dynamic>{};
     final dataSourceStr = map['data_source'] as String;
     final dataSource = FoodDataSource.values.firstWhere(
       (s) => s.wireValue == dataSourceStr,
@@ -296,25 +340,50 @@ class FoodLocalDatabase {
       id: map['id'] as String,
       fdcId: map['fdc_id'] as int?,
       name: map['name'] as String,
+      alternateNames: (metadata['aliases'] as List? ?? []).cast<String>(),
+      defaultServingGrams:
+          (metadata['defaultGrams'] as num?)?.toDouble() ?? 100,
+      servingLabel: metadata['servingLabel'] as String?,
+      servingGrams: (metadata['servingGrams'] as num?)?.toDouble(),
+      extraNutrientsPer100g: readExtraNutrients(metadata['extraNutrients']),
       category: map['category'] as String,
       servingBasis: ServingBasis.per100g,
       kcalPer100g: (map['kcal'] as num).toDouble(),
       proteinGPer100g: (map['protein'] as num).toDouble(),
       carbsGPer100g: (map['carbs'] as num).toDouble(),
       fatGPer100g: (map['fat'] as num).toDouble(),
-      fiberGPer100g: map['fiber'] != null ? (map['fiber'] as num).toDouble() : null,
+      fiberGPer100g: map['fiber'] != null
+          ? (map['fiber'] as num).toDouble()
+          : null,
       sourceLabel: map['source_label'] as String,
       isEstimated: (map['is_estimated'] as int) == 1,
       brand: map['brand'] as String?,
       dataSource: dataSource,
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(
-        map['cached_at'] as int,
-      ),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(map['cached_at'] as int),
     );
   }
 
+  String _metadata(FoodCatalogItem f) => jsonEncode({
+    'aliases': f.alternateNames,
+    'defaultGrams': f.defaultServingGrams,
+    'servingLabel': f.servingLabel,
+    'servingGrams': f.servingGrams,
+    'extraNutrients': f.nutritionPer100g.extraNutrients,
+  });
+
+  void _requirePublic(FoodCatalogItem food) {
+    if (food.dataSource == FoodDataSource.user) {
+      throw ArgumentError(
+        'Private foods must use their UID-scoped repository.',
+      );
+    }
+  }
+
+  bool _cacheable(FoodCatalogItem food) =>
+      food.hasNutritionData && food.nutritionPer100g.hasCompleteMacros;
+
   Future<void> close() async {
-    final db = await database;
-    await db.close();
+    await _database?.close();
+    _database = null;
   }
 }

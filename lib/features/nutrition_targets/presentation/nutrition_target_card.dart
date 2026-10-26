@@ -7,6 +7,7 @@ import '../../nutrition/models/nutrition_models.dart';
 import '../models/nutrition_target.dart';
 import '../providers/nutrition_target_providers.dart';
 import 'nutrition_target_form.dart';
+import '../../wellness/providers/energy_providers.dart';
 
 class NutritionTargetCard extends ConsumerWidget {
   const NutritionTargetCard({required this.day, this.meals, super.key});
@@ -16,6 +17,10 @@ class NutritionTargetCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final key = localDateKey(day);
     final state = ref.watch(nutritionTargetProvider(key));
+    final budgetState = ref.watch(dailyEnergyBudgetProvider(key));
+    final budget = !budgetState.isLoading && !budgetState.hasError
+        ? budgetState.value
+        : null;
     final value = state.value;
     final today = localDateOnly(ref.watch(localClockProvider));
     final number = NumberFormat('0.#', 'vi');
@@ -82,12 +87,14 @@ class NutritionTargetCard extends ConsumerWidget {
                 'Áp dụng từ ${value.effectiveFromDateKey} · Bạn tự thiết lập',
               ),
               if (meals == null)
-                Text('Năng lượng: ${number.format(value.kcalTarget)} kcal/ngày')
+                Text(
+                  'Mục tiêu gốc: ${number.format(value.kcalTarget)} kcal/ngày',
+                )
               else ...[
                 line(
                   'Năng lượng đã ghi / mục tiêu',
-                  value.kcalTarget,
-                  totals?.kcal,
+                  budget?.kcalTarget ?? value.kcalTarget,
+                  budget == null ? null : totals?.kcal,
                   'kcal',
                 ),
                 if (totals == null)
@@ -95,6 +102,19 @@ class NutritionTargetCard extends ConsumerWidget {
                     'Nhật ký đang tải hoặc có lỗi; chưa tính còn/vượt.',
                   ),
               ],
+              if (budgetState.isLoading)
+                const Text('Đang kiểm tra điều chỉnh ngân sách…'),
+              if (budgetState.hasError)
+                TextButton(
+                  onPressed: () => retryEnergyBudget(ref, key),
+                  child: const Text('Chưa tải đủ ngân sách · Thử lại'),
+                ),
+              if (budget != null && budget.adjustmentKcal > 0)
+                Text(
+                  'Gốc ${number.format(value.kcalTarget)} + bước đã xác nhận ${number.format(budget.adjustmentKcal)} kcal · ước tính; macro giữ nguyên.',
+                ),
+              if (budget?.hasUnappliedAdjustment == true)
+                Text(budget!.explanation),
               if (value.hasMacros) ...[
                 if (meals == null)
                   Text(

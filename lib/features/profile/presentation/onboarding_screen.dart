@@ -217,7 +217,11 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
 
   Future<void> _deleteAccount() async {
     ref.read(accountSecurityControllerProvider.notifier).clearError();
-    final password = await showDeleteAccountDialog(context);
+    final password = await showDeleteAccountDialog(
+      context,
+      requirePassword:
+          ref.read(authSessionProvider).value?.hasPassword != false,
+    );
     if (password == null || !mounted) return;
     await ref
         .read(accountSecurityControllerProvider.notifier)

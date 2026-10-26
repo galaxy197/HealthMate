@@ -50,6 +50,15 @@ class ProfileScreen extends ConsumerWidget {
           child: Column(
             children: [
               ListTile(
+                key: const ValueKey('open-wellness'),
+                leading: const Icon(Icons.favorite_outline),
+                title: const Text('Thói quen & kế hoạch'),
+                subtitle: const Text(
+                  'Nhắc bữa · Thực đơn · Bước chân · Giấc ngủ · Dưỡng chất',
+                ),
+                onTap: () => context.push(AppRoutes.wellness),
+              ),
+              ListTile(
                 key: const ValueKey('open-goals-quests'),
                 leading: const Icon(Icons.flag_outlined),
                 title: const Text('Mục tiêu và nhiệm vụ hằng ngày'),
@@ -81,6 +90,7 @@ class ProfileScreen extends ConsumerWidget {
         ],
         _AccountCard(
           email: user?.email,
+          canChangePassword: user?.hasPassword == true,
           authAction: authAction,
           accountAction: accountAction,
           onSignOut: () => ref.read(authControllerProvider.notifier).signOut(),
@@ -242,7 +252,11 @@ class ProfileScreen extends ConsumerWidget {
 
   Future<void> _deleteAccount(BuildContext context, WidgetRef ref) async {
     ref.read(accountSecurityControllerProvider.notifier).clearError();
-    final password = await showDeleteAccountDialog(context);
+    final password = await showDeleteAccountDialog(
+      context,
+      requirePassword:
+          ref.read(authSessionProvider).value?.hasPassword != false,
+    );
     if (password == null || !context.mounted) return;
     await ref
         .read(accountSecurityControllerProvider.notifier)
@@ -368,6 +382,7 @@ class ProfileScreen extends ConsumerWidget {
 class _AccountCard extends StatelessWidget {
   const _AccountCard({
     required this.email,
+    required this.canChangePassword,
     required this.authAction,
     required this.accountAction,
     required this.onSignOut,
@@ -376,6 +391,7 @@ class _AccountCard extends StatelessWidget {
   });
 
   final String? email;
+  final bool canChangePassword;
   final AsyncValue<void> authAction;
   final AsyncValue<void> accountAction;
   final VoidCallback onSignOut;
@@ -397,12 +413,13 @@ class _AccountCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             Text(email ?? 'Tài khoản đã đăng nhập'),
             const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              key: const ValueKey('change-password'),
-              onPressed: busy ? null : onChangePassword,
-              icon: const Icon(Icons.password_rounded),
-              label: const Text('Đổi mật khẩu'),
-            ),
+            if (canChangePassword)
+              OutlinedButton.icon(
+                key: const ValueKey('change-password'),
+                onPressed: busy ? null : onChangePassword,
+                icon: const Icon(Icons.password_rounded),
+                label: const Text('Đổi mật khẩu'),
+              ),
             const SizedBox(height: AppSpacing.sm),
             OutlinedButton.icon(
               key: const ValueKey('sign-out'),

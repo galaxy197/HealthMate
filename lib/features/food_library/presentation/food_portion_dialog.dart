@@ -133,6 +133,24 @@ class _FoodPortionDialogState extends State<FoodPortionDialog> {
                     ),
                   ],
                 ),
+                const Text(
+                  'Khối lượng tham khảo; tô/chén thực tế có thể khác. Ưu tiên cân phần ăn được.',
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final count in [0.5, 1.0, 1.5, 2.0])
+                      ActionChip(
+                        label: Text(
+                          '${foodNumber(count)} ${food.servingLabel!}',
+                        ),
+                        onPressed: () => setState(() {
+                          _portions = true;
+                          _amount.text = count.toString();
+                        }),
+                      ),
+                  ],
+                ),
               ],
               TextFormField(
                 key: const ValueKey('meal-grams'),

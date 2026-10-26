@@ -6,6 +6,9 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/profile/providers/profile_providers.dart';
 import 'shared/providers/theme_mode_provider.dart';
+import 'core/config/admin_runtime.dart';
+import 'core/widgets/admin_access_gate.dart';
+import 'features/wellness/providers/wellness_providers.dart';
 
 class HealthMateApp extends ConsumerWidget {
   const HealthMateApp({super.key});
@@ -14,6 +17,8 @@ class HealthMateApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Keeps profile creation tied to the authenticated session, not a screen visit.
     ref.watch(profileBootstrapProvider);
+    ref.watch(adminDirectorySyncProvider);
+    ref.watch(wellnessBootstrapProvider);
     return MaterialApp.router(
       title: 'HealthMate',
       debugShowCheckedModeBanner: false,
@@ -24,6 +29,8 @@ class HealthMateApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(appRouterProvider),
+      builder: (context, child) =>
+          AdminAccessGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -29,25 +29,24 @@ class GlassCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: isDark
-                ? theme.colorScheme.surface.withOpacity(0.7)
-                : Colors.white.withOpacity(0.7),
+                ? theme.colorScheme.surface.withValues(alpha: 0.7)
+                : Colors.white.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
             border: Border.all(
               color: isDark
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.05),
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.05),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: elevation ?? 8,
                 offset: Offset(0, elevation ?? 4),
               ),
             ],
           ),
-          padding: padding ??
-              const EdgeInsets.all(AppSpacing.md),
+          padding: padding ?? const EdgeInsets.all(AppSpacing.md),
           child: child,
         ),
       ),
@@ -140,14 +139,10 @@ class _MetricQuickCardState extends State<MetricQuickCard>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: widget.iconColor.withOpacity(0.15),
+                color: widget.iconColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                widget.icon,
-                color: widget.iconColor,
-                size: 24,
-              ),
+              child: Icon(widget.icon, color: widget.iconColor, size: 24),
             ),
             const SizedBox(height: AppSpacing.sm),
 

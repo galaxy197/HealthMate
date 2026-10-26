@@ -76,7 +76,7 @@ void main() {
       final sub = c.listen(provider, (_, _) {});
       addTearDown(sub.close);
       expect(c.read(provider).isLoading, isTrue);
-      auth.emitUser(const AuthUser(uid: 'b', email: 'b@example.com'));
+      auth.emitUser(const AuthUser(emailVerified: true, uid: 'b', email: 'b@example.com'));
       await pumpEventQueue();
       repo.pending.complete([meal('private-A', range.start)]);
       await pumpEventQueue();

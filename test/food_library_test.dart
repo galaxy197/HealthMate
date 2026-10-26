@@ -649,7 +649,7 @@ void main() {
           schemaVersion: p.schemaVersion,
         ),
       );
-      auth.emitUser(const AuthUser(uid: 'bob', email: 'bob@example.test'));
+      auth.emitUser(const AuthUser(emailVerified: true, uid: 'bob', email: 'bob@example.test'));
       await tester.pumpAndSettle();
       expect(
         container.read(libraryEntryProvider(key)).value!.name,

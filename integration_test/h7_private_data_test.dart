@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'support/emulator_email_actions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -9,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:healthmate/features/wellness/data/energy_repository.dart';
+import 'package:healthmate/features/wellness/providers/energy_providers.dart';
 import 'package:healthmate/app.dart';
 import 'package:healthmate/core/router/app_router.dart';
 import 'package:healthmate/core/router/app_routes.dart';
@@ -69,8 +72,14 @@ void main() {
   if (!Platform.isAndroid ||
       !const bool.fromEnvironment('HEALTHMATE_CORE_EMULATOR_TESTS') ||
       ![1, 2].contains(phase) ||
-      const bool.fromEnvironment('HEALTHMATE_ENABLE_CHATBOT') ||
-      const bool.fromEnvironment('HEALTHMATE_ENABLE_FOOD_SCANNER')) {
+      const bool.fromEnvironment(
+        'HEALTHMATE_ENABLE_CHATBOT',
+        defaultValue: true,
+      ) ||
+      const bool.fromEnvironment(
+        'HEALTHMATE_ENABLE_FOOD_SCANNER',
+        defaultValue: true,
+      )) {
     throw StateError('Use the guarded H7 QA runner.');
   }
   testWidgets(
@@ -100,6 +109,7 @@ void main() {
           email: _emailA,
           password: _password,
         );
+        await verifyEmulatorEmail(auth, projectId: 'demo-healthmate-rules');
         await profile.ensureProfile(uid: cred.user!.uid, email: _emailA);
         await profile.completeOnboarding(
           uid: cred.user!.uid,
@@ -131,6 +141,9 @@ void main() {
           ),
           healthProfileRepositoryProvider.overrideWithValue(profile),
           nutritionRepositoryProvider.overrideWithValue(nutrition),
+          energyRepositoryProvider.overrideWithValue(
+            FirebaseEnergyRepository(db),
+          ),
           nutritionTargetRepositoryProvider.overrideWithValue(
             FirebaseNutritionTargetRepository(db),
           ),
@@ -300,6 +313,7 @@ void main() {
         password: _password,
       );
       final bob = credB.user!.uid;
+      await verifyEmulatorEmail(auth, projectId: 'demo-healthmate-rules');
       await profile.ensureProfile(uid: bob, email: _emailB);
       await profile.completeOnboarding(
         uid: bob,

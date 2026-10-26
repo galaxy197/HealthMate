@@ -9,6 +9,7 @@ class MfpCaloriesCard extends StatelessWidget {
     this.onEditTarget,
     this.targetStatus,
     this.editKey,
+    this.budgetNote,
     super.key,
   });
   final double? consumed;
@@ -16,6 +17,7 @@ class MfpCaloriesCard extends StatelessWidget {
   final VoidCallback? onEditTarget;
   final String? targetStatus;
   final Key? editKey;
+  final String? budgetNote;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -90,6 +92,8 @@ class MfpCaloriesCard extends StatelessWidget {
               ),
             ),
           if (consumed == null) const Text('Chưa có tổng nhật ký'),
+          if (budgetNote != null)
+            Text(budgetNote!, style: theme.textTheme.bodySmall),
         ],
       ),
     );

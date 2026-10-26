@@ -29,6 +29,8 @@ import 'support/fake_nutrition_repository.dart';
 import 'support/fake_nutrition_target_repository.dart';
 import 'support/fake_water_repository.dart';
 import 'support/fake_auth_repository.dart';
+import 'support/fake_energy_repository.dart';
+import 'package:healthmate/features/wellness/providers/energy_providers.dart';
 import 'support/test_app.dart';
 import 'weekly_reflection_test.dart' as logs show weight, water, activity;
 
@@ -72,6 +74,7 @@ Future<ProviderContainer> hostOverview(
     overrides: [
       authRepositoryProvider.overrideWithValue(session),
       nutritionTargetRepositoryProvider.overrideWithValue(targets),
+      energyRepositoryProvider.overrideWithValue(FakeEnergyRepository()),
       localClockProvider.overrideWithValue(uxToday),
     ],
   );
@@ -374,7 +377,13 @@ void main() {
       expect(find.text('Vượt 0,4 g'), findsOneWidget);
       expect(find.textContaining('NaN'), findsNothing);
       expect(find.textContaining('Infinity'), findsNothing);
-      auth.emitUser(const AuthUser(uid: 'other', email: 'b@example.com'));
+      auth.emitUser(
+        const AuthUser(
+          emailVerified: true,
+          uid: 'other',
+          email: 'b@example.com',
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Chi tiết dinh dưỡng'), findsNothing);
     },

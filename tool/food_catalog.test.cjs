@@ -5,11 +5,11 @@ const catalog = buildCatalog();
 const find = id => catalog.find(food => food.id === id);
 
 test('Vietnamese expansion has complete sources, finite macros, estimates and distinct names/IDs', () => {
-  assert.equal(catalog.length, 155);
+  assert.equal(catalog.length, 162);
   assert.equal(new Set(catalog.map(food => food.id)).size, catalog.length);
   assert.equal(new Set(catalog.map(food => food.name)).size, catalog.length);
   assert.equal(catalog.filter(food => food.sourceDetails.method === 'reference_table').length, 101);
-  assert.equal(catalog.filter(food => food.sourceDetails.method === 'recipe_estimate').length, 47);
+  assert.equal(catalog.filter(food => food.sourceDetails.method === 'recipe_estimate').length, 54);
   for (const food of catalog) {
     assert.equal(validateFood(food), food);
     assert.match(food.sourceUrl, /^https:\/\/(www\.fao\.org|(?:www\.)?thmilk\.vn|fdc\.nal\.usda\.gov)\//);

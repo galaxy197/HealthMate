@@ -52,7 +52,7 @@ class SavedMealDraft {
         offset < -720 ||
         offset > 840 ||
         minimum < 2 ||
-        minimum > 4 ||
+        minimum > 5 ||
         items.length > 5) {
       throw const FormatException('Bản nháp không hợp lệ.');
     }

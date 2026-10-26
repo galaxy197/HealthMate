@@ -7,6 +7,8 @@ import 'package:healthmate/features/reports/providers/report_providers.dart';
 import 'package:healthmate/features/reports/data/day_review_repository.dart';
 import 'fake_day_review_repository.dart';
 import 'package:healthmate/app.dart';
+import 'package:healthmate/features/wellness/data/wellness_device.dart';
+import 'package:healthmate/features/wellness/providers/wellness_providers.dart';
 import 'package:healthmate/features/food_library/providers/favorite_food_providers.dart';
 import 'fake_favorite_food_repository.dart';
 import 'fake_food_library_repository.dart';
@@ -15,8 +17,11 @@ import 'package:healthmate/features/nutrition_targets/providers/nutrition_target
 import 'package:healthmate/features/nutrition_targets/data/nutrition_target_repository.dart';
 import 'fake_nutrition_target_repository.dart';
 import 'package:healthmate/core/config/app_feature_flags.dart';
+
 import 'package:healthmate/features/auth/providers/auth_providers.dart';
 import 'package:healthmate/features/chatbot/providers/chat_providers.dart';
+import 'package:healthmate/features/chatbot/providers/assistant_providers.dart';
+import 'package:healthmate/features/chatbot/data/chat_assistant.dart';
 import 'package:healthmate/features/food_scanner/data/food_image_picker.dart';
 import 'package:healthmate/features/food_scanner/data/food_scanner_service.dart';
 import 'package:healthmate/features/food_scanner/providers/food_scanner_providers.dart';
@@ -30,6 +35,9 @@ import 'package:healthmate/shared/providers/theme_mode_provider.dart';
 import 'package:healthmate/shared/providers/local_clock_provider.dart';
 
 import 'fake_account_data_repository.dart';
+import 'fake_energy_repository.dart';
+import 'package:healthmate/features/wellness/data/energy_repository.dart';
+import 'package:healthmate/features/wellness/providers/energy_providers.dart';
 import 'fake_chat_repository.dart';
 import 'fake_activity_repository.dart';
 import 'fake_goals_repository.dart';
@@ -39,6 +47,10 @@ import 'fake_nutrition_repository.dart';
 import 'fake_water_repository.dart';
 import 'fake_theme_preference_store.dart';
 import 'fake_private_local_data.dart';
+import 'fake_food_camera.dart';
+import 'package:healthmate/features/food_scanner/presentation/barcode_scanner_screen.dart';
+import 'package:healthmate/features/food_scanner/models/barcode_product_models.dart';
+import 'package:healthmate/features/food_scanner/data/food_camera_service.dart';
 import 'package:healthmate/core/data/private_local_data.dart';
 import 'package:healthmate/features/meal_drafts/data/meal_draft_store.dart';
 
@@ -67,6 +79,11 @@ Future<void> openDashboardDetails(
   }
 }
 
+class UnsupportedTestWellnessDevice extends WellnessDevice {
+  @override
+  bool get supported => false;
+}
+
 Future<ProviderContainer> pumpApp(
   WidgetTester tester, {
   Size size = const Size(390, 844),
@@ -74,7 +91,11 @@ Future<ProviderContainer> pumpApp(
   FakeAuthRepository? repository,
   FakeChatRepository? chatRepository,
   FakeKnowledgeService? knowledgeService,
+  ChatAssistant? chatAssistant,
+  String chatApiEndpoint = '',
   FoodImagePicker? foodImagePicker,
+  FoodCameraService? foodCameraService,
+  Future<BarcodeMealSelection?> Function(BuildContext)? barcodeScanner,
   FoodScannerService? foodScannerService,
   FakeHealthProfileRepository? profileRepository,
   FakeNutritionRepository? nutritionRepository,
@@ -96,6 +117,8 @@ Future<ProviderContainer> pumpApp(
   FakeFavoriteFoodRepository? favoriteRepository,
   FakeFoodLibraryRepository? libraryRepository,
   PrivateLocalData? privateLocalData,
+  DateTime Function()? authNow,
+  EnergyRepository? energyRepository,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -120,6 +143,17 @@ Future<ProviderContainer> pumpApp(
   final library = libraryRepository ?? FakeFoodLibraryRepository();
   final container = ProviderContainer(
     overrides: [
+      energyRepositoryProvider.overrideWithValue(
+        energyRepository ?? FakeEnergyRepository(),
+      ),
+      wellnessDeviceProvider.overrideWithValue(UnsupportedTestWellnessDevice()),
+      if (authNow != null) authClockProvider.overrideWithValue(authNow),
+      if (barcodeScanner != null)
+        barcodeMealScannerProvider.overrideWithValue(barcodeScanner),
+      foodCameraServiceProvider.overrideWithValue(
+        foodCameraService ??
+            FoodCameraService(createSession: FakeFoodCamera.new),
+      ),
       unifiedFoodSearchProvider.overrideWithValue(
         foodSearchService ?? FakeFoodSearchService(),
       ),
@@ -138,6 +172,9 @@ Future<ProviderContainer> pumpApp(
         targetRepository ?? FakeNutritionTargetRepository(),
       ),
       appFeatureFlagsProvider.overrideWithValue(featureFlags),
+      chatApiEndpointProvider.overrideWithValue(chatApiEndpoint),
+      if (chatAssistant != null)
+        chatAssistantProvider.overrideWithValue(chatAssistant),
       authRepositoryProvider.overrideWithValue(auth),
       if (foodImagePicker != null)
         foodImagePickerProvider.overrideWithValue(foodImagePicker),

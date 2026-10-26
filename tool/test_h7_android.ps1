@@ -45,7 +45,8 @@ try {
       $stderr=Join-Path $output "phase-$phase-error.log"
       $arguments=@('drive','--no-pub','-d',$DeviceId,'--keep-app-running',
         '--driver=test_driver/core_acceptance_driver.dart','--target=integration_test/h7_private_data_test.dart',
-        '--dart-define=HEALTHMATE_CORE_EMULATOR_TESTS=true',"--dart-define=HEALTHMATE_H7_PHASE=$phase")
+        '--dart-define=HEALTHMATE_CORE_EMULATOR_TESTS=true',"--dart-define=HEALTHMATE_H7_PHASE=$phase",
+        '--dart-define=HEALTHMATE_ENABLE_CHATBOT=false','--dart-define=HEALTHMATE_ENABLE_FOOD_SCANNER=false')
       $process=Start-Process -FilePath $flutter -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
       # Cache the OS handle while alive; Windows PowerShell 5 otherwise may lose
       # ExitCode when HasExited is polled on a Start-Process wrapper for .bat.

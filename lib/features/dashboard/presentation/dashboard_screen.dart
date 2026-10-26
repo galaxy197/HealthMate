@@ -22,6 +22,7 @@ import '../../journal/presentation/journal_meal_entry.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
 import '../../nutrition_targets/providers/nutrition_target_providers.dart';
+import '../../wellness/providers/energy_providers.dart';
 import '../../nutrition_targets/presentation/nutrition_target_form.dart';
 import '../../profile/models/body_metric.dart';
 import '../../profile/providers/profile_providers.dart';
@@ -147,6 +148,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final activityState = ref.watch(activityLogsProvider(key));
     final metricsState = ref.watch(latestBodyMetricProvider(day));
     final targetState = ref.watch(nutritionTargetProvider(key));
+    final budgetState = ref.watch(dailyEnergyBudgetProvider(key));
+    final budget = !budgetState.isLoading && !budgetState.hasError
+        ? budgetState.value
+        : null;
     final action = ref.watch(waterControllerProvider);
     final meals = mealsState.value ?? const <MealLog>[];
     final mealReady = !mealsState.isLoading && !mealsState.hasError;
@@ -311,13 +316,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         MfpCaloriesCard(
           key: const ValueKey('dashboard-today-card'),
           editKey: const ValueKey('today-target-edit'),
-          targetStatus: targetState.isLoading
+          targetStatus: targetState.isLoading || budgetState.isLoading
               ? 'Đang tải mục tiêu dinh dưỡng…'
-              : targetState.hasError
+              : targetState.hasError || budgetState.hasError
               ? 'Chưa tải được mục tiêu.'
               : null,
           consumed: totals?.kcal,
-          target: targetReady ? targetState.value?.kcalTarget : null,
+          target: budget?.kcalTarget,
+          budgetNote: budget != null && budget.adjustmentKcal > 0
+              ? 'Gốc ${budget.baseTarget.kcalTarget.round()} + bước đã xác nhận ${budget.adjustmentKcal.round()} kcal (ước tính)'
+              : budget?.hasUnappliedAdjustment == true
+              ? budget!.explanation
+              : null,
           onEditTarget: targetReady
               ? () => openNutritionTargetForm(
                   context,
@@ -330,6 +340,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           TextButton(
             onPressed: () => ref.invalidate(nutritionTargetProvider(key)),
             child: const Text('Chưa tải được mục tiêu · Thử lại'),
+          ),
+        if (budgetState.hasError && !targetState.hasError)
+          TextButton(
+            onPressed: () => retryEnergyBudget(ref, key),
+            child: const Text('Chưa tải đủ ngân sách · Thử lại'),
           ),
         const SizedBox(height: 12),
         MfpMacrosCard(totals: totals),

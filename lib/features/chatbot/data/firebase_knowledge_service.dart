@@ -10,7 +10,7 @@ class FirebaseKnowledgeService implements KnowledgeService {
   final GenerativeModel? _providedModel;
   static const modelName = String.fromEnvironment(
     'HEALTHMATE_CHAT_MODEL',
-    defaultValue: 'gemini-3.8-flash',
+    defaultValue: 'gemini-3.5-flash-lite',
   );
 
   @override
@@ -33,7 +33,9 @@ class FirebaseKnowledgeService implements KnowledgeService {
               temperature: 0.2,
               maxOutputTokens: 2048,
               thinkingConfig: ThinkingConfig.withThinkingLevel(
-                ThinkingLevel.low,
+                modelName.contains('flash-lite')
+                    ? ThinkingLevel.minimal
+                    : ThinkingLevel.low,
               ),
             ),
           );

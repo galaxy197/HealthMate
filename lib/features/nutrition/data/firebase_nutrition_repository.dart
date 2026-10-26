@@ -8,27 +8,45 @@ import '../models/nutrition_failure.dart';
 import '../models/nutrition_models.dart';
 import '../models/catalog_food_reader.dart';
 import 'nutrition_repository.dart';
+import 'bundled_vietnamese_foods.dart';
 
 class FirebaseNutritionRepository implements NutritionRepository {
-  FirebaseNutritionRepository(this._firestore);
+  FirebaseNutritionRepository(
+    this._firestore, {
+    Future<List<FoodCatalogItem>> Function()? catalogLoader,
+  }) : _catalogLoader = catalogLoader ?? loadBundledVietnameseFoods;
 
   final FirebaseFirestore _firestore;
+  final Future<List<FoodCatalogItem>> Function() _catalogLoader;
 
   CollectionReference<Map<String, dynamic>> _meals(String uid) =>
       _firestore.collection('users').doc(uid).collection('meal_logs');
 
   @override
   Stream<List<FoodCatalogItem>> watchFoodCatalog() async* {
+    List<FoodCatalogItem> bundled = const [];
+    try {
+      bundled = await _catalogLoader().timeout(const Duration(seconds: 3));
+    } catch (_) {
+      /* A missing bundle must not block the real server catalog. */
+    }
+    if (bundled.isNotEmpty) yield bundled;
     try {
       await for (final snapshot
           in _firestore
               .collection('food_catalog')
               .orderBy('name')
               .snapshots()) {
-        yield [for (final doc in snapshot.docs) _food(doc.id, doc.data())];
+        final serverIds = snapshot.docs.map((d) => d.id).toSet();
+        yield [
+          for (final doc in snapshot.docs)
+            if (doc.data()['isActive'] != false) _food(doc.id, doc.data()),
+          for (final food in bundled)
+            if (!serverIds.contains(food.id)) food,
+        ]..sort((a, b) => a.name.compareTo(b.name));
       }
     } on FirebaseException catch (error) {
-      throw NutritionFailure.fromCode(error.code);
+      if (bundled.isEmpty) throw NutritionFailure.fromCode(error.code);
     }
   }
 
@@ -237,7 +255,7 @@ class FirebaseNutritionRepository implements NutritionRepository {
       _guard(() => _meals(uid).doc(mealId).delete());
 
   Map<String, Object?> _mealData(MealDraft draft) {
-    if (draft.minimumSchemaVersion > 4) {
+    if (draft.minimumSchemaVersion > 5) {
       throw const NutritionFailure(
         'Cần phiên bản ứng dụng mới hơn để sửa bản ghi này.',
       );
@@ -246,20 +264,30 @@ class FirebaseNutritionRepository implements NutritionRepository {
       item.withQuantity(item.quantity);
     }
     final totals = draft.totals;
+    final enriched =
+        draft.items.any((i) => i.nutrition.extraNutrients.isNotEmpty) ||
+        draft.minimumSchemaVersion >= 5;
     return {
       'mealType': draft.type.name,
       'consumedAt': Timestamp.fromDate(draft.consumedAt),
       'dateKey': draft.dateKey,
       'timezoneOffsetMinutes': draft.timezoneOffsetMinutes,
-      'items': [for (final item in draft.items) item.toData()],
+      'items': [
+        for (final item in draft.items)
+          if (!enriched) item.toData() else item.toCompactData(),
+      ],
       'totalKcal': totals.kcal,
       'totalProteinG': totals.proteinKnown ? totals.proteinG : null,
       'totalCarbsG': totals.carbsKnown ? totals.carbsG : null,
       'totalFatG': totals.fatKnown ? totals.fatG : null,
       'source': draft.source.wireValue,
-      'schemaVersion':
-          draft.items.any((i) => i.hasFiberData) ||
-              draft.minimumSchemaVersion >= 4
+      'schemaVersion': enriched
+          ? 5
+          : draft.items.any(
+                  (i) =>
+                      i.hasFiberData || i.nutrition.extraNutrients.isNotEmpty,
+                ) ||
+                draft.minimumSchemaVersion >= 4
           ? 4
           : draft.items.any((i) => i.needsExtendedSchema) ||
                 draft.minimumSchemaVersion >= 3
@@ -276,10 +304,12 @@ class FirebaseNutritionRepository implements NutritionRepository {
         .whereType<Map>()
         .map((raw) => Map<String, dynamic>.from(raw))
         .map(
-          (item) => MealItemSnapshot.fromData(
-            item,
-            allowPartial: [3, 4].contains(data['schemaVersion']),
-          ),
+          (item) => data['schemaVersion'] == 5
+              ? MealItemSnapshot.fromCompactData(item)
+              : MealItemSnapshot.fromData(
+                  item,
+                  allowPartial: [3, 4, 5].contains(data['schemaVersion']),
+                ),
         )
         .toList(growable: false);
     final snapshotTotals = sumNutritionTotals(items.map((i) => i.nutrition));
@@ -292,7 +322,7 @@ class FirebaseNutritionRepository implements NutritionRepository {
           MealType.snack,
       consumedAt: _date(data['consumedAt']) ?? DateTime.now(),
       items: items,
-      totals: [3, 4].contains(data['schemaVersion'])
+      totals: [3, 4, 5].contains(data['schemaVersion'])
           ? snapshotTotals
           : NutritionTotals(
               kcal: _number(data['totalKcal']),
@@ -301,6 +331,7 @@ class FirebaseNutritionRepository implements NutritionRepository {
               fatG: _number(data['totalFatG']),
               fiberG: snapshotTotals.fiberG,
               fiberKnown: snapshotTotals.fiberKnown,
+              extraNutrients: snapshotTotals.extraNutrients,
             ),
       source: data['source'] == 'ai_assisted'
           ? MealSource.aiAssisted

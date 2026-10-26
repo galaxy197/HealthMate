@@ -1,0 +1,880 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owns(uid) {
+      return request.auth != null && request.auth.token.email_verified == true
+        && request.auth.uid == uid;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    function validProfile() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
+          'targetWeightKg', 'onboardingCompletedAt', 'createdAt', 'updatedAt',
+          'schemaVersion'
+        ])
+        && data.keys().hasOnly([
+          'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
+          'targetWeightKg', 'onboardingCompletedAt', 'createdAt', 'updatedAt',
+          'schemaVersion'
+        ])
+        && data.displayName is string
+        && data.displayName.size() <= 50
+        && data.email is string
+        && data.email == request.auth.token.email
+        && (data.heightCm == null
+          || (data.heightCm is number
+            && data.heightCm >= 80
+            && data.heightCm <= 250))
+        && (data.birthDate == null
+          || (data.birthDate is timestamp && data.birthDate <= request.time))
+        && (data.healthGoal == null || data.healthGoal in [
+          'lose_weight', 'maintain_weight', 'gain_weight_or_muscle',
+          'healthier_habits'
+        ])
+        && (data.targetWeightKg == null
+          || (data.targetWeightKg is number
+            && data.targetWeightKg >= 20
+            && data.targetWeightKg <= 500))
+        && (data.onboardingCompletedAt == null
+          || data.onboardingCompletedAt is timestamp)
+        && (data.onboardingCompletedAt == null || (
+          data.displayName.size() >= 2
+          && data.heightCm != null
+          && data.birthDate != null
+          && data.healthGoal != null
+          && ((!(data.healthGoal in ['lose_weight', 'gain_weight_or_muscle']))
+            || data.targetWeightKg != null)
+        ))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.schemaVersion is int
+        && data.schemaVersion == 2;
+    }
+
+    function validMetric() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'weightKg', 'measuredAt', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'weightKg', 'measuredAt', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.weightKg is number
+        && data.weightKg >= 20
+        && data.weightKg <= 500
+        && data.measuredAt is timestamp
+        && data.measuredAt <= request.time
+        && data.note is string
+        && data.note.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validExtras(n) {
+      return n is map && (n.size()==0 || (n.keys().hasOnly([
+        'sugar','saturatedFat','sodium','potassium','calcium','iron','vitaminC','cholesterol'])
+        && math.abs(n.get('sugar',0)-1000)<=1000
+        && math.abs(n.get('saturatedFat',0)-1000)<=1000
+        && math.abs(n.get('sodium',0)-50000)<=50000
+        && math.abs(n.get('potassium',0)-50000)<=50000
+        && math.abs(n.get('calcium',0)-50000)<=50000
+        && math.abs(n.get('iron',0)-5000)<=5000
+        && math.abs(n.get('vitaminC',0)-50000)<=50000
+        && math.abs(n.get('cholesterol',0)-50000)<=50000));
+    }
+
+    function validExtraVector(v) { return v.matches('^$|^\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\]$'); }
+    function validExtraVectors(v,n) { return v.split('\\|').size()==n && v.matches('^\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\](\\|\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\]){0,5}$'); }
+
+
+    function validMealItem(i) {
+      let extra=i.size()-9;
+      let g=i.grams;
+      let k=i.kcal;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && g>0 && g<=2000 && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500;
+    }
+
+    function validMealItems(items) {
+            return items is list && items.size() > 0 && items.size() <= 5
+        && validMealItem(items[0])
+        && (items.size() < 2 || validMealItem(items[1]))
+        && (items.size() < 3 || validMealItem(items[2]))
+        && (items.size() < 4 || validMealItem(items[3]))
+        && (items.size() < 5 || validMealItem(items[4]));
+    }
+
+    function validMeal() {
+      let data = request.resource.data;
+      let v=data.schemaVersion;
+      let k=data.totalKcal;
+      let p=data.totalProteinG;
+      let c=data.totalCarbsG;
+      let f=data.totalFatG;
+      let complete=p!=null && c!=null && f!=null;
+      let items=data.items;
+      // Every allowed key is read below, so a missing required key fails.
+      return data.size()==13
+        && data.mealType.matches('^(breakfast|lunch|dinner|snack)$')
+        && data.consumedAt <= request.time + duration.value(5, 'm')
+        && validDateKeyAndTimezone(data, data.consumedAt)
+        && (v==5 ? validEnrichedItems(items) : v==2 ? validMealItems(items) : validFlexibleItems(items,complete))
+        && math.abs(k-10000)<=10000
+        && (p==null ? v>=3 : math.abs(p-1000)<=1000)
+        && (c==null ? v>=3 : math.abs(c-1000)<=1000)
+        && (f==null ? v>=3 : math.abs(f-1000)<=1000)
+        && data.source in ['manual', 'ai_assisted']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && v is int && v in [2,3,4,5];
+    }
+
+    // abs(x-midpoint)<=midpoint is the same closed numeric interval as
+    // 0<=x<=maximum. One numeric operation keeps five flexible rows within
+    // the Rules expression budget; strings/NaN/infinity still fail.
+    function knownNumber(value) { return value==null?0:value; }
+    function flexibleItemInfo(i, fields) {
+      let keys=i.keys();
+      let k=i.kcal;
+      // Null contributes only to a validation subtotal; the persisted value
+      // stays null and clients retain incomplete nutrient coverage.
+      let p=i.proteinG==null?0:i.proteinG;
+      let c=i.carbsG==null?0:i.carbsG;
+      let f=i.fatG==null?0:i.fatG;
+      let g=i.grams;
+      let q=i.get('quantity',0);
+      let valid=keys.hasOnly(fields)
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
+          : (g>0 && g<=2000 && !keys.hasAny(['quantity','quantityUnit'])));
+      return {'valid':valid,'k':k,'p':p,'c':c,'f':f};
+    }
+    function compactItemInfo(i,fields) {
+      let k=i.kcal;
+      // Null contributes only to a validation subtotal; the persisted value
+      // stays null and clients retain incomplete nutrient coverage.
+      let p=i.get('proteinG',0);
+      let c=i.get('carbsG',0);
+      let f=i.get('fatG',0);
+      let q=i.quantity;
+      let valid=i.keys().hasOnly(fields)
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
+        && q>0 && q<=2000 && i.quantityUnit.matches('^(g|ml|serving|entry)$');
+      return {'valid':valid,'k':k,'p':p,'c':c,'f':f};
+    }
+    function validEnrichedItem(i) {
+      let extra=i.size()-11;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && i.quantity>0 && i.quantity<=2000 && i.quantityUnit.matches('^(g|ml|serving|entry)$')
+        && math.abs(i.kcal-5000)<=5000
+        && (p==null || math.abs(p-500)<=500) && (c==null || math.abs(c-500)<=500)
+        && (f==null || math.abs(f-500)<=500)
+        && validExtraVector(i.nutrientVectorV1);
+    }
+    function validEnrichedItems(items) {
+      let n=items.size();
+      return items is list && n>0 && n<=5 && validEnrichedItem(items[0])
+        && (n<2 || validEnrichedItem(items[1])) && (n<3 || validEnrichedItem(items[2]))
+        && (n<4 || validEnrichedItem(items[3])) && (n<5 || validEnrichedItem(items[4]));
+    }
+    function fullFlexibleItem(i) {
+      let g=i.grams;
+      let extra=i.size()-(g==null?11:9);
+      let k=i.kcal;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
+          : (g>0 && g<=2000));
+    }
+    function validFlexibleItem(i) {
+      let g=i.grams;
+      let extra=i.size()-(g==null?11:9);
+      let k=i.kcal;
+      let p=i.proteinG;
+      let c=i.carbsG;
+      let f=i.fatG;
+      let valid=(extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
+        && math.abs(k-5000)<=5000
+        && (p==null || math.abs(p-500)<=500) && (c==null || math.abs(c-500)<=500) && (f==null || math.abs(f-500)<=500)
+        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
+          : (g>0 && g<=2000));
+      return valid;
+    }
+    function validFlexibleItems(items,complete) {
+      let n=items.size();
+      return items is list && n>0 && n<=5 && (complete
+        ? (fullFlexibleItem(items[0]) && (n<2 || fullFlexibleItem(items[1])) && (n<3 || fullFlexibleItem(items[2])) && (n<4 || fullFlexibleItem(items[3])) && (n<5 || fullFlexibleItem(items[4])))
+        : (validFlexibleItem(items[0]) && (n<2 || validFlexibleItem(items[1])) && (n<3 || validFlexibleItem(items[2])) && (n<4 || validFlexibleItem(items[3])) && (n<5 || validFlexibleItem(items[4]))));
+    }
+
+    function validDateKeyAndTimezone(data, recordedAt) {
+      let localTime = recordedAt + duration.value(data.timezoneOffsetMinutes, 'm');
+      let parts = data.dateKey.split('-');
+      return data.dateKey.matches(
+          '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+        )
+        && data.timezoneOffsetMinutes is int
+        && data.timezoneOffsetMinutes >= -720
+        && data.timezoneOffsetMinutes <= 840
+        && localTime.date() == timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+    }
+
+    function validWaterLog() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'amountMl', 'consumedAt', 'dateKey', 'timezoneOffsetMinutes',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'amountMl', 'consumedAt', 'dateKey', 'timezoneOffsetMinutes',
+          'createdAt', 'updatedAt'
+        ])
+        && data.amountMl is int
+        && data.amountMl >= 50
+        && data.amountMl <= 5000
+        && data.consumedAt is timestamp
+        && data.consumedAt <= request.time + duration.value(5, 'm')
+        && validDateKeyAndTimezone(data, data.consumedAt)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function validActivityLog() {
+      let data = request.resource.data;
+      return data.keys().hasAll([
+          'activityType', 'durationMinutes', 'performedAt', 'dateKey',
+          'timezoneOffsetMinutes', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'activityType', 'durationMinutes', 'performedAt', 'dateKey',
+          'timezoneOffsetMinutes', 'note', 'createdAt', 'updatedAt'
+        ])
+        && data.activityType in [
+          'walking', 'running', 'cycling', 'strength', 'yoga', 'other'
+        ]
+        && data.durationMinutes is int
+        && data.durationMinutes >= 1
+        && data.durationMinutes <= 1440
+        && data.performedAt is timestamp
+        && data.performedAt <= request.time + duration.value(5, 'm')
+        && validDateKeyAndTimezone(data, data.performedAt)
+        && data.note is string
+        && data.note.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function goalDate(key) {
+      let parts = key.split('-');
+      let date = timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+      return key is string && key.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$')
+        && date.year() == int(parts[0])
+        && date.month() == int(parts[1])
+        && date.day() == int(parts[2]);
+    }
+
+    function validGoal() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['goalType','targetValue','unit','startDateKey',
+          'endDateKey','status','baselineWeightKg','createdAt','updatedAt','schemaVersion'])
+        && d.keys().hasOnly(['goalType','targetValue','unit','startDateKey',
+          'endDateKey','status','baselineWeightKg','createdAt','updatedAt','schemaVersion'])
+        && d.schemaVersion == 1
+        && goalDate(d.startDateKey) && goalDate(d.endDateKey)
+        && d.endDateKey >= d.startDateKey
+        && d.status in ['active','paused','completed']
+        && d.targetValue is number
+        && ((d.goalType == 'meals' && d.unit == 'bữa' && d.targetValue >= 1 && d.targetValue <= 10 && d.targetValue % 1 == 0)
+          || (d.goalType == 'water' && d.unit == 'ml' && d.targetValue >= 50 && d.targetValue <= 5000 && d.targetValue % 1 == 0)
+          || (d.goalType == 'activity' && d.unit == 'phút' && d.targetValue >= 1 && d.targetValue <= 180 && d.targetValue % 1 == 0)
+          || (d.goalType == 'weight' && d.unit == 'kg' && d.targetValue >= 20 && d.targetValue <= 500))
+        && ((d.goalType == 'weight' && d.baselineWeightKg is number && d.baselineWeightKg >= 20 && d.baselineWeightKg <= 500)
+          || (d.goalType != 'weight' && d.baselineWeightKg == null))
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
+
+    function validQuest(key) {
+      let d = request.resource.data;
+      return d.keys().hasAll(['dateKey','questType','title','description','reason',
+          'targetValue','unit','status','createdAt','updatedAt','completedAt','ruleVersion'])
+        && d.keys().hasOnly(['dateKey','questType','title','description','reason',
+          'targetValue','unit','status','createdAt','updatedAt','completedAt','ruleVersion'])
+        && goalDate(d.dateKey) && d.dateKey == key
+        && d.ruleVersion == 1
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.description is string && d.description.size() > 0 && d.description.size() <= 500
+        && d.reason is string && d.reason.size() > 0 && d.reason.size() <= 500
+        && d.targetValue is number && d.targetValue % 1 == 0
+        && ((d.questType == 'meal' && d.unit == 'bữa' && d.targetValue == 1)
+          || (d.questType == 'water' && d.unit == 'ml' && d.targetValue >= 1 && d.targetValue <= 250)
+          || (d.questType == 'activity' && d.unit == 'phút' && d.targetValue >= 1 && d.targetValue <= 10)
+          || (d.questType == 'reflection' && d.unit == 'lần' && d.targetValue == 1))
+        && d.status in ['available','completed','skipped']
+        && ((d.status == 'completed' && d.completedAt is timestamp)
+          || (d.status != 'completed' && d.completedAt == null))
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
+
+    match /food_catalog/{foodId} {
+      allow read: if request.auth != null && request.auth.token.email_verified == true;
+      allow write: if false;
+    }
+
+
+
+
+
+
+
+
+
+
+
+    match /users/{uid} {
+      allow read: if owns(uid);
+
+      allow create: if owns(uid)
+        && validProfile()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && (request.resource.data.onboardingCompletedAt == null
+          || request.resource.data.onboardingCompletedAt == request.time);
+
+      allow update: if owns(uid)
+        && validProfile()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && (
+          (!resource.data.keys().hasAny(['onboardingCompletedAt'])
+            && (request.resource.data.onboardingCompletedAt == null
+              || request.resource.data.onboardingCompletedAt == request.time))
+          || (resource.data.keys().hasAny(['onboardingCompletedAt'])
+            && resource.data.onboardingCompletedAt == null
+            && (request.resource.data.onboardingCompletedAt == null
+              || request.resource.data.onboardingCompletedAt == request.time))
+          || (resource.data.keys().hasAny(['onboardingCompletedAt'])
+            && request.resource.data.onboardingCompletedAt
+              == resource.data.onboardingCompletedAt)
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
+          'targetWeightKg', 'onboardingCompletedAt', 'updatedAt',
+          'schemaVersion'
+        ]);
+
+      allow delete: if owns(uid);
+
+      match /wellness_state/{stateId} {
+        allow read, delete: if owns(uid) && stateId=='sleep';
+        allow create: if owns(uid) && stateId=='sleep'
+          && request.resource.data.keys().hasOnly(['startedAt','schemaVersion'])
+          && request.resource.data.startedAt==request.time
+          && request.resource.data.schemaVersion==1;
+        allow update: if false;
+      }
+
+      match /wellness_preferences/{settingsId} {
+        function validPreferences() {
+          let d=request.resource.data;
+          return settingsId=='main' && d.keys().hasOnly(['stepLengthCm','baselineSteps','sleepGoalMinutes','schemaVersion','updatedAt'])
+            && (d.stepLengthCm==null || (d.stepLengthCm is number && d.stepLengthCm>=20 && d.stepLengthCm<=200))
+            && (d.baselineSteps==null || (d.baselineSteps is int && d.baselineSteps>=0 && d.baselineSteps<=150000))
+            && (d.sleepGoalMinutes==null || (d.sleepGoalMinutes is int && d.sleepGoalMinutes>=60 && d.sleepGoalMinutes<=1440))
+            && d.schemaVersion==1 && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create,update: if owns(uid) && validPreferences();
+      }
+
+      match /energy_adjustments/{day} {
+        function validAdjustment() {
+          let d=request.resource.data;
+          let target=get(/databases/$(database)/documents/users/$(uid)/nutrition_targets/$(d.targetFromDateKey)).data;
+          let extra = d.steps > d.baselineSteps ? d.steps - d.baselineSteps : 0;
+          return d.keys().hasOnly(['dateKey','timezoneOffsetMinutes','steps','baselineSteps','stepLengthCm',
+              'weightKg','weightMeasuredAt','targetFromDateKey','baseKcalTarget','kcal','source','schemaVersion','confirmedAt'])
+            && d.dateKey==day && validDateKeyAndTimezone(d,request.time)
+            && d.steps is int && d.steps>=0 && d.steps<=150000
+            && d.baselineSteps is int && d.baselineSteps>=0 && d.baselineSteps<=150000
+            && d.stepLengthCm is number && d.stepLengthCm>=20 && d.stepLengthCm<=200
+            && d.weightKg is number && d.weightKg>=20 && d.weightKg<=300
+            && d.weightMeasuredAt is timestamp && d.weightMeasuredAt<=request.time
+            && d.weightMeasuredAt>=request.time-duration.value(90,'d')
+            && goalDate(d.targetFromDateKey) && d.targetFromDateKey<=d.dateKey
+            && d.baseKcalTarget==target.kcalTarget && d.targetFromDateKey==target.effectiveFromDateKey
+            && d.kcal is number && d.kcal>0 && d.kcal<=5000
+            && d.kcal <= (extra * d.stepLengthCm / 100000.0 * d.weightKg * 0.5) + 0.001
+            && d.source=='walking_net_v1' && d.schemaVersion==1 && d.confirmedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create,update: if owns(uid) && validAdjustment();
+      }
+
+      match /sleep_logs/{sleepId} {
+        function validSleep() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['startedAt','endedAt','source','createdAt','updatedAt','schemaVersion'])
+            && d.startedAt is timestamp && d.endedAt is timestamp
+            && d.endedAt>d.startedAt && d.endedAt-d.startedAt<=duration.value(24,'h')
+            && d.endedAt<=request.time+duration.value(5,'m')
+            && d.source in ['manual_timer','manual_entry'] && d.schemaVersion==1
+            && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validSleep() && request.resource.data.createdAt==request.time;
+        allow update: if owns(uid) && validSleep() && request.resource.data.createdAt==resource.data.createdAt;
+      }
+
+      match /step_logs/{day} {
+        function validSteps() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['dateKey','steps','trackingStartedAt','measuredAt',
+              'timezoneOffsetMinutes','source','schemaVersion','updatedAt'])
+            && d.dateKey==day && validDateKeyAndTimezone(d,d.measuredAt)
+            && d.steps is int && d.steps>=0 && d.steps<=150000
+            && d.trackingStartedAt is timestamp && d.measuredAt is timestamp
+            && d.trackingStartedAt<=d.measuredAt
+            && d.measuredAt<=request.time+duration.value(5,'m')
+            && d.source=='device_step_counter' && d.schemaVersion==1 && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create,update: if owns(uid) && validSteps();
+      }
+
+      match /meal_plans/{planId} {
+        function validPlan() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['dateKey','mealType','items','createdAt','updatedAt',
+              'schemaVersion','loggedMealId'])
+            && goalDate(d.dateKey) && d.mealType in ['breakfast','lunch','dinner','snack']
+            && planId==d.dateKey+'-'+d.mealType
+            && validEnrichedItems(d.items) && d.schemaVersion==2
+            && (d.get('loggedMealId',null)==null || d.loggedMealId=='plan-'+planId)
+            && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validPlan() && request.resource.data.createdAt==request.time
+          && request.resource.data.get('loggedMealId',null)==null;
+        allow update: if owns(uid) && validPlan()
+          && request.resource.data.createdAt==resource.data.createdAt
+          && (resource.data.get('loggedMealId',null)==null
+            || (request.resource.data.items==resource.data.items
+              && request.resource.data.get('loggedMealId',null)==resource.data.loggedMealId))
+          && (request.resource.data.get('loggedMealId',null)==null
+            || existsAfter(/databases/$(database)/documents/users/$(uid)/meal_logs/$(request.resource.data.loggedMealId)));
+      }
+
+      match /body_metrics/{metricId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && validMetric()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if owns(uid)
+          && validMetric()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'weightKg', 'measuredAt', 'note', 'updatedAt'
+          ]);
+
+        allow delete: if owns(uid);
+      }
+
+      match /meal_logs/{mealId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && validMeal();
+
+        allow update: if owns(uid)
+          && request.resource.data.schemaVersion>=resource.data.get('schemaVersion',1)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          // validMeal fixes all 13 keys; immutable createdAt is checked above.
+          && validMeal();
+
+        allow delete: if owns(uid);
+      }
+
+      match /water_logs/{logId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && validWaterLog()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if owns(uid)
+          && validWaterLog()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'amountMl', 'consumedAt', 'dateKey', 'timezoneOffsetMinutes',
+            'updatedAt'
+          ]);
+
+        allow delete: if owns(uid);
+      }
+
+      match /activity_logs/{logId} {
+        allow read: if owns(uid);
+
+        allow create: if owns(uid)
+          && validActivityLog()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if owns(uid)
+          && validActivityLog()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'activityType', 'durationMinutes', 'performedAt', 'dateKey',
+            'timezoneOffsetMinutes', 'note', 'updatedAt'
+          ]);
+
+        allow delete: if owns(uid);
+      }
+
+      match /custom_foods/{foodId} {
+        function alias(value) { return value is string && value.size()>0 && value.size()<=60; }
+        function validFood() {
+          let d=request.resource.data;
+          return d.keys().hasOnly(['name','alternateNames','servingBasis','kcalPer100g','proteinGPer100g','carbsGPer100g','fatGPer100g','fiberGPer100g','extraNutrientsPer100g','defaultServingGrams','servingLabel','servingGrams','sourceLabel','isEstimated','schemaVersion','createdAt','updatedAt'])
+            && validExtras(d.get('extraNutrientsPer100g',{})) && (d.get('fiberGPer100g',null)==null || math.abs(d.fiberGPer100g-50)<=50)
+            && d.name is string && d.name.size()>=2 && d.name.size()<=100
+            && d.alternateNames is list && d.alternateNames.size()<=5
+            && (d.alternateNames.size()<1 || alias(d.alternateNames[0]))
+            && (d.alternateNames.size()<2 || alias(d.alternateNames[1]))
+            && (d.alternateNames.size()<3 || alias(d.alternateNames[2]))
+            && (d.alternateNames.size()<4 || alias(d.alternateNames[3]))
+            && (d.alternateNames.size()<5 || alias(d.alternateNames[4]))
+            && d.servingBasis=='per_100g'
+            && d.kcalPer100g is number && d.kcalPer100g>=0 && d.kcalPer100g<=10000
+            && d.proteinGPer100g is number && d.proteinGPer100g>=0 && d.proteinGPer100g<=1000
+            && d.carbsGPer100g is number && d.carbsGPer100g>=0 && d.carbsGPer100g<=1000
+            && d.fatGPer100g is number && d.fatGPer100g>=0 && d.fatGPer100g<=1000
+            && d.defaultServingGrams is number && d.defaultServingGrams>0 && d.defaultServingGrams<=2000
+            && ((d.servingLabel==null && d.servingGrams==null) || (d.servingLabel is string && d.servingLabel.size()>0 && d.servingLabel.size()<=40 && d.servingGrams is number && d.servingGrams>0 && d.servingGrams<=2000))
+            && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
+            && d.isEstimated is bool && d.schemaVersion is int && d.schemaVersion in [1,2,3]
+            && (!d.keys().hasAny(['extraNutrientsPer100g']) || d.schemaVersion==3)
+            && d.createdAt is timestamp && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validFood() && request.resource.data.createdAt==request.time;
+        allow update: if owns(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validFood() && request.resource.data.createdAt==resource.data.createdAt;
+      }
+
+      match /recipes/{recipeId} {
+        function ingredient(item) {
+      let extra=item.size()-9;
+          // Regex length checks also enforce string type, reducing repeated
+          // expressions without skipping any ingredient or allowed-field check.
+          let grams=item.grams;
+          let kcal=item.kcal;
+          let p=item.proteinG;
+          let c=item.carbsG;
+          let f=item.fatG;
+          return (extra==0 || (math.abs(item.fiberG-500)<=500 && (extra==1 || (extra==2 && item.fiberIncomplete==true))))
+            && item.foodId.matches('(?s)^.{1,100}$') && !item.foodId.matches('^recipe:.*')
+            && item.name.matches('(?s)^.{1,100}$')
+            && grams>0 && grams<=2000 && math.abs(kcal-5000)<=5000
+            && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
+            && item.sourceLabel.matches('(?s)^.{1,160}$') && item.isEstimated is bool;
+        }
+        function validRecipe() {
+          let d=request.resource.data;
+          let items=d.ingredients;
+          return d.size()==(d.schemaVersion==3?10:9)
+            && d.name.matches('(?s)^.{2,100}$')
+            && math.abs(d.yieldGrams-10000)<=10000 && d.yieldGrams>0
+            && (d.servingsCount==null || (math.abs(d.servingsCount-500)<=500 && d.servingsCount>0))
+            && d.sourceLabel.matches('(?s)^.{1,160}$')
+            && d.isEstimated==true && d.schemaVersion is int && d.schemaVersion in [1,2,3]
+            && d.createdAt is timestamp && d.updatedAt==request.time
+            && items is list && items.size()>0 && items.size()<=6
+            && ingredient(items[0]) && (items.size()<2 || ingredient(items[1]))
+            && (items.size()<3 || ingredient(items[2])) && (items.size()<4 || ingredient(items[3]))
+            && (items.size()<5 || ingredient(items[4])) && (items.size()<6 || ingredient(items[5]))
+            && (d.schemaVersion!=3 || validExtraVectors(d.nutrientVectorsV1,items.size()));
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validRecipe() && request.resource.data.createdAt==request.time;
+        allow update: if owns(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validRecipe() && request.resource.data.createdAt==resource.data.createdAt;
+      }
+
+      match /day_reviews/{dateKey} {
+        function validReview() {
+          let d=request.resource.data;
+          let parts=d.dateKey.split('-');
+          return d.keys().hasOnly(['dateKey','mealsComplete','mealCount','latestMealUpdate','timezoneOffsetMinutes','createdAt','updatedAt','schemaVersion'])
+            && d.dateKey==dateKey && goalDate(d.dateKey)
+            && d.mealsComplete is bool && d.mealCount is int && d.mealCount>=0 && d.mealCount<=2000
+            && ((d.mealCount==0 && d.latestMealUpdate==null) || (d.mealCount>0 && d.latestMealUpdate is timestamp && d.latestMealUpdate<=request.time))
+            && d.timezoneOffsetMinutes is int && d.timezoneOffsetMinutes>=-720 && d.timezoneOffsetMinutes<=840
+            && timestamp.date(int(parts[0]),int(parts[1]),int(parts[2])) <= request.time+duration.value(d.timezoneOffsetMinutes,'m')
+            && d.createdAt is timestamp && d.updatedAt==request.time && d.schemaVersion is int && d.schemaVersion==1;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && request.resource.data.createdAt==request.time && validReview();
+        allow update: if owns(uid) && request.resource.data.createdAt==resource.data.createdAt && validReview();
+      }
+
+      match /meal_templates/{templateId} {
+        function sum(items, field, n) {
+          return items[0][field] + (n>1?items[1][field]:0) + (n>2?items[2][field]:0)
+            + (n>3?items[3][field]:0) + (n>4?items[4][field]:0);
+        }
+        function flexibleTemplate(items,n) {
+          let fields=['foodId','name','grams','kcal','proteinG','carbsG','fatG','sourceLabel','isEstimated','quantity','quantityUnit'];
+                    let z={'valid':true,'k':0,'p':0,'c':0,'f':0};
+          let a=flexibleItemInfo(items[0],fields);
+          let b=n>1?flexibleItemInfo(items[1],fields):z;
+          let c=n>2?flexibleItemInfo(items[2],fields):z;
+          let d=n>3?flexibleItemInfo(items[3],fields):z;
+          let e=n>4?flexibleItemInfo(items[4],fields):z;
+          return a.valid && b.valid && c.valid && d.valid && e.valid
+            && a.k+b.k+c.k+d.k+e.k<=20000
+            && a.p+b.p+c.p+d.p+e.p<=2000
+            && a.c+b.c+c.c+d.c+e.c<=2000
+            && a.f+b.f+c.f+d.f+e.f<=2000;
+        }
+        function compactTemplate(items,n) {
+          let fields=['foodId','name','kcal','proteinG','carbsG','fatG','sourceLabel','isEstimated','quantity','quantityUnit'];
+                    let z={'valid':true,'k':0,'p':0,'c':0,'f':0};
+          let a=compactItemInfo(items[0],fields);
+          let b=n>1?compactItemInfo(items[1],fields):z;
+          let c=n>2?compactItemInfo(items[2],fields):z;
+          let d=n>3?compactItemInfo(items[3],fields):z;
+          let e=n>4?compactItemInfo(items[4],fields):z;
+          return a.valid && b.valid && c.valid && d.valid && e.valid
+            && a.k+b.k+c.k+d.k+e.k<=20000
+            && a.p+b.p+c.p+d.p+e.p<=2000
+            && a.c+b.c+c.c+d.c+e.c<=2000
+            && a.f+b.f+c.f+d.f+e.f<=2000;
+        }
+        function item(i) {
+      let extra=i.size()-9-(i.keys().hasAny(['nutrientVectorV1'])?1:0);
+          let g=i.grams;
+          let k=i.kcal;
+          let p=i.proteinG;
+          let c=i.carbsG;
+          let f=i.fatG;
+          return validExtraVector(i.get('nutrientVectorV1','')) && (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
+            && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
+            && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
+            && g>0 && g<=2000 && math.abs(k-5000)<=5000
+            && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500;
+        }
+        function fiberValue(v) {
+          return v==null || math.abs(v-500)<=500;
+        }
+        function validFiberValues(values,n) {
+          return values.size()==n && fiberValue(values[0])
+            && (n<2 || fiberValue(values[1])) && (n<3 || fiberValue(values[2]))
+            && (n<4 || fiberValue(values[3])) && (n<5 || fiberValue(values[4]));
+        }
+        function compactShape(d,n) {
+          let count=d.size()-(d.schemaVersion==4?1:0);
+          return count==6 || (count==7 && d.fiberPartialMask is int && d.fiberPartialMask>0 && d.fiberPartialMask<math.pow(2,n));
+        }
+
+
+        function validTemplate(updating) {
+                    let d=request.resource.data;
+          let v=d.schemaVersion;
+          let items=d.items;
+          let n=items.size();
+          return (updating ? (d.createdAt==resource.data.createdAt && v>=resource.data.schemaVersion) : d.createdAt==request.time)
+            && (v>=3?compactShape(d,n):d.size()==5)
+            && d.name.matches('(?s)^.{2,80}$')
+            && v in [1,2,3,4] && d.updatedAt==request.time
+            && n<=5 && (v<3 || validFiberValues(d.fiberValues,n))
+            && (v!=4 || validExtraVectors(d.nutrientVectorsV1,n))
+            && (v>=3 ? compactTemplate(items,n) : v==2 ? flexibleTemplate(items,n) : (item(items[0]) && (n<2 || item(items[1]))
+            && (n<3 || item(items[2])) && (n<4 || item(items[3]))
+            && (n<5 || item(items[4]))
+            && sum(items,'kcal',n)<=20000
+            && sum(items,'proteinG',n)<=2000 && sum(items,'carbsG',n)<=2000 && sum(items,'fatG',n)<=2000));
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validTemplate(false);
+        allow update: if owns(uid) && validTemplate(true);
+      }
+
+      match /favorite_foods/{favoriteId} {
+        function validFavorite() {
+          let d = request.resource.data;
+          return d.keys().hasAll(['sourceKind','sourceId','createdAt','updatedAt','schemaVersion'])
+            && d.keys().hasOnly(['sourceKind','sourceId','createdAt','updatedAt','schemaVersion'])
+            && d.sourceKind in ['catalog','custom','recipe'] && d.sourceId is string && d.sourceId.size()>0 && d.sourceId.size()<=100
+            && !d.sourceId.matches('.*[/].*') && favoriteId == d.sourceKind + '_' + d.sourceId
+            && d.schemaVersion is int && d.schemaVersion==1
+            && d.createdAt is timestamp && d.updatedAt==request.time;
+        }
+        allow read,delete: if owns(uid);
+        allow create: if owns(uid) && validFavorite() && request.resource.data.createdAt==request.time
+          && ((request.resource.data.sourceKind=='catalog' && exists(/databases/$(database)/documents/food_catalog/$(request.resource.data.sourceId)))
+            || (request.resource.data.sourceKind=='custom' && exists(/databases/$(database)/documents/users/$(uid)/custom_foods/$(request.resource.data.sourceId)))
+            || (request.resource.data.sourceKind=='recipe' && exists(/databases/$(database)/documents/users/$(uid)/recipes/$(request.resource.data.sourceId))));
+        allow update: if owns(uid) && validFavorite() && request.resource.data.createdAt==resource.data.createdAt
+          && request.resource.data.sourceId==resource.data.sourceId && request.resource.data.sourceKind==resource.data.sourceKind;
+      }
+
+      match /nutrition_targets/{dateKey} {
+        function validTarget() {
+          let d = request.resource.data;
+          return d.keys().hasAll(['effectiveFromDateKey','kcalTarget','proteinGTarget','carbsGTarget','fatGTarget','source','schemaVersion','createdAt','updatedAt'])
+            && d.keys().hasOnly(['effectiveFromDateKey','kcalTarget','proteinGTarget','carbsGTarget','fatGTarget','source','schemaVersion','createdAt','updatedAt'])
+            && d.effectiveFromDateKey == dateKey && goalDate(dateKey)
+            && d.kcalTarget is number && d.kcalTarget > 0 && d.kcalTarget <= 20000
+            && ((d.proteinGTarget == null && d.carbsGTarget == null && d.fatGTarget == null)
+              || (d.proteinGTarget is number && d.proteinGTarget >= 0 && d.proteinGTarget <= 5000
+                && d.carbsGTarget is number && d.carbsGTarget >= 0 && d.carbsGTarget <= 5000
+                && d.fatGTarget is number && d.fatGTarget >= 0 && d.fatGTarget <= 5000))
+            && d.source == 'user_manual' && d.schemaVersion is int && d.schemaVersion == 1
+            && d.createdAt is timestamp && d.updatedAt == request.time;
+        }
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validTarget() && request.resource.data.createdAt == request.time;
+        allow update: if owns(uid) && validTarget() && request.resource.data.createdAt == resource.data.createdAt;
+      }
+
+      match /goals/{goalId} {
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validGoal()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if owns(uid) && validGoal()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'targetValue','startDateKey','endDateKey','status','updatedAt'
+          ]);
+      }
+
+      match /daily_quests/{dateKey} {
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validQuest(dateKey)
+          && request.resource.data.status == 'available'
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if owns(uid) && validQuest(dateKey)
+          && resource.data.status == 'available'
+          && request.resource.data.status in ['completed','skipped']
+          && request.resource.data.updatedAt == request.time
+          && (request.resource.data.status != 'completed'
+            || request.resource.data.completedAt == request.time)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status','updatedAt','completedAt'
+          ]);
+      }
+
+      match /chat_sessions/{sessionId} {
+        function validSession() {
+          let d = request.resource.data;
+          return d.keys().hasAll(['title', 'messageCount', 'lastTurnId',
+              'createdAt', 'updatedAt', 'schemaVersion'])
+            && d.keys().hasOnly(['title', 'messageCount', 'lastTurnId',
+              'createdAt', 'updatedAt', 'schemaVersion'])
+            && d.title is string && d.title.size() > 0 && d.title.size() <= 80
+            && d.messageCount is int && d.messageCount >= 2
+            && d.messageCount <= 100 && d.messageCount % 2 == 0
+            && d.lastTurnId is string && d.lastTurnId.matches('^[a-zA-Z0-9]{20}$')
+            && d.schemaVersion == 1 && d.createdAt is timestamp
+            && d.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/users/$(uid)/chat_sessions/$(sessionId)/messages/$(d.lastTurnId + '_u')).data.sequence == d.messageCount - 2
+            && getAfter(/databases/$(database)/documents/users/$(uid)/chat_sessions/$(sessionId)/messages/$(d.lastTurnId + '_a')).data.sequence == d.messageCount - 1;
+        }
+        allow read, delete: if owns(uid);
+        allow create: if owns(uid) && validSession()
+          && request.resource.data.messageCount == 2
+          && request.resource.data.createdAt == request.time;
+        allow update: if owns(uid) && validSession()
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.messageCount == resource.data.messageCount + 2
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'messageCount', 'lastTurnId', 'updatedAt'
+          ]);
+
+        match /messages/{messageId} {
+          function validMessage() {
+            let d = request.resource.data;
+            let parent = getAfter(/databases/$(database)/documents/users/$(uid)/chat_sessions/$(sessionId)).data;
+            return d.keys().hasAll(['role', 'text', 'source', 'sequence',
+                'createdAt', 'schemaVersion', 'turnId'])
+              && d.keys().hasOnly(['role', 'text', 'source', 'sequence',
+                'createdAt', 'schemaVersion', 'turnId'])
+              && d.role in ['user', 'assistant']
+              && d.text is string && d.text.size() > 0
+              && d.text.size() <= (d.role == 'user' ? 1000 : 6000)
+              && d.source in ['journal', 'ai', 'help']
+              && d.turnId == parent.lastTurnId
+              && messageId == d.turnId + (d.role == 'user' ? '_u' : '_a')
+              && d.sequence is int
+              && d.sequence == parent.messageCount - (d.role == 'user' ? 2 : 1)
+              && d.createdAt == request.time && d.schemaVersion == 1;
+          }
+          allow read, delete: if owns(uid);
+          allow create: if owns(uid) && validMessage();
+          allow update: if false;
+        }
+      }
+
+      // Account deletion may remove present and future private subcollections.
+      // Owners may enumerate their own private data for cleanup; this grants no
+      // create/update access to otherwise undefined paths.
+      match /{privateDocument=**} {
+        allow read, delete: if owns(uid);
+      }
+    }
+  }
+}

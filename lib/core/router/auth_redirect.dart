@@ -32,6 +32,7 @@ String? authRedirect(
   final isAuth = uri.path == AppRoutes.auth;
   final isSession = uri.path == AppRoutes.session;
   final isOnboarding = uri.path == AppRoutes.onboarding;
+  final isVerification = uri.path == AppRoutes.verifyEmail;
   final destination = _destination(uri);
   if (session.isLoading || session.hasError) {
     return isSession
@@ -46,6 +47,14 @@ String? authRedirect(
         ? null
         : Uri(
             path: AppRoutes.auth,
+            queryParameters: {'from': destination},
+          ).toString();
+  }
+  if (!session.value!.emailVerified) {
+    return isVerification
+        ? null
+        : Uri(
+            path: AppRoutes.verifyEmail,
             queryParameters: {'from': destination},
           ).toString();
   }
@@ -85,5 +94,7 @@ String? authRedirect(
             ).toString();
     }
   }
-  return isAuth || isSession || isOnboarding ? destination : null;
+  return isAuth || isSession || isOnboarding || isVerification
+      ? destination
+      : null;
 }

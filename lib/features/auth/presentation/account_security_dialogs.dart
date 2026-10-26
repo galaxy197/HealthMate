@@ -1,4 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_providers.dart';
+import '../models/auth_failure.dart';
 
 import '../models/auth_validation.dart';
 
@@ -12,11 +16,12 @@ class ChangePasswordRequest {
   final String newPassword;
 }
 
-Future<String?> showResetPasswordDialog(
+Future<void> showResetPasswordDialog(
   BuildContext context, {
   required String initialEmail,
-}) => showDialog<String>(
+}) => showDialog<void>(
   context: context,
+  barrierDismissible: false,
   builder: (context) => _ResetPasswordDialog(initialEmail: initialEmail),
 );
 
@@ -26,76 +31,150 @@ Future<ChangePasswordRequest?> showChangePasswordDialog(BuildContext context) =>
       builder: (context) => const _ChangePasswordDialog(),
     );
 
-Future<String?> showDeleteAccountDialog(BuildContext context) =>
-    showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _DeleteAccountDialog(),
-    );
+Future<String?> showDeleteAccountDialog(
+  BuildContext context, {
+  bool requirePassword = true,
+}) => showDialog<String>(
+  context: context,
+  barrierDismissible: false,
+  builder: (context) => _DeleteAccountDialog(requirePassword: requirePassword),
+);
 
-class _ResetPasswordDialog extends StatefulWidget {
+class _ResetPasswordDialog extends ConsumerStatefulWidget {
   const _ResetPasswordDialog({required this.initialEmail});
 
   final String initialEmail;
 
   @override
-  State<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+  ConsumerState<_ResetPasswordDialog> createState() =>
+      _ResetPasswordDialogState();
 }
 
-class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
+class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _email;
+  Timer? _ticker;
+  bool _sent = false;
+  int _displayedCooldown = 0;
 
   @override
   void initState() {
     super.initState();
     _email = TextEditingController(text: widget.initialEmail.trim());
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted &&
+          ref
+                  .read(accountSecurityControllerProvider.notifier)
+                  .resetCooldownSeconds !=
+              _displayedCooldown) {
+        setState(() {});
+      }
+    });
   }
 
   @override
   void dispose() {
     _email.dispose();
+    _ticker?.cancel();
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.of(context).pop(_email.text.trim());
-    }
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final sent = await ref
+        .read(accountSecurityControllerProvider.notifier)
+        .sendPasswordResetEmail(_email.text.trim());
+    if (mounted && sent) setState(() => _sent = true);
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Đặt lại mật khẩu'),
-    content: Form(
-      key: _formKey,
-      child: TextFormField(
-        key: const ValueKey('reset-password-email'),
-        controller: _email,
-        autofocus: true,
-        keyboardType: TextInputType.emailAddress,
-        textCapitalization: TextCapitalization.none,
-        autocorrect: false,
-        decoration: const InputDecoration(
-          labelText: 'Email tài khoản',
-          prefixIcon: Icon(Icons.alternate_email),
+  Widget build(BuildContext context) {
+    final state = ref.watch(accountSecurityControllerProvider);
+    final cooldown = ref
+        .read(accountSecurityControllerProvider.notifier)
+        .resetCooldownSeconds;
+    _displayedCooldown = cooldown;
+    return PopScope(
+      canPop: !state.isLoading,
+      child: AlertDialog(
+        title: Text(_sent ? 'Kiểm tra hộp thư' : 'Đặt lại mật khẩu'),
+        content: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  key: const ValueKey('reset-password-email'),
+                  controller: _email,
+                  enabled: !state.isLoading && !_sent,
+                  autofocus: true,
+                  keyboardType: TextInputType.emailAddress,
+                  textCapitalization: TextCapitalization.none,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Email tài khoản',
+                    prefixIcon: Icon(Icons.alternate_email),
+                  ),
+                  validator: AuthValidation.email,
+                  onFieldSubmitted: (_) {
+                    if (!state.isLoading && cooldown == 0) _submit();
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _sent
+                      ? 'Nếu email thuộc một tài khoản HealthMate, bạn sẽ nhận được liên kết đặt lại mật khẩu. Mở liên kết trong thư để chọn mật khẩu mới, rồi quay lại đăng nhập.'
+                      : 'Nhập email đã đăng ký để nhận liên kết đặt lại mật khẩu.',
+                ),
+                if (_sent)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: Text(
+                      'Chưa nhận được thư? Kiểm tra mục thư rác, địa chỉ email và chờ một lúc trước khi gửi lại.',
+                    ),
+                  ),
+                if (state.hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      state.error is AuthFailure
+                          ? (state.error as AuthFailure).message
+                          : 'Chưa thể gửi email. Hãy thử lại.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-        validator: AuthValidation.email,
-        onFieldSubmitted: (_) => _submit(),
+        actions: [
+          TextButton(
+            onPressed: state.isLoading
+                ? null
+                : () => Navigator.of(context).pop(),
+            child: Text(_sent ? 'Quay lại đăng nhập' : 'Hủy'),
+          ),
+          FilledButton(
+            key: const ValueKey('send-reset-password'),
+            onPressed: state.isLoading || cooldown > 0 ? null : _submit,
+            child: Text(
+              state.isLoading
+                  ? 'Đang gửi…'
+                  : cooldown > 0
+                  ? 'Gửi lại sau ${cooldown}s'
+                  : _sent
+                  ? 'Gửi lại email'
+                  : 'Gửi email',
+            ),
+          ),
+        ],
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Hủy'),
-      ),
-      FilledButton(
-        key: const ValueKey('send-reset-password'),
-        onPressed: _submit,
-        child: const Text('Gửi email'),
-      ),
-    ],
-  );
+    );
+  }
 }
 
 class _ChangePasswordDialog extends StatefulWidget {
@@ -162,7 +241,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
               enableSuggestions: false,
               decoration: const InputDecoration(
                 labelText: 'Mật khẩu mới',
-                helperText: 'Ít nhất 6 ký tự, không chỉ gồm khoảng trắng.',
+                helperText: 'Ít nhất 8 ký tự, không chỉ gồm khoảng trắng.',
                 prefixIcon: Icon(Icons.password_rounded),
               ),
               validator: (value) {
@@ -220,7 +299,8 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
 }
 
 class _DeleteAccountDialog extends StatefulWidget {
-  const _DeleteAccountDialog();
+  const _DeleteAccountDialog({required this.requirePassword});
+  final bool requirePassword;
 
   @override
   State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
@@ -256,20 +336,25 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
               'HealthMate sẽ xóa hồ sơ, cân nặng, bữa ăn, nước uống, vận động và mọi dữ liệu thuộc tài khoản này. Thao tác không thể hoàn tác.',
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              key: const ValueKey('delete-account-password'),
-              controller: _password,
-              autofocus: true,
-              obscureText: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: const InputDecoration(
-                labelText: 'Mật khẩu hiện tại',
-                prefixIcon: Icon(Icons.lock_outline),
+            if (widget.requirePassword)
+              TextFormField(
+                key: const ValueKey('delete-account-password'),
+                controller: _password,
+                autofocus: true,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(
+                  labelText: 'Mật khẩu hiện tại',
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+                validator: (value) =>
+                    AuthValidation.password(value, registering: false),
               ),
-              validator: (value) =>
-                  AuthValidation.password(value, registering: false),
-            ),
+            if (!widget.requirePassword)
+              const Text(
+                'Bạn sẽ xác nhận lại bằng đúng tài khoản Google trước khi xóa dữ liệu.',
+              ),
             CheckboxListTile(
               key: const ValueKey('delete-account-understood'),
               contentPadding: EdgeInsets.zero,

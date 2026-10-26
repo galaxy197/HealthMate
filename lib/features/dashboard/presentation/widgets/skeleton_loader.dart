@@ -14,20 +14,15 @@ class SkeletonLoader extends StatefulWidget {
     super.key,
   });
 
-  const SkeletonLoader.card({
-    this.width,
-    this.height = 120,
-    super.key,
-  }) : borderRadius = const BorderRadius.all(
-          Radius.circular(AppSpacing.cardRadius),
-        );
+  const SkeletonLoader.card({this.width, this.height = 120, super.key})
+    : borderRadius = const BorderRadius.all(
+        Radius.circular(AppSpacing.cardRadius),
+      );
 
-  const SkeletonLoader.circle({
-    required double size,
-    super.key,
-  })  : width = size,
-        height = size,
-        borderRadius = const BorderRadius.all(Radius.circular(999));
+  const SkeletonLoader.circle({required double size, super.key})
+    : width = size,
+      height = size,
+      borderRadius = const BorderRadius.all(Radius.circular(999));
 
   @override
   State<SkeletonLoader> createState() => _SkeletonLoaderState();
@@ -64,21 +59,20 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            borderRadius: widget.borderRadius ??
-                BorderRadius.circular(4),
+            borderRadius: widget.borderRadius ?? BorderRadius.circular(4),
             gradient: LinearGradient(
               begin: Alignment(-1.0 + (_controller.value * 2), 0),
               end: Alignment(1.0 + (_controller.value * 2), 0),
               colors: isDark
                   ? [
-                      Colors.white.withOpacity(0.05),
-                      Colors.white.withOpacity(0.1),
-                      Colors.white.withOpacity(0.05),
+                      Colors.white.withValues(alpha: 0.05),
+                      Colors.white.withValues(alpha: 0.1),
+                      Colors.white.withValues(alpha: 0.05),
                     ]
                   : [
-                      Colors.black.withOpacity(0.04),
-                      Colors.black.withOpacity(0.08),
-                      Colors.black.withOpacity(0.04),
+                      Colors.black.withValues(alpha: 0.04),
+                      Colors.black.withValues(alpha: 0.08),
+                      Colors.black.withValues(alpha: 0.04),
                     ],
               stops: const [0.0, 0.5, 1.0],
             ),
@@ -105,25 +99,17 @@ class DashboardSkeleton extends StatelessWidget {
         // Metric cards grid
         Row(
           children: [
-            Expanded(
-              child: SkeletonLoader.card(height: 120),
-            ),
+            Expanded(child: SkeletonLoader.card(height: 120)),
             SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: SkeletonLoader.card(height: 120),
-            ),
+            Expanded(child: SkeletonLoader.card(height: 120)),
           ],
         ),
         SizedBox(height: AppSpacing.md),
         Row(
           children: [
-            Expanded(
-              child: SkeletonLoader.card(height: 120),
-            ),
+            Expanded(child: SkeletonLoader.card(height: 120)),
             SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: SkeletonLoader.card(height: 120),
-            ),
+            Expanded(child: SkeletonLoader.card(height: 120)),
           ],
         ),
         SizedBox(height: AppSpacing.lg),

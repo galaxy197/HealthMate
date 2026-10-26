@@ -29,12 +29,14 @@ class MealFoodSources extends ConsumerStatefulWidget {
     required this.onRecent,
     required this.onCustom,
     this.initialSearch = '',
+    this.favoritesOnly = false,
     super.key,
   });
   final ValueChanged<FoodCatalogItem> onCatalog;
   final ValueChanged<MealItemSnapshot> onRecent;
   final VoidCallback onCustom;
   final String initialSearch;
+  final bool favoritesOnly;
   @override
   ConsumerState<MealFoodSources> createState() => _MealFoodSourcesState();
 }
@@ -56,6 +58,10 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   @override
   void initState() {
     super.initState();
+    if (widget.favoritesOnly) {
+      _source = _FoodSource.favorites;
+      _initialResolved = true;
+    }
     _query = TextEditingController(text: widget.initialSearch);
     _query.addListener(_onSearchChanged);
     if (widget.initialSearch.trim().isNotEmpty) {
@@ -516,24 +522,25 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final source in _FoodSource.values)
-              ChoiceChip(
-                key: ValueKey('food-source-${source.name}'),
-                label: Text(source.label),
-                selected: _source == source,
-                onSelected: (_) => setState(() {
-                  _initialResolved = true;
-                  _source = source;
-                  _visible = 12;
-                  _query.clear();
-                }),
-              ),
-          ],
-        ),
+        if (!widget.favoritesOnly)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final source in _FoodSource.values)
+                ChoiceChip(
+                  key: ValueKey('food-source-${source.name}'),
+                  label: Text(source.label),
+                  selected: _source == source,
+                  onSelected: (_) => setState(() {
+                    _initialResolved = true;
+                    _source = source;
+                    _visible = 12;
+                    _query.clear();
+                  }),
+                ),
+            ],
+          ),
         const SizedBox(height: 12),
         TextField(
           key: const ValueKey('food-search'),

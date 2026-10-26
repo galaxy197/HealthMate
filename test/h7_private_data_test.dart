@@ -85,7 +85,7 @@ void main() {
       addTearDown(metrics.close);
       container.read(profileBootstrapProvider.future);
       expect(profile.ensureCalls, 1);
-      auth.emitUser(const AuthUser(uid: 'B', email: 'b@example.com'));
+      auth.emitUser(const AuthUser(emailVerified: true, uid: 'B', email: 'b@example.com'));
       await changed.future.timeout(const Duration(seconds: 2));
       container.read(profileBootstrapProvider.future);
       expect(profile.ensureCalls, 2);

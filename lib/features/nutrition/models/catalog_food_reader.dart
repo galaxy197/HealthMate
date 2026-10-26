@@ -1,4 +1,5 @@
 import 'nutrition_models.dart';
+import 'extra_nutrients.dart';
 
 /// Catalog metadata is optional. A damaged portion never corrupts the per-100g
 /// values or makes unrelated catalog documents unreadable.
@@ -61,6 +62,7 @@ FoodCatalogItem readCatalogFood(
         basisStr == 'per_100g' &&
         unit == 'g',
     per100g: NutritionTotals(
+      extraNutrients: readExtraNutrients(data['extraNutrientsPer100g']),
       kcal: kcal ?? 0,
       proteinG: protein ?? 0,
       carbsG: carbs ?? 0,

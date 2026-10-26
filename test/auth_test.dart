@@ -208,7 +208,7 @@ void main() {
   );
 
   testWidgets(
-    'registration checks confirmation then opens onboarding for a new account',
+    'registration checks confirmation, verifies email then opens onboarding',
     (tester) async {
       final auth = FakeAuthRepository();
       await pumpApp(
@@ -234,6 +234,11 @@ void main() {
       await submit(tester);
       await tester.pumpAndSettle();
       expect(auth.registerCalls, 1);
+      expect(find.text('Xác minh email của bạn'), findsOneWidget);
+      expect(auth.verificationCalls, 1);
+      auth.verifiedOnReload = true;
+      await tester.tap(find.byKey(const ValueKey('verification-check')));
+      await tester.pumpAndSettle();
       expect(find.text('Thiết lập sức khỏe ban đầu'), findsOneWidget);
     },
   );

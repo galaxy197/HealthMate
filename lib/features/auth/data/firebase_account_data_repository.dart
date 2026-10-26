@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'account_data_repository.dart';
+import '../../../core/config/admin_runtime_enabled.dart';
 
 class FirebaseAccountDataRepository implements AccountDataRepository {
   FirebaseAccountDataRepository(this._firestore);
@@ -19,6 +20,12 @@ class FirebaseAccountDataRepository implements AccountDataRepository {
     'recipes',
     'meal_templates',
     'day_reviews',
+    'sleep_logs',
+    'wellness_state',
+    'meal_plans',
+    'step_logs',
+    'wellness_preferences',
+    'energy_adjustments',
   ];
 
   final FirebaseFirestore _firestore;
@@ -31,6 +38,9 @@ class FirebaseAccountDataRepository implements AccountDataRepository {
         await _deleteCollection(user.collection(collectionName));
       }
       await _deleteChatSessions(user.collection('chat_sessions'));
+      if (adminRuntimeEnabled) {
+        await _firestore.collection('user_directory').doc(uid).delete();
+      }
       await user.delete();
     } on FirebaseException {
       throw const AccountDataFailure();

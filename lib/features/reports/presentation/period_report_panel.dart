@@ -171,7 +171,7 @@ class _PeriodReportPanelState extends ConsumerState<PeriodReportPanel> {
               if (_ready(targets) && versions.isEmpty)
                 const Text('Chưa có mục tiêu hiệu lực trong khoảng này.'),
               const Text(
-                'Xanh: kcal đã ghi (có thể chưa đủ) · Nét đứt: mục tiêu đúng ngày.',
+                'Xanh: kcal đã ghi (có thể chưa đủ) · Nét đứt: mục tiêu gốc đúng ngày, chưa cộng điều chỉnh bước.',
               ),
               _EnergyChart(coverage: coverage, targets: versions),
               ExpansionTile(

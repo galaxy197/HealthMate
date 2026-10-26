@@ -4,6 +4,7 @@ import '../../features/auth/providers/auth_providers.dart';
 import '../../features/profile/models/profile_validation.dart';
 import '../../features/profile/models/user_profile.dart';
 import '../../features/profile/providers/profile_providers.dart';
+import 'admin_runtime.dart';
 
 /// A local eligibility gate based on self-reported profile data, not proof of age.
 class AiAccess {
@@ -36,7 +37,30 @@ AiAccess aiAccessFor(String? uid, UserProfile? profile, {DateTime? today}) {
 }
 
 final aiAccessProvider = Provider<AiAccess>((ref) {
+  if (ref.watch(adminControlsEnabledProvider)) {
+    final access = ref.watch(appAccountAccessProvider);
+    final config = ref.watch(adminAppConfigProvider);
+    if (access.isLoading ||
+        access.hasError ||
+        access.value?.verified != true ||
+        access.value?.suspended == true ||
+        config.isLoading ||
+        config.hasError ||
+        config.value?.verified != true ||
+        config.value?.maintenanceMode == true) {
+      return const AiAccess(
+        allowed: false,
+        message: 'Chưa có quyền sử dụng AI trong phiên này.',
+      );
+    }
+  }
   final auth = ref.watch(authSessionProvider);
+  if (auth.value?.emailVerified != true) {
+    return const AiAccess(
+      allowed: false,
+      message: 'Hãy xác minh email trước khi sử dụng AI.',
+    );
+  }
   final profile = ref.watch(userProfileProvider);
   if (auth.isLoading ||
       auth.hasError ||

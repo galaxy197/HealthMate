@@ -14,6 +14,7 @@ class FakeAuthRepository implements AuthRepository {
   static const testUser = AuthUser(
     uid: 'test-uid',
     email: 'member@example.com',
+    emailVerified: true,
   );
   AuthUser? _user;
   @override
@@ -32,6 +33,12 @@ class FakeAuthRepository implements AuthRepository {
   int registerCalls = 0;
   int signOutCalls = 0;
   int resetPasswordCalls = 0;
+  int googleCalls = 0,
+      verificationCalls = 0,
+      reloadCalls = 0,
+      googleReauthCalls = 0;
+  AuthFailure? googleFailure, verificationFailure, reloadFailure;
+  bool verifiedOnReload = false;
   int reauthenticateCalls = 0;
   int updatePasswordCalls = 0;
   int deleteUserCalls = 0;
@@ -82,7 +89,57 @@ class FakeAuthRepository implements AuthRepository {
     lastEmail = email;
     lastPassword = password;
     await _operation();
-    emitUser(AuthUser(uid: 'new-test-uid', email: email));
+    emitUser(AuthUser(uid: 'new-test-uid', email: email, emailVerified: false));
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    googleCalls++;
+    await _operation();
+    if (googleFailure != null) throw googleFailure!;
+    emitUser(
+      const AuthUser(
+        uid: 'test-uid',
+        email: 'member@example.com',
+        emailVerified: true,
+        providerIds: ['google.com'],
+      ),
+    );
+  }
+
+  @override
+  Future<void> sendEmailVerification({required String expectedUid}) async {
+    verificationCalls++;
+    await _operation();
+    if (_user?.uid != expectedUid) throw AuthFailure.fromCode('user-mismatch');
+    if (verificationFailure != null) throw verificationFailure!;
+  }
+
+  @override
+  Future<void> reloadUser({required String expectedUid}) async {
+    reloadCalls++;
+    await _operation();
+    if (_user?.uid != expectedUid) throw AuthFailure.fromCode('user-mismatch');
+    if (reloadFailure != null) throw reloadFailure!;
+    if (verifiedOnReload && _user != null) {
+      emitUser(
+        AuthUser(
+          uid: _user!.uid,
+          email: _user!.email,
+          emailVerified: true,
+          providerIds: _user!.providerIds,
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<void> reauthenticateWithGoogle({required String expectedUid}) async {
+    googleReauthCalls++;
+    events?.add('reauthenticate-google');
+    await _operation();
+    if (_user?.uid != expectedUid) throw AuthFailure.fromCode('user-mismatch');
+    if (reauthenticateFailure != null) throw reauthenticateFailure!;
   }
 
   @override

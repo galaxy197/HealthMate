@@ -1,26 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../nutrition/models/nutrition_models.dart';
+import '../../nutrition/models/extra_nutrients.dart';
+import '../models/barcode_product_models.dart';
+export '../models/barcode_product_models.dart' show BarcodeProduct;
 
-/// Thông tin sản phẩm từ barcode
-class BarcodeProduct {
-  final String barcode;
-  final String name;
-  final String? brand;
-  final String? imageUrl;
-  final NutritionTotals? nutrition;
-  final double? servingSizeG;
-  final String source;
-
-  const BarcodeProduct({
-    required this.barcode,
-    required this.name,
-    this.brand,
-    this.imageUrl,
-    this.nutrition,
-    this.servingSizeG,
-    required this.source,
-  });
+class BarcodeLookupFailure implements Exception {
+  const BarcodeLookupFailure(this.message);
+  final String message;
 }
 
 /// Service tra cứu thông tin sản phẩm từ barcode
@@ -30,7 +17,7 @@ class BarcodeProductService {
   final http.Client _client;
 
   BarcodeProductService({http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   /// Tra cứu sản phẩm từ barcode
   /// Returns null nếu không tìm thấy
@@ -39,8 +26,12 @@ class BarcodeProductService {
     try {
       final product = await _queryOpenFoodFacts(barcode);
       if (product != null) return product;
-    } catch (e) {
-      // Ignore và thử nguồn khác
+    } on BarcodeLookupFailure {
+      rethrow;
+    } catch (_) {
+      throw const BarcodeLookupFailure(
+        'Chưa tra cứu được sản phẩm. Kiểm tra mạng rồi thử lại hoặc nhập thủ công.',
+      );
     }
 
     // 2. Có thể thêm nguồn khác (USDA branded foods, etc.)
@@ -52,13 +43,29 @@ class BarcodeProductService {
   Future<BarcodeProduct?> _queryOpenFoodFacts(String barcode) async {
     final url = Uri.parse('$_openFoodFactsBaseUrl/product/$barcode');
 
-    final response = await _client.get(url).timeout(
-      const Duration(seconds: 10),
-    );
+    final response = await _client
+        .get(
+          url,
+          headers: {
+            'User-Agent': 'HealthMate/1.0 (Android; nutrition tracker)',
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
-    if (response.statusCode != 200) return null;
+    if (response.statusCode == 404) return null;
+    if (response.statusCode == 429) {
+      throw const BarcodeLookupFailure(
+        'Đã chạm giới hạn tra cứu. Hãy thử lại sau.',
+      );
+    }
+    if (response.statusCode != 200) {
+      throw const BarcodeLookupFailure(
+        'Dịch vụ tra cứu đang lỗi. Hãy thử lại sau.',
+      );
+    }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final data =
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
 
     // status = 1 có nghĩa là tìm thấy sản phẩm
     if (data['status'] != 1) return null;
@@ -90,19 +97,55 @@ class BarcodeProductService {
       final protein = _parseDouble(nutriments['proteins_100g']);
       final carbs = _parseDouble(nutriments['carbohydrates_100g']);
       final fat = _parseDouble(nutriments['fat_100g']);
+      final fiber = _parseDouble(nutriments['fiber_100g']);
 
       if (kcal != null) {
+        const fields = {
+          'sugar': 'sugars',
+          'saturatedFat': 'saturated-fat',
+          'sodium': 'sodium',
+          'potassium': 'potassium',
+          'calcium': 'calcium',
+          'iron': 'iron',
+          'vitaminC': 'vitamin-c',
+          'cholesterol': 'cholesterol',
+        };
+        final extras = <String, double>{};
+        for (final field in fields.entries) {
+          final value = _parseDouble(nutriments['${field.value}_100g']);
+          // OFF normalizes these nutrient masses to grams, including minerals.
+          if (value != null && value >= 0) {
+            final normalized =
+                value *
+                (['sugar', 'saturatedFat'].contains(field.key) ? 1 : 1000);
+            if (normalized <= 100000) extras[field.key] = normalized;
+          }
+        }
         nutrition = NutritionTotals(
+          extraNutrients: readExtraNutrients(extras),
           kcal: kcal,
           proteinG: protein ?? 0,
           carbsG: carbs ?? 0,
           fatG: fat ?? 0,
+          proteinKnown: protein != null,
+          carbsKnown: carbs != null,
+          fatKnown: fat != null,
+          fiberG: fiber ?? 0,
+          fiberKnown: fiber != null,
         );
       }
     }
 
     // Parse serving size
-    final servingSizeG = _parseDouble(product['serving_quantity']);
+    final serving = _parseDouble(product['serving_quantity']);
+    final unit = product['serving_quantity_unit'];
+    final servingSizeG =
+        (unit == null || unit == 'g') &&
+            serving != null &&
+            serving > 0 &&
+            serving <= 2000
+        ? serving
+        : null;
 
     return BarcodeProduct(
       barcode: barcode,
@@ -117,10 +160,15 @@ class BarcodeProductService {
 
   double? _parseDouble(dynamic value) {
     if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value);
-    return null;
+    final number = value is num
+        ? value.toDouble()
+        : value is String
+        ? double.tryParse(value)
+        : null;
+    if (number == null || !number.isFinite || number < 0 || number > 10000) {
+      throw const FormatException('Invalid product nutrition.');
+    }
+    return number;
   }
 
   void dispose() {

@@ -1,0 +1,21 @@
+{
+  "name": "healthmate-chat-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check src/index.mjs && node --check src/auth.mjs && node --check src/protocol.mjs",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "whoami": "wrangler whoami",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "jose": "6.2.13"
+  },
+  "devDependencies": {
+    "wrangler": "4.152.0"
+  },
+  "overrides": {
+    "undici": "7.30.1"
+  }
+}

@@ -78,7 +78,8 @@ void main() {
       expect(find.text('Nhịp khỏe mỗi ngày'), findsOneWidget);
       container.read(appRouterProvider).go(AppRoutes.chat);
       await tester.pumpAndSettle();
-      expect(find.text('Thêm một người đồng hành'), findsOneWidget);
+      expect(find.text('Hiểu nhật ký của bạn'), findsOneWidget);
+      expect(find.byKey(const ValueKey('chat-input')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

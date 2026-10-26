@@ -9,14 +9,22 @@ import '../../../core/config/app_feature_flags.dart';
 import '../../../core/errors/operation_diagnostics.dart';
 import '../../activity/providers/activity_providers.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../wellness/providers/energy_providers.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
+import '../../nutrition_targets/providers/nutrition_target_providers.dart';
+import '../../profile/providers/profile_providers.dart';
 import '../../water/providers/water_providers.dart';
 import '../data/chat_repository.dart';
 import '../data/firebase_chat_repository.dart';
 import '../data/firebase_knowledge_service.dart';
 import '../data/knowledge_service.dart';
 import '../domain/journal_chat_context.dart';
+import '../domain/chat_request.dart';
+import '../domain/personal_chat_context.dart';
 import '../models/chat_models.dart';
+import '../models/assistant_request.dart';
+import 'assistant_providers.dart';
+import 'chat_resume_provider.dart';
 
 final chatRepositoryProvider = Provider<ChatRepository>(
   (ref) => FirebaseChatRepository(FirebaseFirestore.instance),
@@ -42,6 +50,22 @@ final journalChatContextProvider = Provider<JournalChatContext>(
     nutrition: ref.watch(nutritionRepositoryProvider),
     water: ref.watch(waterRepositoryProvider),
     activity: ref.watch(activityRepositoryProvider),
+  ),
+);
+
+final personalChatContextProvider = Provider<PersonalChatContext>(
+  (ref) => PersonalChatContext(
+    nutrition: ref.watch(nutritionRepositoryProvider),
+    water: ref.watch(waterRepositoryProvider),
+    activity: ref.watch(activityRepositoryProvider),
+    targets: ref.watch(nutritionTargetRepositoryProvider),
+    profile: ref.watch(healthProfileRepositoryProvider),
+    energyLoader: (uid, start, end) {
+      if (!ref.mounted) throw const ChatFailure('Lượt hỏi đã hủy.');
+      return ref
+          .read(energyRepositoryProvider)
+          .loadAdjustments(uid, start, end);
+    },
   ),
 );
 
@@ -102,6 +126,9 @@ class ChatController extends Notifier<ChatState> {
   String? _lastQuestion;
   DateTime? _lastDate;
   KnowledgeTopic? _lastTopic;
+  ChatRequest? _plannedRequest;
+  ChatRequest? _contextRequest;
+  bool _useAssistant = false;
 
   @override
   ChatState build() {
@@ -113,6 +140,7 @@ class ChatController extends Notifier<ChatState> {
       if (enabled && _valid(generation)) loadSessions();
     });
     _resetRequest();
+    _contextRequest = null;
     return const ChatState();
   }
 
@@ -137,6 +165,8 @@ class ChatController extends Notifier<ChatState> {
     _lastQuestion = null;
     _lastDate = null;
     _lastTopic = null;
+    _plannedRequest = null;
+    _useAssistant = false;
   }
 
   Future<void> loadSessions() async {
@@ -148,6 +178,13 @@ class ChatController extends Notifier<ChatState> {
       final sessions = await _repository.loadSessions(_uid);
       if (_valid(generation)) {
         state = state.change(sessions: sessions, phase: ChatPhase.idle);
+        if (state.sessionId == null && state.messages.isEmpty) {
+          final resume = ref.read(chatResumeProvider);
+          final id = resume.selected
+              ? resume.sessionId
+              : sessions.firstOrNull?.id;
+          if (id != null) await openSession(id);
+        }
       }
     } catch (error) {
       if (_valid(generation)) {
@@ -160,6 +197,8 @@ class ChatController extends Notifier<ChatState> {
     if (!ref.read(appFeatureFlagsProvider).chatbotEnabled) return;
     if (state.busy) return;
     _resetRequest();
+    _contextRequest = null;
+    final uid = _uid;
     final generation = ++_generation;
     state = ChatState(
       sessions: state.sessions,
@@ -167,9 +206,10 @@ class ChatController extends Notifier<ChatState> {
       phase: ChatPhase.loading,
     );
     try {
-      final messages = await _repository.loadMessages(_uid, id);
+      final messages = await _repository.loadMessages(uid, id);
       if (_valid(generation)) {
         state = state.change(messages: messages, phase: ChatPhase.idle);
+        ref.read(chatResumeProvider.notifier).select(uid, id);
       }
     } catch (error) {
       // Do not allow sending into an incompletely loaded conversation.
@@ -183,7 +223,13 @@ class ChatController extends Notifier<ChatState> {
     if (state.busy) return;
     _generation++;
     _resetRequest();
+    _contextRequest = null;
+    ref.read(chatResumeProvider.notifier).select(_uid, null);
     state = ChatState(sessions: state.sessions);
+  }
+
+  void resetQuestionContext() {
+    if (!state.busy) _contextRequest = null;
   }
 
   void cancel() {
@@ -208,6 +254,9 @@ class ChatController extends Notifier<ChatState> {
     String question,
     DateTime selectedDate, {
     KnowledgeTopic? topic,
+    bool allowKnowledge = false,
+    bool allowAssistant = false,
+    bool localOnly = false,
   }) async {
     if (!ref.read(appFeatureFlagsProvider).chatbotEnabled) return false;
     if (state.busy || state.full || state.pendingSave) return false;
@@ -218,7 +267,53 @@ class ChatController extends Notifier<ChatState> {
     }
     _resetRequest();
     final now = ref.read(currentLocalTimeProvider)();
-    return _send(text, journalQuestionDate(text, selectedDate, now), topic);
+    if (!localOnly && ref.read(flexibleChatAvailableProvider)) {
+      if (!allowAssistant) {
+        state = state.change(
+          error:
+              'Hãy đồng ý gửi nội dung và dữ liệu liên quan tới Cloudflare trước khi dùng chat AI.',
+        );
+        return false;
+      }
+      final access = ref.read(aiAccessProvider);
+      if (!access.allowed) {
+        state = state.change(error: access.message);
+        return false;
+      }
+      _useAssistant = true;
+      return _send(text, selectedDate, null);
+    }
+    var request = topic == null
+        ? planChatRequest(text, selectedDate, now, previous: _contextRequest)
+        : ChatRequest(
+            intent: ChatIntent.knowledge,
+            start: selectedDate,
+            end: DateTime(
+              selectedDate.year,
+              selectedDate.month,
+              selectedDate.day + 1,
+            ),
+            topic: topic,
+          );
+    if (localOnly && request.topic != null) {
+      request = ChatRequest(
+        intent: ChatIntent.help,
+        start: request.start,
+        end: request.end,
+        message:
+            'Chế độ tra cứu nhật ký không gửi câu hỏi đến AI. Hãy hỏi về dữ liệu đã ghi hoặc tắt chế độ này để trò chuyện với AI.',
+      );
+    } else if (topic == null && request.topic != null && !allowKnowledge) {
+      request = ChatRequest(
+        intent: ChatIntent.help,
+        start: request.start,
+        end: request.end,
+        message:
+            'Câu hỏi này thuộc chủ đề “${request.topic!.label}”. Hãy chọn chủ đề trong mục Kiến thức chung từ AI để đọc thông tin xử lý dữ liệu trước khi gửi.',
+      );
+    }
+    _plannedRequest = request;
+    return _send(text, request.start, request.topic);
   }
 
   Future<bool> _send(
@@ -233,6 +328,8 @@ class ChatController extends Notifier<ChatState> {
     _lastTopic = topic;
     _turnId ??= _repository.newId();
     final uid = _uid;
+    final resume = ref.read(chatResumeProvider.notifier);
+    final resumeRevision = ref.read(chatResumeProvider).revision;
     final sessionId = state.sessionId ?? _repository.newId();
     state = ChatState(
       sessions: state.sessions,
@@ -247,7 +344,7 @@ class ChatController extends Notifier<ChatState> {
         final answer = await Future.any<String>([
           _answer(uid, question, date, topic, generation),
           _cancelled!.future.then<String>((_) => throw const _Cancelled()),
-        ]).timeout(const Duration(seconds: 45));
+        ]).timeout(Duration(seconds: _useAssistant ? 90 : 45));
         if (!_valid(generation)) return false;
         if (answer.trim().isEmpty ||
             answer.length > ChatLimits.outputCharacters) {
@@ -259,9 +356,9 @@ class ChatController extends Notifier<ChatState> {
           id: _turnId!,
           question: question,
           answer: answer,
-          source: topic != null
+          source: _useAssistant || topic != null
               ? ChatSource.ai
-              : journalQuestion(question) != null
+              : _plannedRequest?.isPersonal == true
               ? ChatSource.journal
               : ChatSource.help,
         );
@@ -275,6 +372,8 @@ class ChatController extends Notifier<ChatState> {
       operationDiagnostic('chat', 'save', 'start', diagnosticClock);
       await _repository.saveTurn(uid, sessionId, turn);
       operationDiagnostic('chat', 'save', 'success', diagnosticClock);
+      // A late save must not overwrite a newer selection or another auth session.
+      resume.select(uid, sessionId, expectedRevision: resumeRevision);
       if (!_valid(generation)) return false;
       final count = state.messages.length;
       final messages = [
@@ -303,6 +402,9 @@ class ChatController extends Notifier<ChatState> {
         ),
         ...state.sessions.where((session) => session.id != sessionId),
       ].take(ChatLimits.recentSessions).toList();
+      _contextRequest = _plannedRequest?.isPersonal == true
+          ? _plannedRequest
+          : null;
       _resetRequest();
       state = ChatState(
         sessions: sessions,
@@ -349,39 +451,57 @@ class ChatController extends Notifier<ChatState> {
     KnowledgeTopic? topic,
     int generation,
   ) async {
-    if (topic == null) {
-      final kind = journalQuestion(question);
-      if (kind == null) {
-        return 'Tôi có thể tra cứu bữa ăn/kcal, nước, vận động hoặc tóm tắt ngày đã chọn. Hãy chọn ngày bằng nút lịch. Câu hỏi về hôm nay/hôm qua dùng đúng ngày đó. Với kiến thức chung, hãy chọn chủ đề AI bên dưới. Nội dung tự nhập không gửi đến AI; tôi không chẩn đoán hoặc tư vấn điều trị.';
-      }
-      return ref.read(journalChatContextProvider).answer(uid, kind, date);
+    if (!_useAssistant && topic == null) {
+      final request = _plannedRequest!;
+      if (!request.isPersonal) return request.message!;
+      return ref.read(personalChatContextProvider).answer(uid, request);
     }
     final access = ref.read(aiAccessProvider);
     if (!access.allowed) throw ChatFailure(access.message);
     final result = Completer<String>();
     final buffer = StringBuffer();
-    _stream = ref
-        .read(knowledgeServiceProvider)
-        .explain(topic)
-        .listen(
-          (chunk) {
-            if (!_valid(generation) || result.isCompleted) return;
-            buffer.write(chunk);
-            if (buffer.length > ChatLimits.outputCharacters) {
-              result.completeError(
-                const ChatFailure('Câu trả lời AI vượt giới hạn. Hãy thử lại.'),
-              );
-            } else {
-              state = state.change(preview: buffer.toString());
-            }
-          },
-          onError: (Object error, StackTrace stack) {
-            if (!result.isCompleted) result.completeError(error, stack);
-          },
-          onDone: () {
-            if (!result.isCompleted) result.complete(buffer.toString());
-          },
-        );
+    final Stream<String> answerStream;
+    if (_useAssistant) {
+      bool current() =>
+          _valid(generation) && ref.read(authSessionProvider).value?.uid == uid;
+      final today = ref.read(currentLocalTimeProvider)();
+      answerStream = ref
+          .read(chatAssistantProvider)
+          .reply(
+            AssistantConversation(
+              question: question,
+              history: List.of(state.messages),
+              today: today,
+              selectedDate: date,
+            ),
+            uid: uid,
+            isCurrent: current,
+            readData: (requests) => ref
+                .read(chatDataReaderProvider)
+                .read(uid, requests, today, current),
+          );
+    } else {
+      answerStream = ref.read(knowledgeServiceProvider).explain(topic!);
+    }
+    _stream = answerStream.listen(
+      (chunk) {
+        if (!_valid(generation) || result.isCompleted) return;
+        buffer.write(chunk);
+        if (buffer.length > ChatLimits.outputCharacters) {
+          result.completeError(
+            const ChatFailure('Câu trả lời AI vượt giới hạn. Hãy thử lại.'),
+          );
+        } else {
+          state = state.change(preview: buffer.toString());
+        }
+      },
+      onError: (Object error, StackTrace stack) {
+        if (!result.isCompleted) result.completeError(error, stack);
+      },
+      onDone: () {
+        if (!result.isCompleted) result.complete(buffer.toString());
+      },
+    );
     return result.future;
   }
 

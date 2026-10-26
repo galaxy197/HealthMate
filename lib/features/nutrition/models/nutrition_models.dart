@@ -1,4 +1,5 @@
 import '../../../core/utils/local_date_key.dart';
+import 'extra_nutrients.dart';
 
 class NutritionTotals {
   const NutritionTotals({
@@ -11,12 +12,14 @@ class NutritionTotals {
     this.proteinKnown = true,
     this.carbsKnown = true,
     this.fatKnown = true,
+    this.extraNutrients = const {},
   });
 
   final double kcal;
   final double proteinG;
   final double carbsG;
   final double fatG;
+  final Map<String, double> extraNutrients;
 
   /// Known subtotal; fiberKnown=false preserves missing ingredients/sources.
   final double fiberG;
@@ -36,6 +39,7 @@ class NutritionTotals {
     proteinKnown: proteinKnown && other.proteinKnown,
     carbsKnown: carbsKnown && other.carbsKnown,
     fatKnown: fatKnown && other.fatKnown,
+    extraNutrients: sumExtras(extraNutrients, other.extraNutrients),
   );
 
   NutritionTotals scale(double factor) => NutritionTotals(
@@ -48,6 +52,7 @@ class NutritionTotals {
     proteinKnown: proteinKnown,
     carbsKnown: carbsKnown,
     fatKnown: fatKnown,
+    extraNutrients: scaleExtras(extraNutrients, factor),
   );
 }
 
@@ -109,6 +114,7 @@ class FoodCatalogItem {
     this.carbsGPer100g,
     this.fatGPer100g,
     this.fiberGPer100g,
+    this.extraNutrientsPer100g = const {},
   });
 
   final String id;
@@ -140,6 +146,7 @@ class FoodCatalogItem {
   final double? carbsGPer100g;
   final double? fatGPer100g;
   final double? fiberGPer100g;
+  final Map<String, double> extraNutrientsPer100g;
 
   // Get per100g from simplified fields if not set
   NutritionTotals get nutritionPer100g {
@@ -151,12 +158,14 @@ class FoodCatalogItem {
       carbsG: carbsGPer100g ?? 0,
       fatG: fatGPer100g ?? 0,
       fiberG: fiberGPer100g ?? 0,
-      fiberKnown: fiberGPer100g != null && fiberGPer100g! > 0,
+      fiberKnown: fiberGPer100g != null,
       proteinKnown: proteinGPer100g != null,
       carbsKnown: carbsGPer100g != null,
       fatKnown: fatGPer100g != null,
+      extraNutrients: extraNutrientsPer100g,
     );
   }
+
   bool get hasValidServing =>
       servingBasis == ServingBasis.per100g &&
       unit == 'g' &&
@@ -265,6 +274,8 @@ class MealItemSnapshot {
     },
     'sourceLabel': sourceLabel,
     'isEstimated': isEstimated,
+    if (nutrition.extraNutrients.isNotEmpty)
+      'nutrientVectorV1': encodeExtraNutrients(nutrition.extraNutrients),
   };
 
   factory MealItemSnapshot.fromData(
@@ -299,6 +310,9 @@ class MealItemSnapshot {
       quantityValue: unit != 'g' && q is num ? q.toDouble() : null,
       nutrition: NutritionTotals(
         kcal: value('kcal'),
+        extraNutrients: readExtraNutrients(
+          d['nutrientVectorV1'] ?? d['extraNutrients'],
+        ),
         proteinG: value('proteinG'),
         carbsG: value('carbsG'),
         fatG: value('fatG'),
@@ -317,6 +331,28 @@ class MealItemSnapshot {
       hasNutritionData: validQuantity && numeric(d['kcal']) && validMacros,
     );
   }
+  Map<String, Object?> toCompactData() => {
+    for (final e in toData().entries)
+      if (e.key != 'grams') e.key: e.value,
+    'quantity': quantity,
+    'quantityUnit': quantityUnit,
+    'nutrientVectorV1': encodeExtraNutrients(nutrition.extraNutrients),
+  };
+
+  factory MealItemSnapshot.fromCompactData(Map<String, dynamic> data) {
+    final copy = Map<String, dynamic>.from(data);
+    final unit = copy['quantityUnit'];
+    copy['grams'] = unit == 'g' ? copy['quantity'] : null;
+    if (unit == 'g') {
+      copy.remove('quantity');
+      copy.remove('quantityUnit');
+    }
+    for (final key in ['proteinG', 'carbsG', 'fatG']) {
+      copy.putIfAbsent(key, () => null);
+    }
+    return MealItemSnapshot.fromData(copy, allowPartial: true);
+  }
+
   MealItemSnapshot withGrams(double newGrams) {
     if (quantityUnit != 'g') {
       throw const FormatException(
@@ -350,6 +386,16 @@ class MealItemSnapshot {
       );
     }
     final scaled = nutrition.scale(newGrams / quantity);
+    if (scaled.extraNutrients.entries.any(
+      (e) =>
+          !e.value.isFinite ||
+          e.value < 0 ||
+          e.value > ExtraNutrient.values.byName(e.key).maximum,
+    )) {
+      throw const FormatException(
+        'Dưỡng chất theo khẩu phần vượt giới hạn lưu.',
+      );
+    }
     if ([
           scaled.kcal,
           scaled.proteinG,

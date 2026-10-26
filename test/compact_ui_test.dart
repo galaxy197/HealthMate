@@ -13,6 +13,19 @@ import 'support/fake_nutrition_repository.dart';
 import 'support/test_app.dart';
 
 Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  if (finder.evaluate().isEmpty &&
+      find.byKey(const ValueKey('meal-manual-content')).evaluate().isNotEmpty) {
+    await tester.scrollUntilVisible(
+      finder,
+      150,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('meal-manual-content')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+  }
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
   await tester.tap(finder);

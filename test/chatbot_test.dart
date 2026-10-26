@@ -416,7 +416,13 @@ void main() {
           .read(chatControllerProvider.notifier)
           .send('Kcal đã ghi', today);
       await tester.pump();
-      auth.emitUser(const AuthUser(uid: 'bob', email: 'bob@example.com'));
+      auth.emitUser(
+        const AuthUser(
+          emailVerified: true,
+          uid: 'bob',
+          email: 'bob@example.com',
+        ),
+      );
       await tester.pump();
       nutrition.rangePending!.complete();
       await send;
@@ -516,13 +522,13 @@ void main() {
       repo.pendingSave!.complete();
       await send;
       repo.pendingSave = null;
-      for (var turn = 1; turn < 20; turn++) {
+      for (var turn = 1; turn < 50; turn++) {
         await controller.send('Nước đã ghi', today);
       }
       await tester.pumpAndSettle();
       expect(container.read(chatControllerProvider).full, isTrue);
       expect(await controller.send('Nước đã ghi', today), isFalse);
-      expect(repo.saveCalls, 20);
+      expect(repo.saveCalls, 50);
       controller.newSession();
       expect(container.read(chatControllerProvider).full, isFalse);
     },

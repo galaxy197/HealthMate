@@ -97,7 +97,7 @@ void main() {
     }
   }
 
-  testWidgets('plus opens scanner without uploading or starting the camera', (
+  testWidgets('plus opens unified camera without uploading an image', (
     tester,
   ) async {
     final container = await pumpApp(tester, featureFlags: enabled);
@@ -105,8 +105,8 @@ void main() {
     await tester.pumpAndSettle();
     await tapVisible(tester, find.byKey(const ValueKey('quick-action-scan')));
     expect(find.byType(FoodScannerDialog), findsOneWidget);
-    expect(find.text('Chụp ảnh'), findsOneWidget);
-    expect(find.text('Chọn ảnh'), findsOneWidget);
+    expect(find.byKey(const ValueKey('camera-shutter')), findsOneWidget);
+    expect(find.byKey(const ValueKey('camera-gallery')), findsOneWidget);
     expect(container.exists(foodScannerServiceProvider), isFalse);
     expect(container.exists(foodImagePickerProvider), isFalse);
     expect(tester.takeException(), isNull);

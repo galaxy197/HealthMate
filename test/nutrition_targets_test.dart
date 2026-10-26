@@ -437,7 +437,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('save-target')));
       await tester.pump();
       auth.emitUser(
-        const AuthUser(uid: 'another-user', email: 'other@example.com'),
+        const AuthUser(emailVerified: true, uid: 'another-user', email: 'other@example.com'),
       );
       profiles.emitProfile(profileForUid('another-user'));
       await tester.pumpAndSettle();

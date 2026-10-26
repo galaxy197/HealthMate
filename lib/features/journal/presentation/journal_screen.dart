@@ -12,7 +12,7 @@ import '../../activity/models/activity_log.dart';
 import '../../activity/presentation/activity_log_dialog.dart';
 import '../../activity/presentation/activity_log_section.dart';
 import '../../activity/providers/activity_providers.dart';
-import '../../food_scanner/presentation/food_scanner_dialog.dart';
+import '../../nutrition/presentation/meal_form_dialog.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/presentation/meal_log_section.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
@@ -68,18 +68,11 @@ class JournalScreen extends ConsumerWidget {
     DateTime selectedDate,
   ) async {
     if (!ref.read(appFeatureFlagsProvider).foodScannerEnabled) return;
-    final result = await showDialog<FoodScanChoice>(
-      context: context,
-      builder: (_) => FoodScannerDialog(catalog: catalog),
-    );
-    if (result == null || !context.mounted) return;
     await openJournalMealForm(
       context,
       ref,
       catalog,
-      suggestedFood: result.food,
-      initialSearch: result.food == null ? result.query : '',
-      aiAssisted: true,
+      initialEntryMode: MealEntryMode.photo,
       initialConsumedAt: _timeOnSelectedDate(selectedDate),
     );
   }

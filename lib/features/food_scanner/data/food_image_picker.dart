@@ -29,8 +29,8 @@ class DeviceFoodImagePicker implements FoodImagePicker {
       final image = await ImagePicker().pickImage(
         source: source,
         imageQuality: 82,
-        maxWidth: 1600,
-        maxHeight: 1600,
+        maxWidth: FoodScannerConfig.maxImageDimension.toDouble(),
+        maxHeight: FoodScannerConfig.maxImageDimension.toDouble(),
         requestFullMetadata: false,
       );
       if (image == null) return null;
@@ -80,7 +80,8 @@ Future<FoodImage> prepareFoodImage(Uint8List source) async {
     }
     final scale = math.min(
       1.0,
-      1600 / math.max(descriptor.width, descriptor.height),
+      FoodScannerConfig.maxImageDimension /
+          math.max(descriptor.width, descriptor.height),
     );
     codec = await descriptor.instantiateCodec(
       targetWidth: math.max(1, (descriptor.width * scale).round()),

@@ -3,7 +3,14 @@ enum ChatSource { journal, ai, help }
 enum KnowledgeTopic {
   balancedMeals('Một bữa ăn cân bằng gồm những gì?'),
   readingLabels('Cách đọc nhãn dinh dưỡng'),
-  buildingHabits('Cách bắt đầu ghi nhật ký đều đặn');
+  buildingHabits('Cách bắt đầu ghi nhật ký đều đặn'),
+  protein('Đạm có vai trò gì trong bữa ăn?'),
+  fiber('Chất xơ có trong những thực phẩm nào?'),
+  carbohydrates('Carbohydrate và đường khác nhau thế nào?'),
+  fats('Phân biệt các loại chất béo'),
+  hydration('Cách hình thành thói quen uống nước'),
+  portions('Cách ước lượng và kiểm tra khẩu phần'),
+  energyBalance('Hiểu về calo và cân bằng năng lượng');
 
   const KnowledgeTopic(this.label);
   final String label;
@@ -17,7 +24,8 @@ class ChatFailure implements Exception {
 abstract final class ChatLimits {
   static const inputCharacters = 1000;
   static const outputCharacters = 6000;
-  static const messagesPerSession = 40;
+  static const turnsPerSession = 50;
+  static const messagesPerSession = turnsPerSession * 2;
   static const recentSessions = 20;
 }
 

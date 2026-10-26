@@ -7,7 +7,9 @@ import '../../../core/config/app_feature_flags.dart';
 import '../../../shared/providers/local_clock_provider.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../models/chat_models.dart';
+import '../domain/chat_request.dart';
 import '../providers/chat_providers.dart';
+import '../providers/assistant_providers.dart';
 
 class ChatScreen extends ConsumerWidget {
   const ChatScreen({super.key});
@@ -38,6 +40,8 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
   final _scroll = ScrollController();
   late DateTime _date;
   bool _aiDisclosureAccepted = false;
+  bool _assistantConsent = false;
+  bool _localOnly = false;
   bool _scrollScheduled = false;
 
   void _showLatest() {
@@ -64,15 +68,66 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
     super.dispose();
   }
 
-  Future<void> _send({String? text, KnowledgeTopic? topic}) async {
-    if (topic != null && !_aiDisclosureAccepted) {
+  Future<void> _send({
+    String? text,
+    KnowledgeTopic? topic,
+    bool quickLookup = false,
+  }) async {
+    final original = _input.text;
+    final question = topic?.label ?? text ?? original;
+    final flexible =
+        ref.read(flexibleChatAvailableProvider) && !_localOnly && !quickLookup;
+    if (question.trim().isEmpty) return;
+    if (flexible && !_assistantConsent) {
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Chat AI'),
+          content: const SingleChildScrollView(
+            child: Text(
+              'Câu hỏi, tối đa 3 lượt chat gần nhất và số liệu liên quan (bữa ăn, mục tiêu, nước, '
+              'vận động, cân nặng) được gửi đến Cloudflare Workers AI để trả lời.\n\n'
+              'App không lấy toàn bộ hồ sơ. Đừng nhập thông tin nhận dạng hoặc hồ sơ bệnh án. '
+              'Cloudflare công bố không dùng nội dung để huấn luyện; có ngoại lệ lưu giữ theo pháp luật/an toàn. '
+              'Hội thoại lưu riêng trong HealthMate.\n\n'
+              'AI có thể sai, không thay tư vấn y tế. Chọn Tra cứu nhật ký để không gửi AI.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Để sau'),
+            ),
+            FilledButton(
+              key: const ValueKey('chat-accept-assistant'),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Đồng ý'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || accepted != true) return;
+      _assistantConsent = true;
+    }
+    final resolvedTopic =
+        topic ??
+        planChatRequest(
+          question,
+          _date,
+          ref.read(currentLocalTimeProvider)(),
+        ).topic;
+    if (!flexible &&
+        !_localOnly &&
+        resolvedTopic != null &&
+        !_aiDisclosureAccepted) {
       final accepted = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Kiến thức chung từ AI'),
-          content: const SingleChildScrollView(
+          content: SingleChildScrollView(
             child: Text(
-              'Chỉ chủ đề định sẵn được gửi đến dịch vụ AI của Google. '
+              'Chủ đề gửi: ${resolvedTopic.label}\n\n'
+              'Chỉ câu hỏi chung chuẩn hóa theo chủ đề được gửi đến dịch vụ AI của Google. '
               'Không gửi nội dung tự nhập, hồ sơ, nhật ký hay lịch sử hội thoại. '
               'Dịch vụ miễn phí có thể dùng câu hỏi và câu trả lời để cải thiện '
               'sản phẩm, có thể có người đánh giá nội dung.\n\n'
@@ -96,10 +151,16 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
       if (!mounted || accepted != true) return;
       _aiDisclosureAccepted = true;
     }
-    final original = _input.text;
     final saved = await ref
         .read(chatControllerProvider.notifier)
-        .send(text ?? original, _date, topic: topic);
+        .send(
+          question,
+          _date,
+          topic: topic,
+          allowKnowledge: _aiDisclosureAccepted,
+          allowAssistant: _assistantConsent,
+          localOnly: _localOnly || quickLookup,
+        );
     if (!mounted) return;
     if (saved && topic == null && text == null && _input.text == original) {
       _input.clear();
@@ -115,7 +176,10 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
       firstDate: DateTime(1900),
       lastDate: localDateOnly(now),
     );
-    if (date != null && mounted) setState(() => _date = date);
+    if (date != null && mounted) {
+      ref.read(chatControllerProvider.notifier).resetQuestionContext();
+      setState(() => _date = date);
+    }
   }
 
   @override
@@ -132,6 +196,7 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
     final chat = ref.watch(chatControllerProvider);
     final controller = ref.read(chatControllerProvider.notifier);
     final enabled = !chat.busy && !chat.full && !chat.pendingSave;
+    final flexible = ref.watch(flexibleChatAvailableProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -185,15 +250,46 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
               key: const ValueKey('chat-messages'),
               controller: _scroll,
               children: [
-                Text(
-                  'Thêm một người đồng hành',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
+                if (chat.messages.isEmpty)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Hiểu nhật ký của bạn',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Hỏi về bữa ăn, mục tiêu và tiến độ. Tôi dùng số liệu đã lưu và nói rõ khi thiếu dữ liệu.',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Tra cứu số liệu trong ứng dụng; AI giải thích kiến thức chung. Không chẩn đoán hoặc thay thế tư vấn y tế.',
-                ),
-                const SizedBox(height: 8),
+                if (flexible)
+                  FilterChip(
+                    key: const ValueKey('chat-local-only'),
+                    selected: _localOnly,
+                    label: const Text('Tra cứu nhật ký · không gửi AI'),
+                    onSelected: enabled
+                        ? (value) => setState(() => _localOnly = value)
+                        : null,
+                  ),
+                if (!flexible)
+                  const Text(
+                    'Chat AI tự do chưa được kết nối. Bạn vẫn có thể tra cứu nhật ký và đọc kiến thức chung.',
+                  ),
+                if (chat.messages.isEmpty)
+                  const Text('Tra cứu nhanh · không dùng hạn mức AI'),
                 Wrap(
                   spacing: 8,
                   runSpacing: 4,
@@ -209,11 +305,17 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
                       'Kcal đã ghi',
                       'Nước đã ghi',
                       'Vận động đã ghi',
+                      'Hôm nay còn bao nhiêu kcal?',
+                      'Tóm tắt tuần này',
+                      'Cân nặng gần nhất',
                     ])
-                      ActionChip(
-                        label: Text(question),
-                        onPressed: enabled ? () => _send(text: question) : null,
-                      ),
+                      if (chat.messages.isEmpty)
+                        ActionChip(
+                          label: Text(question),
+                          onPressed: enabled
+                              ? () => _send(text: question, quickLookup: true)
+                              : null,
+                        ),
                   ],
                 ),
                 if (chat.phase == ChatPhase.loading)
@@ -224,28 +326,59 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Text(
-                      'Bắt đầu bằng một câu hỏi về nhật ký hoặc chọn chủ đề bên dưới. '
-                      'Bạn có thể hỏi “Hôm nay tôi ăn bao nhiêu kcal?” hoặc “Hôm qua uống bao nhiêu nước?”. '
-                      'Ngày không có bản ghi sẽ được ghi rõ, không suy đoán lượng thực tế.',
+                      'Bạn có thể nhập “Hôm qua tôi ăn bao nhiêu?”, “7 ngày qua uống bao nhiêu nước?” '
+                      'hoặc “Protein là gì?”. Hỏi tiếp “còn đạm thì sao?” để xem cùng khoảng ngày. '
+                      'Thông tin hỗ trợ theo dõi thói quen, không thay thế tư vấn y tế.',
                     ),
                   ),
                 const Divider(height: 24),
-                Text(
-                  'Kiến thức chung từ AI',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Text(
-                  'Chỉ gửi chủ đề định sẵn; không gửi nhật ký hoặc nội dung tự nhập. Mỗi chủ đề là một yêu cầu độc lập.',
-                ),
-                for (final topic in KnowledgeTopic.values)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      key: ValueKey('chat-topic-${topic.name}'),
-                      onPressed: enabled ? () => _send(topic: topic) : null,
-                      icon: const Icon(Icons.auto_awesome_outlined),
-                      label: Text(topic.label),
+                if (!flexible)
+                  ExpansionTile(
+                    key: ValueKey('chat-knowledge-${chat.messages.isEmpty}'),
+                    initiallyExpanded: chat.messages.isEmpty,
+                    tilePadding: EdgeInsets.zero,
+                    title: Text(
+                      'Kiến thức chung từ AI',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    children: [
+                      const Text(
+                        'Gemini giải thích chủ đề chung. Nhật ký và nội dung tự nhập được xử lý trong HealthMate.',
+                      ),
+                      for (final topic in KnowledgeTopic.values.take(3))
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            key: ValueKey('chat-topic-${topic.name}'),
+                            onPressed: enabled
+                                ? () => _send(topic: topic)
+                                : null,
+                            icon: const Icon(Icons.auto_awesome_outlined),
+                            label: Text(topic.label),
+                          ),
+                        ),
+                      ExpansionTile(
+                        key: const ValueKey('chat-more-topics'),
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Đạm, chất xơ, khẩu phần và các chủ đề khác',
+                        ),
+                        children: [
+                          for (final topic in KnowledgeTopic.values.skip(3))
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                key: ValueKey('chat-topic-${topic.name}'),
+                                onPressed: enabled
+                                    ? () => _send(topic: topic)
+                                    : null,
+                                icon: const Icon(Icons.auto_awesome_outlined),
+                                label: Text(topic.label),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
                 const SizedBox(height: 12),
                 for (final message in chat.messages)
@@ -298,7 +431,7 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
                   ),
                 if (chat.full)
                   const Text(
-                    'Đã đủ 20 lượt. Nhấn nút cuộc trò chuyện mới để tiếp tục.',
+                    'Đã đủ ${ChatLimits.turnsPerSession} lượt. Nhấn nút cuộc trò chuyện mới để tiếp tục.',
                   ),
                 const SizedBox(height: 12),
               ],
@@ -330,15 +463,15 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
                     textInputAction: TextInputAction.send,
                     onSubmitted: enabled ? (_) => _send() : null,
                     decoration: const InputDecoration(
-                      labelText: 'Hỏi nhật ký',
-                      hintText: 'Hôm nay tôi ăn bao nhiêu kcal?',
+                      labelText: 'Nhắn HealthMate',
+                      hintText: 'Hỏi về nhật ký hoặc dinh dưỡng…',
                       counterText: '',
                     ),
                   ),
                 ),
                 IconButton(
                   key: const ValueKey('chat-send'),
-                  tooltip: 'Gửi câu hỏi nhật ký',
+                  tooltip: 'Gửi tin nhắn',
                   onPressed: enabled ? () => _send() : null,
                   icon: const Icon(Icons.send_rounded),
                 ),
@@ -385,7 +518,7 @@ class _Bubble extends StatelessWidget {
                   ? 'Bản tạm · chưa lưu'
                   : switch (source) {
                       ChatSource.journal => 'Từ nhật ký · tính tại ứng dụng',
-                      ChatSource.ai => 'AI · kiến thức chung',
+                      ChatSource.ai => 'AI · thông tin tham khảo',
                       ChatSource.help => 'HealthMate',
                     },
               style: Theme.of(context).textTheme.labelMedium,

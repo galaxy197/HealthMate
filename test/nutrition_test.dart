@@ -311,7 +311,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(FoodScannerDialog), findsOneWidget);
 
-    Navigator.of(tester.element(find.byType(FoodScannerDialog))).pop(
+    tester
+        .widget<FoodScannerDialog>(find.byType(FoodScannerDialog))
+        .onSelected!(
       const FoodScanChoice(query: 'cơm', food: FakeNutritionRepository.rice),
     );
     await tester.pumpAndSettle();

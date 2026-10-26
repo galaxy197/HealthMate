@@ -1,5 +1,6 @@
 import '../../food_library/models/food_library_models.dart';
 import '../../nutrition/models/nutrition_models.dart';
+import '../../nutrition/models/extra_nutrients.dart';
 
 class MealTemplate {
   MealTemplate({
@@ -56,11 +57,14 @@ class MealTemplate {
 
   Map<String, Object?> toData({int minimumSchemaVersion = 1}) {
     validate();
-    if (minimumSchemaVersion > 3) {
+    if (minimumSchemaVersion > 4) {
       throw const FormatException('Cần cập nhật ứng dụng để sửa bữa mẫu này.');
     }
     final version =
-        items.any((i) => i.hasFiberData) || minimumSchemaVersion >= 3
+        minimumSchemaVersion >= 4 ||
+            items.any((i) => i.nutrition.extraNutrients.isNotEmpty)
+        ? 4
+        : items.any((i) => i.hasFiberData) || minimumSchemaVersion >= 3
         ? 3
         : items.any((i) => i.needsExtendedSchema) || minimumSchemaVersion >= 2
         ? 2
@@ -75,31 +79,42 @@ class MealTemplate {
                     'fiberG',
                     'knownFiberG',
                     'fiberIncomplete',
+                    'nutrientVectorV1',
                   ].contains(entry.key) &&
-                  !(version == 3 && entry.key == 'grams') &&
-                  !(version == 3 &&
+                  !(version >= 3 && entry.key == 'grams') &&
+                  !(version >= 3 &&
                       entry.value == null &&
                       ['proteinG', 'carbsG', 'fatG'].contains(entry.key)))
                 entry.key: entry.value,
-            if (version == 3) ...{
+            if (version >= 3) ...{
               'quantity': item.quantity,
               'quantityUnit': item.quantityUnit,
             },
           },
       ],
-      if (version == 3) 'fiberValues': fiberValues,
-      if (version == 3 && fiberPartialMask > 0)
+      if (version >= 3) 'fiberValues': fiberValues,
+      if (version >= 3 && fiberPartialMask > 0)
         'fiberPartialMask': fiberPartialMask,
+      if (version == 4)
+        'nutrientVectorsV1': items
+            .map((i) => encodeExtraNutrients(i.nutrition.extraNutrients))
+            .join('|'),
       'schemaVersion': version,
     };
   }
 
   factory MealTemplate.fromData(String id, Map<String, dynamic> data) {
-    if (![1, 2, 3].contains(data['schemaVersion'])) {
+    if (![1, 2, 3, 4].contains(data['schemaVersion'])) {
       throw const FormatException('Phiên bản bữa mẫu không hợp lệ.');
     }
     final rawItems = data['items'] as List;
-    final fiber = data['schemaVersion'] == 3
+    final vectors = data['schemaVersion'] == 4
+        ? (data['nutrientVectorsV1'] as String).split('|')
+        : null;
+    if (vectors != null && vectors.length != rawItems.length) {
+      throw const FormatException('Thiếu dưỡng chất trong bữa mẫu.');
+    }
+    final fiber = (data['schemaVersion'] as int) >= 3
         ? data['fiberValues'] as List
         : null;
     final mask = data['fiberPartialMask'] ?? 0;
@@ -122,6 +137,7 @@ class MealTemplate {
     }
     MealItemSnapshot readItem(int index) {
       final row = Map<String, dynamic>.from(rawItems[index] as Map);
+      if (vectors != null) row['nutrientVectorV1'] = vectors[index];
       if (fiber != null) {
         final unit = row['quantityUnit'];
         row['grams'] = unit == 'g' ? row['quantity'] : null;

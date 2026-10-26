@@ -38,7 +38,7 @@ class PendingMetrics implements HealthProfileRepository {
   }
 }
 
-const userB = AuthUser(uid: 'user-b', email: 'b@example.com');
+const userB = AuthUser(emailVerified: true, uid: 'user-b', email: 'b@example.com');
 Future<void> tick() => Future<void>.delayed(Duration.zero);
 
 void main() {

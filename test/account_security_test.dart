@@ -126,6 +126,8 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.byKey(const ValueKey('delete-account')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('delete-account')));
     await tester.pumpAndSettle();
     expect(
@@ -164,6 +166,8 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.byKey(const ValueKey('delete-account')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('delete-account')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -197,6 +201,8 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.byKey(const ValueKey('delete-account')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('delete-account')));
     await tester.pumpAndSettle();
     await tester.enterText(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../models/nutrition_models.dart';
 import '../models/food_catalog_search.dart';
 import 'food_local_database.dart';
@@ -5,10 +6,7 @@ import 'usda_api_service.dart';
 
 /// Result with data source tracking for UI badges
 class FoodSearchResult {
-  const FoodSearchResult({
-    required this.food,
-    required this.source,
-  });
+  const FoodSearchResult({required this.food, required this.source});
 
   final FoodCatalogItem food;
   final FoodResultSource source;
@@ -54,18 +52,21 @@ class UnifiedFoodSearchService {
     final seenIds = <String>{};
 
     // Step 1: Search Firestore catalog (Vietnamese-aware)
-    final firestoreResults = searchFoodCatalog(firestoreCatalog, query)
-        .take(limit)
-        .toList();
+    final firestoreResults = searchFoodCatalog(
+      firestoreCatalog,
+      query,
+    ).take(limit).toList();
 
     for (final food in firestoreResults) {
       if (seenIds.add(food.id)) {
-        results.add(FoodSearchResult(
-          food: food,
-          source: food.dataSource == FoodDataSource.user
-              ? FoodResultSource.user
-              : FoodResultSource.firestore,
-        ));
+        results.add(
+          FoodSearchResult(
+            food: food,
+            source: food.dataSource == FoodDataSource.user
+                ? FoodResultSource.user
+                : FoodResultSource.firestore,
+          ),
+        );
       }
     }
 
@@ -83,15 +84,14 @@ class UnifiedFoodSearchService {
 
       for (final food in cacheResults) {
         if (seenIds.add(food.id)) {
-          results.add(FoodSearchResult(
-            food: food,
-            source: FoodResultSource.cache,
-          ));
+          results.add(
+            FoodSearchResult(food: food, source: FoodResultSource.cache),
+          );
         }
       }
-    } catch (e) {
+    } catch (_) {
       // Cache failure shouldn't block search
-      print('SQLite cache search failed: $e');
+      if (kDebugMode) debugPrint('HM_FOOD_SEARCH cache-read failed');
     }
 
     // Early return if we have enough results
@@ -113,10 +113,9 @@ class UnifiedFoodSearchService {
         // Get detailed nutrition info
         final food = await usdaService.getFoodDetail(result.fdcId);
         if (food != null && seenIds.add(food.id)) {
-          results.add(FoodSearchResult(
-            food: food,
-            source: FoodResultSource.usdaApi,
-          ));
+          results.add(
+            FoodSearchResult(food: food, source: FoodResultSource.usdaApi),
+          );
           foodsToCache.add(food);
         }
       }
@@ -125,9 +124,9 @@ class UnifiedFoodSearchService {
       if (foodsToCache.isNotEmpty) {
         await localDatabase.cacheFoodsBatch(foodsToCache);
       }
-    } catch (e) {
+    } catch (_) {
       // API failure shouldn't crash the app
-      print('USDA API search failed: $e');
+      if (kDebugMode) debugPrint('HM_FOOD_SEARCH provider failed');
     }
 
     return results.take(limit).toList();
@@ -139,9 +138,7 @@ class UnifiedFoodSearchService {
     required List<FoodCatalogItem> firestoreCatalog,
   }) async {
     // Try Firestore first
-    final firestoreFood = firestoreCatalog
-        .where((f) => f.id == id)
-        .firstOrNull;
+    final firestoreFood = firestoreCatalog.where((f) => f.id == id).firstOrNull;
     if (firestoreFood != null) return firestoreFood;
 
     // Try SQLite cache
@@ -168,8 +165,8 @@ class UnifiedFoodSearchService {
   Future<void> markFoodUsed(String foodId) async {
     try {
       await localDatabase.markFoodUsed(foodId);
-    } catch (e) {
-      print('Failed to mark food as used: $e');
+    } catch (_) {
+      if (kDebugMode) debugPrint('HM_FOOD_SEARCH recent-write failed');
     }
   }
 
@@ -177,8 +174,8 @@ class UnifiedFoodSearchService {
   Future<List<FoodCatalogItem>> getRecentFoods({int limit = 20}) async {
     try {
       return await localDatabase.getRecentFoods(limit: limit);
-    } catch (e) {
-      print('Failed to get recent foods: $e');
+    } catch (_) {
+      if (kDebugMode) debugPrint('HM_FOOD_SEARCH recent-read failed');
       return [];
     }
   }
@@ -187,8 +184,8 @@ class UnifiedFoodSearchService {
   Future<void> cleanOldCache() async {
     try {
       await localDatabase.cleanOldCache();
-    } catch (e) {
-      print('Failed to clean old cache: $e');
+    } catch (_) {
+      if (kDebugMode) debugPrint('HM_FOOD_SEARCH cache-clean failed');
     }
   }
 
@@ -196,8 +193,8 @@ class UnifiedFoodSearchService {
   Future<Map<String, int>> getCacheStats() async {
     try {
       return await localDatabase.getCacheStats();
-    } catch (e) {
-      print('Failed to get cache stats: $e');
+    } catch (_) {
+      if (kDebugMode) debugPrint('HM_FOOD_SEARCH cache-stats failed');
       return {'total': 0, 'usda': 0, 'local': 0, 'user': 0};
     }
   }

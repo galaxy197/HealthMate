@@ -50,6 +50,8 @@ void main() {
       findsOneWidget,
     );
 
+    await tester.ensureVisible(find.byKey(const ValueKey('edit-profile')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('edit-profile')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -78,7 +80,7 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
 
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -350));
+    await tester.ensureVisible(find.byKey(const ValueKey('add-metric')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add-metric')));
     await tester.pumpAndSettle();

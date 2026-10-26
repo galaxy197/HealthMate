@@ -10,10 +10,14 @@ import '../models/account_action_failure.dart';
 import '../models/auth_failure.dart';
 import '../models/auth_user.dart';
 import '../../meal_drafts/data/meal_draft_store.dart';
+import 'package:flutter/services.dart';
+import '../../wellness/providers/wellness_providers.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => FirebaseAuthRepository(FirebaseAuth.instance),
 );
+
+final authClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
 final accountDataRepositoryProvider = Provider<AccountDataRepository>(
   (ref) => FirebaseAccountDataRepository(FirebaseFirestore.instance),
@@ -54,8 +58,25 @@ class AuthController extends Notifier<AsyncValue<void>> {
             .register(email: email.trim(), password: password),
       );
 
-  Future<void> signOut() =>
-      _perform(() => ref.read(authRepositoryProvider).signOut());
+  Future<void> signInWithGoogle() =>
+      _perform(() => ref.read(authRepositoryProvider).signInWithGoogle());
+
+  Future<void> signOut() => _perform(() async {
+    final device = ref.read(wellnessDeviceProvider);
+    if (device.supported) {
+      try {
+        await device.setAccount(null);
+      } on MissingPluginException {
+        /* No native feature on this platform. */
+      }
+    }
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+    } catch (_) {
+      ref.invalidate(localWellnessProvider);
+      rethrow;
+    }
+  });
 
   Future<void> _perform(Future<void> Function() operation) async {
     if (state.isLoading) return;
@@ -76,6 +97,16 @@ class AuthController extends Notifier<AsyncValue<void>> {
 
 class AccountSecurityController extends Notifier<AsyncValue<void>> {
   int _generation = 0;
+  DateTime? _nextResetAt;
+  int get resetCooldownSeconds {
+    final ms =
+        _nextResetAt
+            ?.difference(ref.read(authClockProvider)())
+            .inMilliseconds ??
+        0;
+    return ms > 0 ? (ms / 1000).ceil() : 0;
+  }
+
   @override
   AsyncValue<void> build() {
     ref.watch(authSessionProvider.select((s) => s.value?.uid));
@@ -93,21 +124,32 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
   }
 
   Future<bool> sendPasswordResetEmail(String email) async {
-    if (state.isLoading) return false;
+    if (state.isLoading || resetCooldownSeconds > 0) return false;
     final generation = _generation;
     final uid = ref.read(authSessionProvider).value?.uid;
     state = const AsyncLoading();
     try {
       await ref.read(authRepositoryProvider).sendPasswordResetEmail(email);
       if (!_current(generation, uid)) return false;
+      _nextResetAt = ref
+          .read(authClockProvider)()
+          .add(const Duration(seconds: 60));
       state = const AsyncData(null);
       return true;
     } on AuthFailure catch (error, stack) {
       if (!_current(generation, uid)) return false;
       // Do not reveal whether an email is registered.
       if (error.code == 'user-not-found') {
+        _nextResetAt = ref
+            .read(authClockProvider)()
+            .add(const Duration(seconds: 60));
         state = const AsyncData(null);
         return true;
+      }
+      if (error.code == 'too-many-requests') {
+        _nextResetAt = ref
+            .read(authClockProvider)()
+            .add(const Duration(seconds: 60));
       }
       state = AsyncError(error, stack);
       return false;
@@ -124,7 +166,10 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
     required String newPassword,
   }) async {
     final uid = ref.read(authSessionProvider).value?.uid;
-    if (uid == null) return false;
+    if (uid == null ||
+        ref.read(authSessionProvider).value?.hasPassword != true) {
+      return false;
+    }
     return _perform((current) async {
       final repository = ref.read(authRepositoryProvider);
       await _reauthenticate(repository, currentPassword, uid);
@@ -180,6 +225,19 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
       try {
         // Repository also checks the SDK's current UID, even before the auth
         // stream has delivered a changed session to Riverpod.
+        final device = ref.read(wellnessDeviceProvider);
+        if (device.supported) {
+          try {
+            await device.clearAccount(user.uid);
+          } on MissingPluginException {
+            /* No native state. */
+          } catch (_) {
+            throw const AccountActionFailure(
+              'Dữ liệu máy chủ đã xóa nhưng chưa dọn xong dữ liệu theo dõi trên máy. Tài khoản được giữ để thử lại.',
+              dataMayBeDeleted: true,
+            );
+          }
+        }
         await repository.deleteCurrentUser(expectedUid: user.uid);
       } on AuthFailure {
         throw const AccountActionFailure(
@@ -222,7 +280,17 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
     String uid,
   ) async {
     try {
-      await repository.reauthenticateWithPassword(password, expectedUid: uid);
+      final user = ref.read(authSessionProvider).value;
+      if (user?.uid != uid) throw AuthFailure.fromCode('user-mismatch');
+      if (user!.hasPassword) {
+        await repository.reauthenticateWithPassword(password, expectedUid: uid);
+      } else if (user.providerIds.contains('google.com')) {
+        await repository.reauthenticateWithGoogle(expectedUid: uid);
+      } else {
+        throw const AccountActionFailure(
+          'Cách đăng nhập này chưa hỗ trợ xác thực lại.',
+        );
+      }
     } on AuthFailure catch (error) {
       if (const {
         'wrong-password',

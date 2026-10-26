@@ -28,6 +28,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  camera: 0.12.0+2
   cloud_firestore: ^6.10.0
   cupertino_icons: ^2.0.0
   firebase_ai: ^4.0.0
@@ -41,6 +42,8 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^3.4.3
   go_router: ^18.0.2
+  google_sign_in: 7.2.0
+  http: ^1.6.0
   image_picker: ^1.2.4
   intl: ^0.20.2
   mime: ^2.1.0
@@ -50,8 +53,6 @@ dependencies:
   sqflite: ^2.4.4+2
 
 dev_dependencies:
-  # Test-only transport diagnostics for the bounded Android AI probe.
-  http: ^1.6.0
   # Register real web SDK implementations in the opt-in emulator test harness.
   cloud_firestore_web: ^5.7.3
   firebase_auth_web: ^6.3.0
@@ -80,6 +81,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/branding/google_g.png
+    - assets/nutrition/vietnamese-foods.json
 
   fonts:
     - family: BeVietnamPro

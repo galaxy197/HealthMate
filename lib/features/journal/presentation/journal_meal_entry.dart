@@ -22,11 +22,13 @@ Future<void> openJournalMealForm(
   List<FoodCatalogItem> catalog, {
   MealLog? meal,
   FoodCatalogItem? suggestedFood,
+  double suggestedGrams = 100,
   String initialSearch = '',
   bool aiAssisted = false,
   DateTime? initialConsumedAt,
   MealLog? duplicateFrom,
   MealType? initialType,
+  MealEntryMode initialEntryMode = MealEntryMode.manual,
 }) async {
   final uid = ref.read(authSessionProvider).value?.uid;
   if (uid == null) return;
@@ -95,6 +97,7 @@ Future<void> openJournalMealForm(
     barrierDismissible: false,
     builder: (_) => AccountBoundDialog(
       child: MealFormDialog(
+        initialEntryMode: initialEntryMode,
         initialDraft: restored?.draft,
         onDraftChanged: localSupported ? keep : null,
         onDiscardDraft: localSupported
@@ -131,6 +134,7 @@ Future<void> openJournalMealForm(
         initialType: copy?.type ?? initialType,
         initialItems: copy?.items ?? const [],
         suggestedFood: suggestedFood,
+        suggestedGrams: suggestedGrams,
         initialSearch: initialSearch,
         aiAssisted: aiAssisted || copy?.source == MealSource.aiAssisted,
         onSave: (draft) async {

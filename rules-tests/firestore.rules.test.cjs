@@ -26,9 +26,27 @@ const {
 } = require('firebase/firestore');
 
 let environment;
+// Existing business-rule cases represent users whose email is verified.
+const verifiedContext = (uid, claims={}) => environment.authenticatedContext(uid,{email_verified:true,...claims});
+
+test('unverified and missing email claims cannot read/write private data or catalog; verified owner can',async()=>{
+  await environment.withSecurityRulesDisabled(async c=>{
+    const d=c.firestore();await setDoc(doc(d,'users/alice'),{displayName:'Private profile'});
+    await setDoc(doc(d,'users/alice/meal_logs/private'),{totalKcal:100});
+    await setDoc(doc(d,'food_catalog/rice'),{name:'Rice'});
+  });
+  for(const claims of [{email_verified:false},{}]) {
+    const a=environment.authenticatedContext('alice',claims).firestore();
+    for(const p of ['users/alice','users/alice/meal_logs/private','food_catalog/rice','app_config/runtime']) await assertFails(getDoc(doc(a,p)));
+    await assertFails(setDoc(doc(a,'users/alice'),profileData()));
+    await assertFails(deleteDoc(doc(a,'users/alice/meal_logs/private')));
+  }
+  await assertSucceeds(getDoc(doc(verifiedContext('alice').firestore(),'users/alice/meal_logs/private')));
+  await assertFails(getDoc(doc(verifiedContext('bob').firestore(),'users/alice/meal_logs/private')));
+});
 
 test('H6 optional fiber keeps known zero, partial subtotals, five/six rows and rejects downgrade',async()=>{
-  const a=environment.authenticatedContext('alice').firestore(),b=environment.authenticatedContext('bob').firestore();
+  const a=verifiedContext('alice').firestore(),b=verifiedContext('bob').firestore();
   const full={...mealItem(),fiberG:2.4},partial={...mealItem(),fiberG:1.2,fiberIncomplete:true};
   const m=doc(a,'users/alice/meal_logs/h6'),data={...mealData(Array(5).fill(full)),schemaVersion:4};
   await assertSucceeds(setDoc(m,data));console.log('H6 full five created');await assertSucceeds(updateDoc(m,{items:[partial,full,full,full,full],updatedAt:serverTimestamp()}));
@@ -61,7 +79,7 @@ test('H6 optional fiber keeps known zero, partial subtotals, five/six rows and r
 });
 
 test('H5 day reviews are owner-only, validated, immutable-createdAt and bounded by local date',async()=>{
-  const a=environment.authenticatedContext('alice').firestore(),b=environment.authenticatedContext('bob').firestore(),g=environment.unauthenticatedContext().firestore();
+  const a=verifiedContext('alice').firestore(),b=verifiedContext('bob').firestore(),g=environment.unauthenticatedContext().firestore();
   const key='2026-01-01',ref=doc(a,`users/alice/day_reviews/${key}`);
   const d={dateKey:key,mealsComplete:true,mealCount:0,latestMealUpdate:null,timezoneOffsetMinutes:420,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),schemaVersion:1};
   await assertSucceeds(setDoc(ref,d));await assertSucceeds(getDocs(query(collection(a,'users/alice/day_reviews'),orderBy('dateKey'),limit(91))));
@@ -74,7 +92,7 @@ test('H5 day reviews are owner-only, validated, immutable-createdAt and bounded 
 });
 
 test('H3 calorie-only and non-mass meals keep null macros; five snapshots and templates remain bounded', async()=>{
-  const alice=environment.authenticatedContext('alice').firestore(),bob=environment.authenticatedContext('bob').firestore();
+  const alice=verifiedContext('alice').firestore(),bob=verifiedContext('bob').firestore();
   const quick={...mealItem(),grams:null,quantityUnit:'entry',quantity:1,kcal:250,proteinG:null,carbsG:null,fatG:null};
   const data={...mealData([quick]),totalProteinG:null,totalCarbsG:null,totalFatG:null,schemaVersion:3};
   await assertSucceeds(setDoc(doc(alice,'users/alice/meal_logs/h3'),data));
@@ -101,8 +119,8 @@ test('H3 calorie-only and non-mass meals keep null macros; five snapshots and te
 });
 
 test('H2 templates enforce owner CRUD, immutable timestamps, five bounded snapshots and no source dependency', async () => {
-  const alice=environment.authenticatedContext('alice').firestore();
-  const bob=environment.authenticatedContext('bob').firestore();
+  const alice=verifiedContext('alice').firestore();
+  const bob=verifiedContext('bob').firestore();
   const guest=environment.unauthenticatedContext().firestore();
   const path='users/alice/meal_templates/h2';
   const template=(items=[mealItem()])=>({name:'Bữa mẫu QA H2',items,schemaVersion:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
@@ -166,7 +184,7 @@ async function saveChatTurn(db, uid, sessionId, turnId, overrides = {}, assistan
 }
 
 test('chat owner can atomically save, read ordered history, retry idempotently and delete children', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
+  const alice = verifiedContext('alice').firestore();
   const turn = 'a'.repeat(20);
   await assertSucceeds(saveChatTurn(alice, 'alice', 'session1', turn));
   await assertSucceeds(saveChatTurn(alice, 'alice', 'session1', turn));
@@ -184,8 +202,8 @@ test('chat owner can atomically save, read ordered history, retry idempotently a
 });
 
 test('chat denies cross-UID and unauthenticated session/message reads, writes and deletes', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
-  const bob = environment.authenticatedContext('bob').firestore();
+  const alice = verifiedContext('alice').firestore();
+  const bob = verifiedContext('bob').firestore();
   const guest = environment.unauthenticatedContext().firestore();
   const turn = 'a'.repeat(20);
   await assertSucceeds(saveChatTurn(alice, 'alice', 'session1', turn));
@@ -203,7 +221,7 @@ test('chat denies cross-UID and unauthenticated session/message reads, writes an
 });
 
 test('chat rejects unpaired, oversized, unknown-role/source/schema messages and invalid counters', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
+  const alice = verifiedContext('alice').firestore();
   const turn = 'a'.repeat(20);
   const parent = doc(alice, 'users/alice/chat_sessions/session1');
   await assertFails(setDoc(parent, { title: 'orphan', messageCount: 2,
@@ -223,14 +241,14 @@ test('chat rejects unpaired, oversized, unknown-role/source/schema messages and 
   await assertFails(batch.commit());
 });
 
-test('chat enforces maximum 20 turns even with a direct client', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
-  for (let index = 0; index < 20; index++) {
+test('chat allows 50 turns including old sessions and rejects turn 51 for a direct client', async () => {
+  const alice = verifiedContext('alice').firestore();
+  for (let index = 0; index < 50; index++) {
     await assertSucceeds(saveChatTurn(alice, 'alice', 'session1', String(index).padStart(20, '0')));
   }
   await assertFails(saveChatTurn(alice, 'alice', 'session1', 'z'.repeat(20)));
   const data = await getDoc(doc(alice, 'users/alice/chat_sessions/session1'));
-  if (data.data().messageCount !== 40) throw new Error('Invalid session size');
+  if (data.data().messageCount !== 100) throw new Error('Invalid session size');
 });
 
 const metricData = () => ({
@@ -291,7 +309,7 @@ const activityData = () => ({
 });
 
 test('audit: date keys must match the timestamp in the recorded timezone, including midnight and leap day', async () => {
-  const db = environment.authenticatedContext('alice').firestore();
+  const db = verifiedContext('alice').firestore();
   const fixtures = [
     ['meal_logs', mealData(), 'consumedAt'],
     ['water_logs', waterData(), 'consumedAt'],
@@ -314,7 +332,7 @@ test('audit: date keys must match the timestamp in the recorded timezone, includ
 });
 
 test('audit: unknown paths, collection-group access and privilege injection cannot bypass ownership', async () => {
-  const db = environment.authenticatedContext('alice', { email: 'alice@example.com' }).firestore();
+  const db = verifiedContext('alice', { email: 'alice@example.com' }).firestore();
   const guest = environment.unauthenticatedContext().firestore();
   for (const path of ['admin/config', 'secrets/keys', 'users/bob/future/data']) {
     await assertFails(getDoc(doc(db, path)));
@@ -329,13 +347,14 @@ test('audit: unknown paths, collection-group access and privilege injection cann
 });
 
 before(async () => {
+  const [emulatorHost, emulatorPort] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
   environment = await initializeTestEnvironment({
     projectId: 'demo-healthmate-rules',
     firestore: {
-      host: '127.0.0.1',
-      port: 8080,
+      host: emulatorHost,
+      port: Number(emulatorPort),
       rules: fs.readFileSync(
-        path.join(__dirname, '..', 'firestore.rules'),
+        process.env.HEALTHMATE_RULES_FILE || path.join(__dirname, '..', 'firestore.rules'),
         'utf8',
       ),
     },
@@ -346,7 +365,7 @@ beforeEach(async () => environment.clearFirestore());
 after(async () => environment.cleanup());
 
 test('owner can create, read, update and delete their profile', async () => {
-  const alice = environment.authenticatedContext('alice', {
+  const alice = verifiedContext('alice', {
     email: 'alice@example.com',
   });
   const reference = doc(alice.firestore(), 'users/alice');
@@ -366,7 +385,7 @@ test('owner can create, read, update and delete their profile', async () => {
 });
 
 test('owner can complete onboarding only with valid required data', async () => {
-  const alice = environment.authenticatedContext('alice', {
+  const alice = verifiedContext('alice', {
     email: 'alice@example.com',
   });
   const reference = doc(alice.firestore(), 'users/alice');
@@ -403,17 +422,19 @@ test('owner can complete onboarding only with valid required data', async () => 
   );
   await assertFails(
     updateDoc(reference, {
-      onboardingCompletedAt: serverTimestamp(),
+      // A fresh serverTimestamp can equal the original in a fast emulator run.
+      // Use a guaranteed different value to test marker immutability.
+      onboardingCompletedAt: Timestamp.fromMillis(1),
       updatedAt: serverTimestamp(),
     }),
   );
 });
 
 test('other users and anonymous clients cannot access a profile', async () => {
-  const alice = environment.authenticatedContext('alice', {
+  const alice = verifiedContext('alice', {
     email: 'alice@example.com',
   });
-  const bob = environment.authenticatedContext('bob', {
+  const bob = verifiedContext('bob', {
     email: 'bob@example.com',
   });
   const anonymous = environment.unauthenticatedContext();
@@ -443,8 +464,8 @@ test('only the owner can delete nested private account data', async () => {
       { text: 'private' },
     );
   });
-  const alice = environment.authenticatedContext('alice');
-  const bob = environment.authenticatedContext('bob');
+  const alice = verifiedContext('alice');
+  const bob = verifiedContext('bob');
   const goalPath = 'users/alice/goals/goal-1';
   const messagePath =
     'users/alice/chat_sessions/session-1/messages/message-1';
@@ -458,7 +479,7 @@ test('only the owner can delete nested private account data', async () => {
 });
 
 test('profile schema rejects extra fields, bad email and invalid height', async () => {
-  const alice = environment.authenticatedContext('alice', {
+  const alice = verifiedContext('alice', {
     email: 'alice@example.com',
   });
   const db = alice.firestore();
@@ -475,7 +496,7 @@ test('profile schema rejects extra fields, bad email and invalid height', async 
 });
 
 test('owner can create, list, update and delete valid body metrics', async () => {
-  const alice = environment.authenticatedContext('alice', {
+  const alice = verifiedContext('alice', {
     email: 'alice@example.com',
   });
   const db = alice.firestore();
@@ -496,10 +517,10 @@ test('owner can create, list, update and delete valid body metrics', async () =>
 });
 
 test('body metric rules block cross-UID and invalid writes', async () => {
-  const alice = environment.authenticatedContext('alice', {
+  const alice = verifiedContext('alice', {
     email: 'alice@example.com',
   });
-  const bob = environment.authenticatedContext('bob', {
+  const bob = verifiedContext('bob', {
     email: 'bob@example.com',
   });
   const aliceReference = doc(
@@ -531,7 +552,7 @@ test('signed-in users can read catalog but clients cannot write it', async () =>
       name: 'Cơm trắng chín',
     });
   });
-  const alice = environment.authenticatedContext('alice');
+  const alice = verifiedContext('alice');
   const anonymous = environment.unauthenticatedContext();
   await assertSucceeds(getDoc(doc(alice.firestore(), 'food_catalog/rice-cooked')));
   await assertFails(getDoc(doc(anonymous.firestore(), 'food_catalog/rice-cooked')));
@@ -541,7 +562,7 @@ test('signed-in users can read catalog but clients cannot write it', async () =>
 });
 
 test('owner can create, list, update and delete a valid meal log', async () => {
-  const alice = environment.authenticatedContext('alice');
+  const alice = verifiedContext('alice');
   const db = alice.firestore();
   const reference = doc(db, 'users/alice/meal_logs/meal-1');
   await assertSucceeds(setDoc(reference, mealData()));
@@ -557,7 +578,7 @@ test('owner can create, list, update and delete a valid meal log', async () => {
 });
 
 test('meal rules accept exactly one and five valid items', async () => {
-  const alice = environment.authenticatedContext('alice');
+  const alice = verifiedContext('alice');
   const db = alice.firestore();
   await assertSucceeds(
     setDoc(doc(db, 'users/alice/meal_logs/one-item'), mealData()),
@@ -571,7 +592,7 @@ test('meal rules accept exactly one and five valid items', async () => {
 });
 
 test('meal rules reject empty and oversized item lists', async () => {
-  const alice = environment.authenticatedContext('alice');
+  const alice = verifiedContext('alice');
   const db = alice.firestore();
   await assertFails(
     setDoc(doc(db, 'users/alice/meal_logs/empty'), mealData([])),
@@ -585,7 +606,7 @@ test('meal rules reject empty and oversized item lists', async () => {
 });
 
 test('meal rules reject wrong item types and extra fields', async () => {
-  const alice = environment.authenticatedContext('alice');
+  const alice = verifiedContext('alice');
   const db = alice.firestore();
   await assertFails(
     setDoc(
@@ -603,7 +624,7 @@ test('meal rules reject wrong item types and extra fields', async () => {
 
 for (let invalidIndex = 0; invalidIndex < 5; invalidIndex += 1) {
   test(`meal rules reject an invalid item at position ${invalidIndex}`, async () => {
-    const alice = environment.authenticatedContext('alice');
+    const alice = verifiedContext('alice');
     const items = Array.from({ length: 5 }, () => mealItem());
     items[invalidIndex] = mealItem({ grams: 0 });
     await assertFails(
@@ -619,8 +640,8 @@ for (let invalidIndex = 0; invalidIndex < 5; invalidIndex += 1) {
 }
 
 test('meal rules block cross-UID, invalid fields and createdAt changes', async () => {
-  const alice = environment.authenticatedContext('alice');
-  const bob = environment.authenticatedContext('bob');
+  const alice = verifiedContext('alice');
+  const bob = verifiedContext('bob');
   const reference = doc(alice.firestore(), 'users/alice/meal_logs/meal-1');
   await assertSucceeds(setDoc(reference, mealData()));
   await assertFails(getDoc(doc(bob.firestore(), 'users/alice/meal_logs/meal-1')));
@@ -637,7 +658,7 @@ test('meal rules block cross-UID, invalid fields and createdAt changes', async (
 });
 
 test('meal date metadata is required and legacy meals can be upgraded on edit', async () => {
-  const alice = environment.authenticatedContext('alice');
+  const alice = verifiedContext('alice');
   const db = alice.firestore();
   const missingDateKey = mealData();
   delete missingDateKey.dateKey;
@@ -672,8 +693,8 @@ test('meal date metadata is required and legacy meals can be upgraded on edit', 
 });
 
 test('owner can CRUD water logs while invalid and cross-UID access is blocked', async () => {
-  const alice = environment.authenticatedContext('alice');
-  const bob = environment.authenticatedContext('bob');
+  const alice = verifiedContext('alice');
+  const bob = verifiedContext('bob');
   const reference = doc(alice.firestore(), 'users/alice/water_logs/water-1');
 
   await assertSucceeds(setDoc(reference, waterData()));
@@ -698,8 +719,8 @@ test('owner can CRUD water logs while invalid and cross-UID access is blocked', 
 });
 
 test('owner can CRUD activity logs while invalid and cross-UID access is blocked', async () => {
-  const alice = environment.authenticatedContext('alice');
-  const bob = environment.authenticatedContext('bob');
+  const alice = verifiedContext('alice');
+  const bob = verifiedContext('bob');
   const reference = doc(alice.firestore(), 'users/alice/activity_logs/activity-1');
 
   await assertSucceeds(setDoc(reference, activityData()));
@@ -738,8 +759,8 @@ const questData = (dateKey = '2026-10-16') => ({
 });
 
 test('goals CRUD preserves schema, unit, baseline, timestamps and ownership', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
-  const bob = environment.authenticatedContext('bob').firestore();
+  const alice = verifiedContext('alice').firestore();
+  const bob = verifiedContext('bob').firestore();
   const guest = environment.unauthenticatedContext().firestore();
   const path = 'users/alice/goals/water';
   const ref = doc(alice, path);
@@ -774,8 +795,8 @@ test('goals CRUD preserves schema, unit, baseline, timestamps and ownership', as
 });
 
 test('quests reject cross-UID access and illegal content or status transitions', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
-  const bob = environment.authenticatedContext('bob').firestore();
+  const alice = verifiedContext('alice').firestore();
+  const bob = verifiedContext('bob').firestore();
   const guest = environment.unauthenticatedContext().firestore();
   const path = 'users/alice/daily_quests/2026-10-16';
   const ref = doc(alice, path);
@@ -804,7 +825,7 @@ test('quests reject cross-UID access and illegal content or status transitions',
 });
 
 test('create-if-absent transactions do not duplicate or overwrite a finished daily quest', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
+  const alice = verifiedContext('alice').firestore();
   const ref = doc(alice, 'users/alice/daily_quests/2026-10-16');
   const ensure = () => runTransaction(alice, async (tx) => {
     const snapshot = await tx.get(ref);
@@ -847,7 +868,7 @@ test('weekly range queries keep local date boundaries, legacy meals and UID isol
       await setDoc(doc(db, `users/alice/body_metrics/${id}`), { ...metricData(), measuredAt });
     }
   });
-  const alice = environment.authenticatedContext('alice').firestore();
+  const alice = verifiedContext('alice').firestore();
   const mealCollection = collection(alice, 'users/alice/meal_logs');
   const modern = await assertSucceeds(getDocs(query(mealCollection,
     where('dateKey', '>=', '2026-10-12'), where('dateKey', '<', '2026-10-19'))));
@@ -865,7 +886,7 @@ test('weekly range queries keep local date boundaries, legacy meals and UID isol
     const snapshot = await assertSucceeds(getDocs(q));
     if (snapshot.size !== 1 || snapshot.docs[0].id !== 'start') throw new Error('Range boundary failed');
   }
-  const bob = environment.authenticatedContext('bob').firestore();
+  const bob = verifiedContext('bob').firestore();
   const metrics = collection(alice, 'users/alice/body_metrics');
   const metricRange = await assertSucceeds(getDocs(query(metrics,
     where('measuredAt', '>=', start), where('measuredAt', '<', end))));
@@ -888,7 +909,7 @@ const targetData = (key = '2026-10-17') => ({
 });
 
 test('nutrition targets owner create/update/read/query use stable date ID and immutable createdAt', async () => {
-  const db = environment.authenticatedContext('alice').firestore();
+  const db = verifiedContext('alice').firestore();
   const ref = doc(db, 'users/alice/nutrition_targets/2026-10-17');
   await assertSucceeds(setDoc(ref, targetData()));
   const createdAt = (await getDoc(ref)).data().createdAt;
@@ -901,9 +922,9 @@ test('nutrition targets owner create/update/read/query use stable date ID and im
 });
 
 test('nutrition targets reject guests and another UID on document and collection paths', async () => {
-  const alice = environment.authenticatedContext('alice').firestore();
+  const alice = verifiedContext('alice').firestore();
   await setDoc(doc(alice,'users/alice/nutrition_targets/2026-10-17'),targetData());
-  for (const db of [environment.authenticatedContext('bob').firestore(), environment.unauthenticatedContext().firestore()]) {
+  for (const db of [verifiedContext('bob').firestore(), environment.unauthenticatedContext().firestore()]) {
     const ref = doc(db,'users/alice/nutrition_targets/2026-10-17');
     await assertFails(getDoc(ref));
     await assertFails(getDocs(collection(db,'users/alice/nutrition_targets')));
@@ -915,7 +936,7 @@ test('nutrition targets reject guests and another UID on document and collection
 });
 
 test('nutrition targets reject bad schema, dates, ranges, partial macros and non-finite numbers', async () => {
-  const db = environment.authenticatedContext('alice').firestore();
+  const db = verifiedContext('alice').firestore();
   const ref = doc(db,'users/alice/nutrition_targets/2026-10-17');
   for (const patch of [
     {kcalTarget:0}, {kcalTarget:-1}, {kcalTarget:20001}, {kcalTarget:NaN}, {kcalTarget:Infinity}, {kcalTarget:'1800'},
@@ -931,7 +952,7 @@ test('nutrition targets reject bad schema, dates, ranges, partial macros and non
 });
 
 test('nutrition target updates cannot smuggle invalid fields and upper technical bounds are accepted', async () => {
-  const db = environment.authenticatedContext('alice').firestore();
+  const db = verifiedContext('alice').firestore();
   const ref = doc(db,'users/alice/nutrition_targets/2026-10-17');
   await assertSucceeds(setDoc(ref,{...targetData(),kcalTarget:20000,proteinGTarget:5000,carbsGTarget:5000,fatGTarget:5000}));
   for (const patch of [{kcalTarget:Infinity}, {effectiveFromDateKey:'2026-10-18'}, {fatGTarget:null}, {injected:true}]) {
@@ -948,7 +969,7 @@ const favoriteData = () => ({sourceKind:'catalog',sourceId:'c3-rice',createdAt:s
 
 test('favorite catalog references support owner CRUD and stable ID with immutable timestamps',async()=>{
   await seedFavoriteCatalog();
-  const db=environment.authenticatedContext('alice').firestore();
+  const db=verifiedContext('alice').firestore();
   const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
   await assertSucceeds(setDoc(ref,favoriteData()));
   const before=(await getDoc(ref)).data();
@@ -961,9 +982,9 @@ test('favorite catalog references support owner CRUD and stable ID with immutabl
 
 test('favorites block unauthenticated and cross UID document/collection/query/write/delete access',async()=>{
   await seedFavoriteCatalog();
-  const alice=environment.authenticatedContext('alice').firestore();
+  const alice=verifiedContext('alice').firestore();
   await setDoc(doc(alice,'users/alice/favorite_foods/catalog_c3-rice'),favoriteData());
-  for(const db of [environment.authenticatedContext('bob').firestore(),environment.unauthenticatedContext().firestore()]){
+  for(const db of [verifiedContext('bob').firestore(),environment.unauthenticatedContext().firestore()]){
     const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
     await assertFails(getDoc(ref)); await assertFails(getDocs(collection(db,'users/alice/favorite_foods')));
     await assertFails(getDocs(query(collection(db,'users/alice/favorite_foods'),orderBy('createdAt','desc'),limit(40))));
@@ -973,7 +994,7 @@ test('favorites block unauthenticated and cross UID document/collection/query/wr
 
 test('favorites reject missing catalog, mismatched source identity and bad schema',async()=>{
   await seedFavoriteCatalog();
-  const db=environment.authenticatedContext('alice').firestore();
+  const db=verifiedContext('alice').firestore();
   const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
   for(const patch of [{sourceKind:'custom'},{sourceKind:'recipe'},{sourceId:'bad/food'},{sourceId:''},{sourceId:'x'.repeat(101)},
     {schemaVersion:2},{createdAt:Timestamp.fromMillis(1)},{updatedAt:Timestamp.fromMillis(1)},{kcal:0}]){
@@ -986,7 +1007,7 @@ test('favorites reject missing catalog, mismatched source identity and bad schem
 
 test('favorites remain removable after catalog deletion without granting catalog writes',async()=>{
   await seedFavoriteCatalog();
-  const db=environment.authenticatedContext('alice').firestore();
+  const db=verifiedContext('alice').firestore();
   const ref=doc(db,'users/alice/favorite_foods/catalog_c3-rice');
   await setDoc(ref,favoriteData());
   await assertFails(deleteDoc(doc(db,'food_catalog/c3-rice')));
@@ -998,7 +1019,7 @@ const personalFoodData = (patch={})=>({name:'Món cá nhân fixture',alternateNa
 const recipeData = (patch={})=>({name:'Công thức fixture',ingredients:Array.from({length:6},()=>mealItem()),yieldGrams:600,servingsCount:2.5,sourceLabel:'Emulator fixture',isEstimated:true,schemaVersion:1,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),...patch});
 for(const [name,fixture] of [['custom_foods',personalFoodData],['recipes',recipeData]]) {
   test(`C4 ${name} owner CRUD maximum payload and immutable createdAt`,async()=>{
-    const db=environment.authenticatedContext('alice').firestore(); const ref=doc(db,`users/alice/${name}/c4-test`);
+    const db=verifiedContext('alice').firestore(); const ref=doc(db,`users/alice/${name}/c4-test`);
     await assertSucceeds(setDoc(ref,fixture()));
     const first=await assertSucceeds(getDoc(ref));
     await assertSucceeds(getDocs(query(collection(db,`users/alice/${name}`),orderBy('createdAt','desc'),limit(40))));
@@ -1009,8 +1030,8 @@ for(const [name,fixture] of [['custom_foods',personalFoodData],['recipes',recipe
     await assertSucceeds(deleteDoc(ref));
   });
   test(`C4 ${name} blocks guests and UID B on document collection query and writes`,async()=>{
-    const alice=environment.authenticatedContext('alice').firestore();await setDoc(doc(alice,`users/alice/${name}/c4-test`),fixture());
-    for(const db of [environment.unauthenticatedContext().firestore(),environment.authenticatedContext('bob').firestore()]) {
+    const alice=verifiedContext('alice').firestore();await setDoc(doc(alice,`users/alice/${name}/c4-test`),fixture());
+    for(const db of [environment.unauthenticatedContext().firestore(),verifiedContext('bob').firestore()]) {
       const ref=doc(db,`users/alice/${name}/c4-test`);
       await assertFails(getDoc(ref)); await assertFails(getDocs(collection(db,`users/alice/${name}`)));
       await assertFails(getDocs(query(collection(db,`users/alice/${name}`),orderBy('createdAt','desc'),limit(40))));
@@ -1019,13 +1040,13 @@ for(const [name,fixture] of [['custom_foods',personalFoodData],['recipes',recipe
   });
 }
 test('C4 personal food rejects missing nutrients malformed servings alias middle/end and non finite fields',async()=>{
-  const db=environment.authenticatedContext('alice').firestore();const ref=doc(db,'users/alice/custom_foods/invalid');
-  for(const patch of [{kcalPer100g:-1},{kcalPer100g:Infinity},{fatGPer100g:NaN},{carbsGPer100g:'0'},{proteinGPer100g:1001},{defaultServingGrams:0},{defaultServingGrams:2001},{servingGrams:null},{servingLabel:null},{servingGrams:-1},{servingLabel:'x'.repeat(41)},{alternateNames:['ok',5]},{alternateNames:['ok','ok','ok','ok',false]},{alternateNames:Array(6).fill('a')},{name:'x'},{schemaVersion:3}]) await assertFails(setDoc(ref,personalFoodData(patch)));
+  const db=verifiedContext('alice').firestore();const ref=doc(db,'users/alice/custom_foods/invalid');
+  for(const patch of [{kcalPer100g:-1},{kcalPer100g:Infinity},{fatGPer100g:NaN},{carbsGPer100g:'0'},{proteinGPer100g:1001},{defaultServingGrams:0},{defaultServingGrams:2001},{servingGrams:null},{servingLabel:null},{servingGrams:-1},{servingLabel:'x'.repeat(41)},{alternateNames:['ok',5]},{alternateNames:['ok','ok','ok','ok',false]},{alternateNames:Array(6).fill('a')},{name:'x'},{schemaVersion:4}]) await assertFails(setDoc(ref,personalFoodData(patch)));
   const missing=personalFoodData();delete missing.fatGPer100g;await assertFails(setDoc(ref,missing));
   await assertSucceeds(setDoc(ref,personalFoodData({servingLabel:null,servingGrams:null,proteinGPer100g:0,carbsGPer100g:0,fatGPer100g:0})));
 });
 test('C4 recipes validate all six rows including middle and last without rule budget overflow',async()=>{
-  const db=environment.authenticatedContext('alice').firestore();const ref=doc(db,'users/alice/recipes/maximum');
+  const db=verifiedContext('alice').firestore();const ref=doc(db,'users/alice/recipes/maximum');
   await assertSucceeds(setDoc(ref,recipeData()));
   for(const index of [0,2,5]) {
     for(const patch of [{grams:0},{kcal:-1},{fatG:NaN},{carbsG:'1'},{foodId:'recipe:nested'},{name:5},{secret:'no'}]) {
@@ -1035,13 +1056,13 @@ test('C4 recipes validate all six rows including middle and last without rule bu
   }
 });
 test('C4 recipe bounds empty overflow zero yield missing count and invalid numeric inputs',async()=>{
-  const db=environment.authenticatedContext('alice').firestore();const ref=doc(db,'users/alice/recipes/invalid');
+  const db=verifiedContext('alice').firestore();const ref=doc(db,'users/alice/recipes/invalid');
   for(const patch of [{ingredients:[]},{ingredients:Array.from({length:7},()=>mealItem())},{yieldGrams:0},{yieldGrams:-1},{yieldGrams:Infinity},{yieldGrams:20001},{servingsCount:0},{servingsCount:NaN},{servingsCount:1001},{isEstimated:false},{schemaVersion:'1'},{name:''}]) await assertFails(setDoc(ref,recipeData(patch)));
   const missing=recipeData();delete missing.servingsCount;await assertFails(setDoc(ref,missing));
   await assertSucceeds(setDoc(ref,recipeData({servingsCount:null,yieldGrams:20000})));
 });
 test('C4 favorite custom and recipe require own source, stable namespace and remain removable after source deletion',async()=>{
-  const alice=environment.authenticatedContext('alice').firestore();const bob=environment.authenticatedContext('bob').firestore();
+  const alice=verifiedContext('alice').firestore();const bob=verifiedContext('bob').firestore();
   for(const [kind,col,fixture] of [['custom','custom_foods',personalFoodData],['recipe','recipes',recipeData]]) {
     const source=doc(alice,`users/alice/${col}/c4-source`);await setDoc(source,fixture());
     const data={sourceKind:kind,sourceId:'c4-source',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),schemaVersion:1};

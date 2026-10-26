@@ -9,6 +9,7 @@ import '../models/food_library_models.dart';
 import '../providers/food_library_providers.dart';
 import 'food_portion_dialog.dart';
 import 'food_nutrition_text.dart';
+import '../../nutrition/models/extra_nutrients.dart';
 
 Widget libraryField(
   TextEditingController controller,
@@ -34,15 +35,17 @@ Widget libraryField(
       if (!number) return null;
       final n = NutritionValidation.parseDecimal(value);
       if (n == null) return 'Nhập số hữu hạn, dùng dấu phẩy hoặc dấu chấm.';
-      final max = switch (key) {
-        'library-kcal' => 10000.0,
-        'library-protein' ||
-        'library-carbs' ||
-        'library-fat' ||
-        'recipe-servings' => 1000.0,
-        'recipe-yield' => 20000.0,
-        _ => 2000.0,
-      };
+      final max = key.startsWith('library-extra-')
+          ? ExtraNutrient.values.byName(key.substring(14)).maximum
+          : switch (key) {
+              'library-kcal' => 10000.0,
+              'library-protein' ||
+              'library-carbs' ||
+              'library-fat' ||
+              'recipe-servings' => 1000.0,
+              'recipe-yield' => 20000.0,
+              _ => 2000.0,
+            };
       final positive = [
         'library-default-grams',
         'library-serving-grams',
@@ -91,8 +94,17 @@ Widget libraryFrame({
 );
 
 class PersonalFoodForm extends ConsumerStatefulWidget {
-  const PersonalFoodForm({this.food, super.key});
+  const PersonalFoodForm({
+    this.food,
+    this.initialFood,
+    this.initialKcalKnown = true,
+    super.key,
+  }) : assert(food == null || initialFood == null);
   final PersonalFood? food;
+
+  /// A reviewed scanner draft creates a new private food, never updates catalog.
+  final PersonalFood? initialFood;
+  final bool initialKcalKnown;
   @override
   ConsumerState<PersonalFoodForm> createState() => _PersonalFoodFormState();
 }
@@ -100,6 +112,7 @@ class PersonalFoodForm extends ConsumerStatefulWidget {
 class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
     with ConfirmedSave<PersonalFood, PersonalFoodForm> {
   final _form = GlobalKey<FormState>();
+  final _extraControllers = <ExtraNutrient, TextEditingController>{};
   late final String _id;
   late final TextEditingController _name,
       _aliases,
@@ -116,14 +129,33 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
   @override
   void initState() {
     super.initState();
-    final food = widget.food;
+    final food = widget.food ?? widget.initialFood;
+    for (final n in ExtraNutrient.values) {
+      _extraControllers[n] = TextEditingController(
+        text: food?.per100g.extraNutrients[n.name]?.toString(),
+      );
+    }
     _id = food?.id ?? ref.read(foodLibraryRepositoryProvider).newId();
     _name = TextEditingController(text: food?.name);
     _aliases = TextEditingController(text: food?.alternateNames.join(', '));
-    _kcal = TextEditingController(text: food?.per100g.kcal.toString());
-    _protein = TextEditingController(text: food?.per100g.proteinG.toString());
-    _carbs = TextEditingController(text: food?.per100g.carbsG.toString());
-    _fat = TextEditingController(text: food?.per100g.fatG.toString());
+    _kcal = TextEditingController(
+      text: widget.initialKcalKnown ? food?.per100g.kcal.toString() : null,
+    );
+    _protein = TextEditingController(
+      text: food?.per100g.proteinKnown == true
+          ? food!.per100g.proteinG.toString()
+          : null,
+    );
+    _carbs = TextEditingController(
+      text: food?.per100g.carbsKnown == true
+          ? food!.per100g.carbsG.toString()
+          : null,
+    );
+    _fat = TextEditingController(
+      text: food?.per100g.fatKnown == true
+          ? food!.per100g.fatG.toString()
+          : null,
+    );
     _fiber = TextEditingController(
       text: food?.per100g.fiberKnown == true
           ? food!.per100g.fiberG.toString()
@@ -141,6 +173,9 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
 
   @override
   void dispose() {
+    for (final c in _extraControllers.values) {
+      c.dispose();
+    }
     for (final c in [
       _name,
       _aliases,
@@ -166,11 +201,17 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
     try {
       final food = PersonalFood(
         id: _id,
+        minimumSchemaVersion:
+            (widget.food ?? widget.initialFood)?.minimumSchemaVersion ?? 1,
         name: _name.text.trim(),
         alternateNames: _aliases.text.trim().isEmpty
             ? const []
             : _aliases.text.split(',').map((s) => s.trim()).toList(),
         per100g: NutritionTotals(
+          extraNutrients: {
+            for (final e in _extraControllers.entries)
+              if (e.value.text.trim().isNotEmpty) e.key.name: read(e.value),
+          },
           kcal: read(_kcal),
           proteinG: read(_protein),
           carbsG: read(_carbs),
@@ -224,6 +265,12 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
+              if (widget.initialFood != null) ...[
+                const Text(
+                  'Món nhận diện từ ảnh · Ước tính. Kiểm tra/sửa tên, dinh dưỡng trên 100 g và khẩu phần trước khi bấm Lưu. Chỉ lưu vào thư viện riêng; chưa ghi nhật ký.',
+                ),
+                const SizedBox(height: 12),
+              ],
               const Text(
                 'Nhập đầy đủ dinh dưỡng trên 100 g từ nhãn hoặc nguồn bạn có. Số 0 cần được nhập chủ động; món được gắn nhãn ước tính.',
               ),
@@ -274,6 +321,22 @@ class _PersonalFoodFormState extends ConsumerState<PersonalFoodForm>
                 'library-default-grams',
                 'Khối lượng mặc định (g)',
                 number: true,
+              ),
+              ExpansionTile(
+                title: const Text('Dưỡng chất mở rộng · tùy chọn'),
+                children: [
+                  const Text(
+                    'Nhập theo nguồn/nhãn trên 100 g. Để trống nếu chưa biết; không tự điền 0.',
+                  ),
+                  for (final e in _extraControllers.entries)
+                    libraryField(
+                      e.value,
+                      'library-extra-${e.key.name}',
+                      '${e.key.label} (${e.key.unit}/100 g)',
+                      number: true,
+                      optional: true,
+                    ),
+                ],
               ),
               const Text(
                 'Khẩu phần tùy chọn: nhập cả tên và gram. Ví dụ: tên “bát”, khối lượng 150 g. Không tự suy ra từ tên món.',
@@ -368,6 +431,7 @@ class _RecipeFormState extends ConsumerState<RecipeForm>
     try {
       final recipe = FoodRecipe(
         id: _id,
+        minimumSchemaVersion: widget.recipe?.minimumSchemaVersion ?? 1,
         name: _name.text.trim(),
         ingredients: _ingredients,
         sourceLabel:

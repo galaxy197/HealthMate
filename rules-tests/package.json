@@ -2,7 +2,8 @@
   "name": "healthmate-firestore-rules-tests",
   "private": true,
   "scripts": {
-    "test": "node --test firestore.rules.test.cjs"
+    "test": "node --test *.rules.test.cjs",
+    "test:auth": "node --test auth-emulator.test.cjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "6.0.0",

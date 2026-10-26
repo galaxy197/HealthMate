@@ -10,8 +10,8 @@ abstract final class AuthValidation {
 
   static String? password(String? value, {required bool registering}) {
     if (value == null || value.isEmpty) return 'Vui lòng nhập mật khẩu.';
-    if (registering && (value.length < 6 || value.trim().isEmpty)) {
-      return 'Dùng ít nhất 6 ký tự, không chỉ gồm khoảng trắng.';
+    if (registering && (value.length < 8 || value.trim().isEmpty)) {
+      return 'Dùng ít nhất 8 ký tự, không chỉ gồm khoảng trắng.';
     }
     return null;
   }

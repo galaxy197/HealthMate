@@ -6,10 +6,12 @@ abstract final class AppRoutes {
   static const progress = '/progress';
   static const profile = '/profile';
   static const foodLibrary = '/food-library';
+  static const wellness = '/wellness';
   static const about = '/about';
   static const privacy = '/privacy';
   static const disclaimer = '/disclaimer';
   static const onboarding = '/onboarding';
   static const auth = '/auth';
+  static const verifyEmail = '/verify-email';
   static const session = '/session';
 }

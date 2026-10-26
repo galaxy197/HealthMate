@@ -25,6 +25,27 @@ abstract final class KnowledgePrompt {
     KnowledgeTopic.buildingHabits =>
       'Gợi ý cách bắt đầu ghi nhật ký bữa ăn, nước và vận động đều đặn, '
           'không gây áp lực và không suy đoán sức khỏe từ ngày thiếu bản ghi.',
+    KnowledgeTopic.protein =>
+      'Giải thích vai trò của đạm và ví dụ nguồn đạm trong bữa ăn thông thường. '
+          'Không tính nhu cầu cá nhân hoặc kê chế độ ăn.',
+    KnowledgeTopic.fiber =>
+      'Giải thích chất xơ, nguồn thực phẩm phổ biến và cách đọc chất xơ trên nhãn. '
+          'Không đưa chỉ định y tế hoặc nhu cầu cá nhân.',
+    KnowledgeTopic.carbohydrates =>
+      'Giải thích carbohydrate, tinh bột và đường; ví dụ thực phẩm và cách đọc nhãn. '
+          'Không khuyên loại bỏ nhóm thực phẩm hoặc điều trị bệnh.',
+    KnowledgeTopic.fats =>
+      'Giải thích chất béo không bão hòa, bão hòa và chuyển hóa bằng ví dụ dễ hiểu. '
+          'Không kê chế độ ăn hoặc tư vấn điều trị.',
+    KnowledgeTopic.hydration =>
+      'Gợi ý cách xây dựng thói quen ghi lại nước đã uống và nhắc nhớ sinh hoạt. '
+          'Không chỉ định lượng nước cá nhân hay điều trị bệnh.',
+    KnowledgeTopic.portions =>
+      'Giải thích khẩu phần, gram, thực phẩm sống/chín, phần ăn được và dầu chế biến. '
+          'Nêu giới hạn ước lượng từ ảnh và lợi ích kiểm tra bằng cân.',
+    KnowledgeTopic.energyBalance =>
+      'Giải thích kcal, cân bằng năng lượng và giới hạn của số liệu nhật ký. '
+          'Không tính mức ăn cá nhân hoặc hứa kết quả giảm cân.',
   };
 }
 

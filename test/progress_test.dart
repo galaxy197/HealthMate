@@ -371,7 +371,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.pump();
-    auth.emitUser(const AuthUser(uid: 'user-b', email: 'b@example.com'));
+    auth.emitUser(const AuthUser(emailVerified: true, uid: 'user-b', email: 'b@example.com'));
     profile.emitProfile(profileForUid('user-b'));
     await tester.pump();
     gate.complete();

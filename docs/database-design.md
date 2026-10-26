@@ -1,5 +1,113 @@
 # Thiết kế dữ liệu HealthMate
 
+## Mới nhất26/10/2026 — thiết lập và điều chỉnh năng lượng theo ngày
+
+Thêm `users/{uid}/wellness_preferences/main`: stepLengthCm (nullable20..200),
+baselineSteps (nullableint0..150000), sleepGoalMinutes (nullableint60..1440),
+schemaVersion1, updatedAtserver. Default không biết các giá trị, không tự sinh goal.
+
+Thêm `users/{uid}/energy_adjustments/{dateKey}`: dateKey/timezoneOffsetMinutes,
+steps/baselineSteps/stepLengthCm, weightKg/weightMeasuredAt, targetFromDateKey/
+baseKcalTarget, kcal, sourcewalking_net_v1, schemaVersion1, confirmedAtserver.
+Chỉ ghi hôm nay theooffset, nguồn mục tiêu phải tồn tại/khớp; credit>0≤5000 và
+không lớn hơn ước tính net từ bước vượt baseline. Cân lúc xác nhận trong90ngày.
+Một ID/ngày nên retry không tích lũy credit. Không chỉnh meal_logs/targets gốc.
+Đổi goal/ghi activity nhập tay khiến app không áp dụng snapshotcredit cũ; bỏ
+credit bằngdelete. Macro không tự đổi, record lịch sử không tự tính lại từ cân mới.
+
+Cả2collection riêng theo UID verified, SDK chặn cache khác UID, cleanup tài khoản
+đã mở rộng và cóSDKtest. Lịch nhắc ngủ local namespace mã hóa UID `sleepReminder`,
+không gửi Firestore hoặc publiccache; profile/meal/sourcecollection cũ không đổi.
+RulesMVP đã deploy6a1762dd…/rulesete0057d3e…;khôngadmin. Xem
+[wellness-insights.md](wellness-insights.md) cho phương pháp, schema và hạn chế.
+
+## Mở rộng 26/10/2026 — Rules MVP đã deploy và xác nhận hash
+
+Rollout được người dùng yêu cầu ở mục1; ruleset `8add3549-ea41-4a5d-9f5c-22d1b62808cc`,
+đọc lại26/10 khớp candidate đã qua61ca. Không migrate/ghi lại dữ liệu production.
+Chưa nghiệm thu app trên điện thoại vì người dùng chọn kết nối sau.
+[Báo cáo rollout](wellness-rollout.md).
+
+Collection mới dưới `users/{uid}`, chỉ chủ UID đã xác minh email đọc/ghi:
+
+- `wellness_state/sleep`: `startedAt` server timestamp và schema1. Một marker
+  đang chạy, không sửa thay start. Kết thúc dùng transaction kiểm tra marker và
+  ID `timer-{startedAtMillis}` để tránh trùng; giờ người dùng sửa nằm trong log.
+- `sleep_logs/{id}`: startedAt/endedAt, source manual_timer hoặc manual_entry,
+  createdAt/updatedAt, schema1. Khoảng dương ≤24h, end không quá 5 phút tương lai;
+  read gần nhất60, không suy chất lượng ngủ. Sửa giữ createdAt.
+- `meal_plans/{dateKey-mealType}`: dateKey, mealType, items1..5, createdAt/updatedAt,
+  schema2, loggedMealId tùy chọn. Snapshot compact có vector dưỡng chất; chưa tính
+  vào nhật ký. Ghi bữa dùng journal ID `plan-{planId}`, phải xác nhận trong app.
+  Rules yêu cầu journal tồn tại khi đánh dấu, không cho reset marker hoặc đổi items
+  của kế hoạch đã ghi. Xóa kế hoạch không xóa journal.
+- `step_logs/{dateKey}`: steps int0..150000, trackingStartedAt, measuredAt,
+  timezoneOffsetMinutes, source device_step_counter, updatedAt, schema1. Rules
+  kiểm ngày theo offset/timestamp. Transaction giữ số đo ngày cao nhất, không cộng
+  chồng hai thiết bị hoặc giảm lịch sử khi snapshot cũ tới muộn. Hiển thị30 ngày.
+
+Nhắc bữa và mẫu sensor31 ngày cục bộ: mã hóa AES256-GCM/Keystore, UID+scope làm
+AAD và tên key băm SHA256, file AtomicFile trong noBackupFilesDir. Không thêm
+database/backend thứ hai. Không đưa sleep/step data vào prompt chatbot tự động.
+Account cleanup đã thêm bốn collection và native namespace.
+
+8 dưỡng chất mới có đơn vị cố định: đường/béo bão hòa g; natri/kali/canxi/sắt/
+vitaminC/cholesterol mg. `null`/không field là chưa biết, 0 là số0 đã có dữ liệu.
+USDA lấy đúng nutrient ID/unit; OFF đổi khoáng g→mg một lần. UI hiển thị tổng
+phần đã biết và số món có số liệu, không điền0 cho món thiếu.
+
+Wire format mới để kiểm đủ mọi hàng dưới trần1000 expressions của Firestore:
+
+- `nutrientVectorV1`: string JSON8 vị trí theo đúng thứ tự trên, số không âm tối
+  đa6 chữ số thập phân hoặc null; Rules regex chặn dữ liệu sai/ngoài trần. Không
+  gửi JSON tùy ý. Đường/béo≤2000g, sắt≤10000mg, các chất mg khác≤100000mg mỗi snapshot.
+- meal_logs schema5: compact items với quantity/unit và macro null khi thiếu,
+  fiber theo từng hàng, vector bắt buộc. Giữ schema2/3/4 cho dữ liệu không cần5;
+  không cho hạ version journal đã nâng.
+- recipes schema3: ingredients dùng định dạng có sẵn, top-level `nutrientVectorsV1`
+  nối các vector bằng `|`, đúng số hàng1..6. Parser ghép lại, không mất dữ liệu
+  khi sửa yield. meal_templates schema4 tương tự, giữ fiberValues/mask hiện có.
+- custom_foods schema3: `extraNutrientsPer100g` map chỉ8 key có giới hạn; phiên bản
+ 1/2 vẫn đọc được khi không có extras. Form giữ minimumSchemaVersion khi sửa.
+- SavedMealDraft đọc/giữ đến schema5. Client cũ không hiểu version phải từ chối,
+  không tải rồi ghi làm mất dưỡng chất mới. Không sửa snapshot lịch sử hàng loạt.
+
+SQLite public cache v3 thêm metadataJSON cho extras/aliases/reference servings;
+chỉ purges preload unsourced `vn_` cũ, giữ vô hiệu hóa USDA cũ từ v2. Asset có
+162 mục gồm101 VDD,54 recipe ước tính,3 nhãn,4 USDA. Server catalog merge theo ID,
+không phục hồi mục đã bị server vô hiệu hóa. Không ghi vào production catalog.
+Xem [nghiệm thu và giới hạn](wellness-expansion.md).
+
+## Rà soát 25–26/10/2026 — Giai đoạn 10
+
+Không thêm collection/field Firestore. Snapshot và tổng được kiểm tra bằng
+Emulator; production Rules còn cũ nên chưa chấp nhận đủ định dạng dinh dưỡng
+mới/verified email gate. Candidate MVP tách admin đã qua 52 ca, chưa deploy;
+xem [báo cáo bảo mật](stage10-security-review.md), không áp cả Rules local.
+Trần chat production hiện là 100 messages/50 lượt.
+
+SQLite `healthmate_foods.db` là cache danh mục công khai, version2. Nâng v1→v2
+vô hiệu hóa các hàng USDA cũ (parser nutrient ID trước đây đọc sai cấp) cùng
+recent liên quan để tải lại; không migrate/xóa nhật ký hoặc món riêng Firestore.
+Chỉ cho cache dữ liệu local/USDA đủ macro, giữ unknown fiber là null và known
+zero là0; truy vấn loại nguồn user cũ. Món riêng vẫn nằm theo UID trên Firestore.
+
+## Chatbot Cloudflare 25/10/2026 — schema không đổi, đã triển khai API
+
+Chat tự do dùng Worker stateless được người dùng yêu cầu, Firebase Auth và
+Firestore vẫn giữ tài khoản/dữ liệu. Không thêm collection/index/field/Rules;
+source `ai` của tin nhắn được giữ và hiển thị nhãn tham khảo chung, bao gồm cả
+đáp án có ngữ cảnh khi API Cloudflare được cấu hình. Không gắn nhãn mọi đáp án
+AI là kiến thức chung nữa. Không suy từ source này để xác định provider lịch sử.
+
+Payload tạm cho API chứa raw question, tối đa 6 tin gần nhất và tối đa 3 kết
+quả tra cứu được cho phép, không chứa UID/path/profile fields. Firebase token
+chỉ nằm trong header xác thực Worker, không đưa vào prompt model. Worker không
+đọc/ghi Firestore và không lưu bản sao dữ liệu. Chế độ tra cứu không gửi AI.
+Chat log tiếp tục dùng snapshot text theo UID, không lưu prompt hệ thống/tool
+plan/token. API thật đã triển khai và người dùng đã thử câu kiến thức cùng câu
+nhật ký trên điện thoại; xem docs/chatbot-live-qa.md và chat-api/README.md.
+
 ## Giai đoạn 3 — Hồ sơ và Body Metrics
 
 Cloud Firestore mặc định của project `healthmate-app-20261013` đặt tại
@@ -302,23 +410,30 @@ xác minh query range, ranh giới ngày, limit cân nặng và chặn UID khác
 ## Hội thoại — Giai đoạn 9
 
 `users/{uid}/chat_sessions/{sessionId}`:
-`title` (nhãn chung, <=80 ký tự), `messageCount` (số chẵn 2..40), `lastTurnId`
+`title` (nhãn chung, <=80 ký tự), `messageCount` (số chẵn 2..100), `lastTurnId`
 (20 chữ/số), `createdAt`, `updatedAt` (server timestamps), `schemaVersion: 1`.
 
 `.../messages/{turnId}_u` và `{turnId}_a`:
 `turnId`, `role: user|assistant`, `text` (user 1..1000, assistant 1..6000 ký tự),
-`source: journal|ai|help`, `sequence` (0..39), `createdAt` (server timestamp),
+`source: journal|ai|help`, `sequence` (0..99), `createdAt` (server timestamp),
 `schemaVersion: 1`. Không lưu ảnh, toàn bộ hồ sơ hoặc payload context riêng.
 
 Một transaction tạo cả hai messages và cập nhật parent; Rules getAfter kiểm
 tra cặp và sequence. Tin đã tạo bất biến; delete theo UID cho quy trình xóa
 tài khoản. Retry cùng turnId là no-op khi user message đã tồn tại. Read lịch
 sử phiên: `orderBy(updatedAt desc).limit(20)`; messages: `orderBy(sequence)`
-`.limit(40)`. Không thêm composite index; không deploy Rules/index trong lượt.
+`.limit(100)`. Không thêm composite index. Cập nhật 25/10: đã deploy riêng thay
+đổi trần 40 thành 100 messages từ Rules production, giữ nguyên các phần khác;
+không migrate hoặc xóa hội thoại cũ. Xem chatbot-capacity-update.md.
 
 Nguồn `journal` là tổng snapshot tính tại ứng dụng từ các repository range;
 nguồn `ai` chỉ dành cho chủ đề kiến thức chung định sẵn theo lựa chọn free tier.
 Không gửi nhật ký hoặc hội thoại tới AI. Chi tiết: [chatbot.md](chatbot.md).
+
+Cập nhật25/10: vẫn giữ nguyên schema/source trên. Bổ sung lập kế hoạch câu hỏi
+và ngữ cảnh nối tiếp cục bộ cho ngày/tuần, targets và cân nặng; không lưu payload
+context riêng hoặc thêm trường vào chat. AI nhận10chủ đề enum chuẩn hóa; raw
+question/history/UID và kết quả repository không đi vào prompt Gemini free tier.
 
 ## Rà soát Giai đoạn 10
 
@@ -684,3 +799,91 @@ UTC/dateKey/offset/basis và status mỗi nutrient giữ missing/0/partial. Tả
 hạn bằng repository H5. UID kiểm tra trực tiếp SDK qua AuthRepository.currentUid,
 thêm generation phiên trước/sau async và picker. Tệp người dùng xuất nằm ngoài
 vòng đời xóa tài khoản. Chi tiết: [h7-private-data.md](h7-private-data.md).
+
+## 23/10/2026 — Quét ảnh và sửa khẩu phần mã vạch
+
+Không thêm collection, field Firestore, index hoặc sửa Rules. Món mới nhận diện
+được lưu sau khi người dùng kiểm tra và bấm Lưu, qua repository hiện có tại
+`users/{uid}/custom_foods/{id}`. Dùng schema 1/2 hiện có, `sourceLabel` ghi nguồn
+AI/tham khảo, `isEstimated: true`, giá trị trên 100 g và gram mặc định. Mô tả,
+thành phần nhận diện và ảnh gốc không thêm vào Firestore trong lượt này.
+
+Gemini JSON thêm `isFood`, `estimatedServingGrams`,
+`estimatedNutritionPer100g` (kcal, proteinG, carbsG, fatG, fiberG, cho phép null).
+Đây là DTO tạm trong bộ nhớ, không phải schema lưu trữ hay nguồn catalog chuẩn.
+Danh mục được chọn ưu tiên hơn số AI; người dùng sửa/xác nhận món mới trước ghi.
+Kcal và ba macro thiếu phải nhập đủ trong form thư viện; chất xơ vẫn tùy chọn.
+
+Mã vạch giữ product nutrition trên 100 g và lượng người dùng xác nhận trong
+`BarcodeMealSelection`; snapshot mới nhân theo gram/100 đúng một lần. Macro
+thiếu giữ cờ chưa biết và wire null; chất xơ theo H6 có sẵn. Bản ghi cũ không
+bị tính lại/migration. Schema mở rộng cần Rules H0–H7 tương thích trên production;
+lượt này chỉ kiểm tra Rules local trên demo emulator, không triển khai.
+
+Hướng dẫn và giới hạn: [scanner-update.md](scanner-update.md).
+# Bổ sung web quản trị — 23/10/2026 (local, chưa deploy)
+
+Thiết kế này là phần mở rộng người dùng yêu cầu: catalog, tài khoản và cấu hình,
+ưu tiên Firestore thay backend trả phí. Không thay đổi snapshot nhật ký hiện có.
+
+| Đường dẫn | Dữ liệu | Quyền client |
+| --- | --- | --- |
+| `admin_roles/{uid}` | `enabled: bool` | Chỉ đọc role của chính UID; không list/ghi. Chủ dự án cấp/thu hồi bằng Console/IAM. |
+| `user_directory/{uid}` | `displayName`, `email`, `createdAt`, `updatedAt` | Owner đang hoạt động tự đồng bộ tên khớp profile và email khớp Auth token; admin đọc danh sách. Không chứa dữ liệu sức khỏe. |
+| `account_controls/{uid}` | `status: active/suspended`, `reason`, `updatedAt`, `updatedBy`, `lastAdminOperationId` | Owner được đọc trạng thái kể cả khi bị khóa; chỉ admin ghi có audit, không khóa chính mình hoặc UID có document role. Không xóa từ client. |
+| `app_config/runtime` | `chatbotEnabled`, `foodScannerEnabled`, `maintenanceMode`, `maintenanceMessage`, ba metadata quản trị | Người đăng nhập đang hoạt động đọc; admin ghi có audit. Không chứa model/key/secret. |
+| `admin_audit/{operationId}` | `actorUid`, `entityType`, `entityId`, `at`, `changedFields`, `reason` | Admin đọc/tạo cùng giao dịch target; không sửa/xóa. Không chứa ảnh hoặc health logs. |
+| `food_catalog/{foodId}` | Các field hiện có + `isActive`, ba metadata quản trị | Admin thêm/sửa field cho phép với audit; không hard delete. Field nguồn legacy ngoài whitelist được giữ nguyên, không sửa từ web. |
+
+Metadata quản trị: `updatedAt` bằng server timestamp/request.time, `updatedBy`
+bằng UID admin, `lastAdminOperationId` bằng ID audit mới. Rules dùng `getAfter`
+đối chiếu target và audit; thao tác thiếu audit, giả actor, timestamp hoặc
+changedFields bị từ chối nguyên giao dịch. Catalog audit ghi field thực sự đổi;
+account_controls/app_config ghi bộ field gửi lên, có thể gồm field không đổi.
+Không lưu bản sao giá trị nhạy cảm trong audit.
+
+Catalog chuẩn `per_100g`, `g`; kcal 0–1000, mỗi macro 0–100 g, tổng macro ≤101 g
+(dung sai làm tròn); chất xơ null là chưa biết, 0 là số đã nhập; nguồn HTTPS,
+tối đa 8 aliases; khẩu phần optional phải đủ tên + số gram dương ≤2000.
+Validation này áp dụng thao tác admin mới, không tự viết lại catalog legacy.
+Mobile lọc `isActive == false`; các bản cũ chưa có bộ lọc vẫn có thể hiển thị.
+
+`owns(uid)` nay yêu cầu thêm `account_controls` không tồn tại hoặc trạng thái
+active, nên suspension chặn dữ liệu server trên app cũ/mới. Không thu hồi
+Firebase Auth token, không xóa cache và không đặt quyền cho API AI Logic.
+Cấu hình bảo trì/feature chỉ được client hỗ trợ áp dụng. Không tuyên bố khóa
+toàn bộ dịch vụ hoặc ngăn client đã bị sửa.
+
+Directory chỉ được bản mobile bật `HEALTHMATE_ENABLE_ADMIN_CONTROLS=true` đồng
+bộ khi tải được hồ sơ và xác minh account access từ server. Không list toàn bộ
+Firebase Authentication hoặc đọc hàng loạt `users`. Khi bản hỗ trợ xóa tài
+khoản qua app, nó xóa directory; xóa Auth qua Console hoặc app cũ có thể để lại
+metadata directory, chủ dự án cần đối chiếu và dọn bằng quy trình riêng.
+
+Rollout mặc định tắt cờ mobile cho tới khi Rules/role sẵn sàng. Bản bật cờ
+không mở nội dung riêng tư khi trạng thái chỉ đến từ cache, đang tải hoặc lỗi;
+có kiểm tra lại/đăng xuất. Các lần đọc Rules phụ thuộc account/role, listener
+và trang danh sách vẫn tính vào hạn mức Firebase. Không thêm database, backend,
+Cloud Functions hoặc nâng billing. Hướng dẫn: `admin-web/README.md`.
+# Xác minh email cho dữ liệu cá nhân — 24/10/2026
+
+Auth mobile mở rộng theo yêu cầu: Google + email/password, không Facebook;
+web admin tạm gác. Không thêm collection hoặc sao chép mật khẩu/token vào
+Firestore. `emailVerified` và `providerIds` là identity trong app, lấy từ Auth.
+
+Rules `owns(uid)` yêu cầu `request.auth.token.email_verified == true` cùng
+đúng UID và account access hiện có. Catalog/app_config đọc ở mobile cũng yêu
+cầu claim verified. User chưa xác minh không đọc/ghi hồ sơ hoặc nhật ký dù
+gọi Firestore trực tiếp; admin không được đọc health logs của người khác.
+Rule tests dùng verified claims tường minh cho fixture cũ và thêm case
+false/thiếu claim phải bị chặn. Không nới quyền hoặc bỏ test năm món sát budget.
+
+Mobile không bootstrap/profile/onboarding/AI trước khi email và token đều
+verified. Sau mở link email, reload và refresh token trước khi mở dữ liệu;
+token cũ chưa verified vẫn bị Rules từ chối. UID, snapshot nhật ký và dữ liệu
+cũ giữ nguyên; tài khoản cũ chưa xác minh cần xác minh trước khi dùng app mới.
+Google được Firebase xác minh thì không cần gửi thêm email xác minh.
+
+Rules mới chưa deploy production; bảo vệ server chỉ được xác nhận trên
+emulator. Không nâng billing hoặc sửa provider/config cloud trong lượt này.
+Hướng dẫn rollout và nghiệm thu: `docs/authentication-flow.md`.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/auth_screen.dart';
+import '../../features/auth/presentation/email_verification_screen.dart';
 import '../../features/auth/presentation/session_screen.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/chatbot/presentation/chat_screen.dart';
@@ -12,6 +13,7 @@ import '../../features/journal/presentation/journal_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/progress/presentation/progress_screen.dart';
 import '../../features/food_library/presentation/food_library_screen.dart';
+import '../../features/wellness/presentation/wellness_screen.dart';
 import '../../features/profile/presentation/account_information_screen.dart';
 import '../../features/profile/presentation/onboarding_screen.dart';
 import '../../features/profile/providers/profile_providers.dart';
@@ -57,6 +59,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.auth,
         builder: (context, state) => const AuthScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyEmail,
+        builder: (context, state) => const EmailVerificationScreen(),
       ),
       GoRoute(
         path: AppRoutes.onboarding,
@@ -107,6 +113,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.foodLibrary,
                 builder: (context, state) => const FoodLibraryScreen(),
+              ),
+              GoRoute(
+                path: AppRoutes.wellness,
+                builder: (context, state) => WellnessScreen(
+                  initialTab:
+                      int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
+                ),
               ),
               GoRoute(
                 path: AppRoutes.about,

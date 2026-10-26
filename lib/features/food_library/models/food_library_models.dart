@@ -1,4 +1,5 @@
 import '../../nutrition/models/nutrition_models.dart';
+import '../../nutrition/models/extra_nutrients.dart';
 
 enum FoodSourceKind { catalog, custom, recipe }
 
@@ -48,6 +49,15 @@ abstract final class LibraryValidation {
     number(n.carbsG, 1000);
     number(n.fatG, 1000);
     number(n.fiberG, 1000);
+    for (final e in n.extraNutrients.entries) {
+      final nutrient = ExtraNutrient.values
+          .where((n) => n.name == e.key)
+          .firstOrNull;
+      if (nutrient == null) {
+        throw const FormatException('Dưỡng chất chưa hỗ trợ.');
+      }
+      number(e.value, nutrient.maximum);
+    }
   }
 
   static double readNumber(Map<String, dynamic> data, String key) {
@@ -74,6 +84,7 @@ class PersonalFood extends LibraryEntry {
     this.servingGrams,
     this.sourceLabel = 'Người dùng nhập · Ước tính',
     this.isEstimated = true,
+    this.minimumSchemaVersion = 1,
   }) : alternateNames = List.unmodifiable(alternateNames);
   @override
   final String id;
@@ -86,6 +97,7 @@ class PersonalFood extends LibraryEntry {
   final double? servingGrams;
   final String sourceLabel;
   final bool isEstimated;
+  final int minimumSchemaVersion;
   @override
   FoodSourceKind get kind => FoodSourceKind.custom;
   @override
@@ -135,25 +147,34 @@ class PersonalFood extends LibraryEntry {
       'carbsGPer100g': per100g.carbsG,
       'fatGPer100g': per100g.fatG,
       if (per100g.fiberKnown) 'fiberGPer100g': per100g.fiberG,
+      if (per100g.extraNutrients.isNotEmpty)
+        'extraNutrientsPer100g': per100g.extraNutrients,
       'defaultServingGrams': defaultServingGrams,
       'servingLabel': servingLabel,
       'servingGrams': servingGrams,
       'sourceLabel': sourceLabel,
       'isEstimated': isEstimated,
-      'schemaVersion': per100g.fiberKnown ? 2 : 1,
+      'schemaVersion':
+          minimumSchemaVersion >= 3 || per100g.extraNutrients.isNotEmpty
+          ? 3
+          : per100g.fiberKnown
+          ? 2
+          : 1,
     };
   }
 
   factory PersonalFood.fromData(String id, Map<String, dynamic> d) {
-    if (![1, 2].contains(d['schemaVersion']) ||
+    if (![1, 2, 3].contains(d['schemaVersion']) ||
         d['servingBasis'] != 'per_100g') {
       throw const FormatException();
     }
     final food = PersonalFood(
       id: id,
+      minimumSchemaVersion: d['schemaVersion'] as int,
       name: d['name'] as String,
       alternateNames: List<String>.from(d['alternateNames'] as List),
       per100g: NutritionTotals(
+        extraNutrients: readExtraNutrients(d['extraNutrientsPer100g']),
         kcal: LibraryValidation.readNumber(d, 'kcalPer100g'),
         proteinG: LibraryValidation.readNumber(d, 'proteinGPer100g'),
         carbsG: LibraryValidation.readNumber(d, 'carbsGPer100g'),
@@ -205,6 +226,7 @@ class FoodRecipe extends LibraryEntry {
     required this.yieldGrams,
     this.servingsCount,
     this.sourceLabel = 'Công thức người dùng · Ước tính',
+    this.minimumSchemaVersion = 1,
   }) : ingredients = List.unmodifiable(ingredients);
   @override
   final String id;
@@ -214,6 +236,7 @@ class FoodRecipe extends LibraryEntry {
   final double yieldGrams;
   final double? servingsCount;
   final String sourceLabel;
+  final int minimumSchemaVersion;
   @override
   FoodSourceKind get kind => FoodSourceKind.recipe;
   NutritionTotals get totals =>
@@ -263,29 +286,55 @@ class FoodRecipe extends LibraryEntry {
   @override
   Map<String, Object?> toData() {
     validate();
+    final enriched =
+        minimumSchemaVersion >= 3 ||
+        ingredients.any((i) => i.nutrition.extraNutrients.isNotEmpty);
     return {
       'name': name,
-      'ingredients': ingredients.map(LibraryValidation.snapshot).toList(),
+      'ingredients': [
+        for (final item in ingredients)
+          {
+            for (final e in item.toData().entries)
+              if (e.key != 'nutrientVectorV1') e.key: e.value,
+          },
+      ],
+      if (enriched)
+        'nutrientVectorsV1': ingredients
+            .map((i) => encodeExtraNutrients(i.nutrition.extraNutrients))
+            .join('|'),
       'yieldGrams': yieldGrams,
       'servingsCount': servingsCount,
       'sourceLabel': sourceLabel,
       'isEstimated': true,
-      'schemaVersion': ingredients.any((i) => i.hasFiberData) ? 2 : 1,
+      'schemaVersion': enriched
+          ? 3
+          : ingredients.any((i) => i.hasFiberData)
+          ? 2
+          : 1,
     };
   }
 
   factory FoodRecipe.fromData(String id, Map<String, dynamic> d) {
-    if (![1, 2].contains(d['schemaVersion']) || d['isEstimated'] != true) {
+    if (![1, 2, 3].contains(d['schemaVersion']) || d['isEstimated'] != true) {
+      throw const FormatException();
+    }
+    final rawItems = d['ingredients'] as List;
+    final vectors = d['schemaVersion'] == 3
+        ? (d['nutrientVectorsV1'] as String).split('|')
+        : null;
+    if (vectors != null && vectors.length != rawItems.length) {
       throw const FormatException();
     }
     final recipe = FoodRecipe(
       id: id,
+      minimumSchemaVersion: d['schemaVersion'] as int,
       name: d['name'] as String,
-      ingredients: (d['ingredients'] as List)
+      ingredients: rawItems.indexed
           .map(
-            (item) => LibraryValidation.readSnapshot(
-              Map<String, dynamic>.from(item as Map),
-            ),
+            (entry) => LibraryValidation.readSnapshot({
+              ...Map<String, dynamic>.from(entry.$2 as Map),
+              if (vectors != null) 'nutrientVectorV1': vectors[entry.$1],
+            }),
           )
           .toList(),
       yieldGrams: LibraryValidation.readNumber(d, 'yieldGrams'),

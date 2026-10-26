@@ -12,7 +12,20 @@
           "package_name": "com.example.healthmate"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "471712188542-i5gfsaaf0r5gmhtfafb5a6ho4fm25ugn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.healthmate",
+            "certificate_hash": "dd56b3592c28b5d75b49d9d724a1df841c41ba84"
+          }
+        },
+        {
+          "client_id": "471712188542-kde08l1rbl00m0veu4ksrde62kd7hl53.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyApn-QPxfYEMVvnrLXGkKkKBOWgNFpuCZc"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "471712188542-kde08l1rbl00m0veu4ksrde62kd7hl53.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

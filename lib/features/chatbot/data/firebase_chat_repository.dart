@@ -52,54 +52,55 @@ class FirebaseChatRepository implements ChatRepository {
       });
 
   @override
-  Future<void> saveTurn(String uid, String sessionId, ChatTurn turn) =>
-      _guard(() async {
-        turn.validate();
-        final session = _sessions(uid).doc(sessionId);
-        final userMessage = session.collection('messages').doc('${turn.id}_u');
-        final assistantMessage = session
-            .collection('messages')
-            .doc('${turn.id}_a');
-        await firestore.runTransaction((transaction) async {
-          final previous = await transaction.get(userMessage);
-          if (previous.exists) return;
-          final current = await transaction.get(session);
-          final count = current.data()?['messageCount'] as int? ?? 0;
-          if (count >= ChatLimits.messagesPerSession) {
-            throw const ChatFailure(
-              'Cuộc trò chuyện đã đủ 20 lượt. Hãy tạo cuộc trò chuyện mới.',
-            );
-          }
-          final timestamp = FieldValue.serverTimestamp();
-          if (current.exists) {
-            transaction.update(session, {
-              'messageCount': count + 2,
-              'updatedAt': timestamp,
-              'lastTurnId': turn.id,
-            });
-          } else {
-            transaction.set(session, {
-              'title': 'Trò chuyện HealthMate',
-              'messageCount': 2,
-              'createdAt': timestamp,
-              'updatedAt': timestamp,
-              'schemaVersion': 1,
-              'lastTurnId': turn.id,
-            });
-          }
-          Map<String, dynamic> message(bool user) => {
-            'role': user ? 'user' : 'assistant',
-            'text': user ? turn.question : turn.answer,
-            'source': turn.source.name,
-            'sequence': count + (user ? 0 : 1),
-            'createdAt': timestamp,
-            'schemaVersion': 1,
-            'turnId': turn.id,
-          };
-          transaction.set(userMessage, message(true));
-          transaction.set(assistantMessage, message(false));
+  Future<void> saveTurn(
+    String uid,
+    String sessionId,
+    ChatTurn turn,
+  ) => _guard(() async {
+    turn.validate();
+    final session = _sessions(uid).doc(sessionId);
+    final userMessage = session.collection('messages').doc('${turn.id}_u');
+    final assistantMessage = session.collection('messages').doc('${turn.id}_a');
+    await firestore.runTransaction((transaction) async {
+      final previous = await transaction.get(userMessage);
+      if (previous.exists) return;
+      final current = await transaction.get(session);
+      final count = current.data()?['messageCount'] as int? ?? 0;
+      if (count >= ChatLimits.messagesPerSession) {
+        throw const ChatFailure(
+          'Cuộc trò chuyện đã đủ ${ChatLimits.turnsPerSession} lượt. Hãy tạo cuộc trò chuyện mới.',
+        );
+      }
+      final timestamp = FieldValue.serverTimestamp();
+      if (current.exists) {
+        transaction.update(session, {
+          'messageCount': count + 2,
+          'updatedAt': timestamp,
+          'lastTurnId': turn.id,
         });
-      });
+      } else {
+        transaction.set(session, {
+          'title': 'Trò chuyện HealthMate',
+          'messageCount': 2,
+          'createdAt': timestamp,
+          'updatedAt': timestamp,
+          'schemaVersion': 1,
+          'lastTurnId': turn.id,
+        });
+      }
+      Map<String, dynamic> message(bool user) => {
+        'role': user ? 'user' : 'assistant',
+        'text': user ? turn.question : turn.answer,
+        'source': turn.source.name,
+        'sequence': count + (user ? 0 : 1),
+        'createdAt': timestamp,
+        'schemaVersion': 1,
+        'turnId': turn.id,
+      };
+      transaction.set(userMessage, message(true));
+      transaction.set(assistantMessage, message(false));
+    });
+  });
 
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {

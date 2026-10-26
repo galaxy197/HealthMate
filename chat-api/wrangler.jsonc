@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "healthmate-chat-api",
+  "account_id": "adfd92f2dcd7fd6171ef7c67120444fb",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-10-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "ai": { "binding": "AI" },
+  "observability": { "enabled": false },
+  "vars": {
+    "FIREBASE_PROJECT_ID": "healthmate-app-20261013",
+    "FIREBASE_PROJECT_NUMBER": "471712188542",
+    "FIREBASE_ANDROID_APP_ID": "1:471712188542:android:9aa12bdbac4605511eb02f"
+  },
+  "ratelimits": [
+    { "name": "USER_LIMIT", "namespace_id": "81001", "simple": { "limit": 8, "period": 60 } },
+    { "name": "GLOBAL_LIMIT", "namespace_id": "81002", "simple": { "limit": 60, "period": 60 } }
+  ]
+}

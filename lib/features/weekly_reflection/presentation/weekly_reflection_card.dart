@@ -475,7 +475,7 @@ class _DailyTargets extends StatelessWidget {
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const Text(
-          'Biểu đồ phía trên chỉ thể hiện số đã ghi. Mục tiêu dưới đây lấy theo ngày hiệu lực, không áp ngược mục tiêu mới.',
+          'Biểu đồ phía trên chỉ thể hiện số đã ghi. Mục tiêu dưới đây là mục tiêu gốc theo ngày hiệu lực, chưa cộng điều chỉnh bước và không áp ngược mục tiêu mới.',
         ),
         state.when(
           skipLoadingOnReload: false,

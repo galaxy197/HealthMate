@@ -10,6 +10,7 @@ import '../../food_library/presentation/food_nutrition_text.dart';
 import '../../nutrition_targets/models/nutrition_target.dart';
 import '../../nutrition_targets/providers/nutrition_target_providers.dart';
 import '../../nutrition_targets/presentation/nutrition_target_form.dart';
+import '../../wellness/providers/energy_providers.dart';
 
 /// The diary and its applicable target share one overview, with independent
 /// loading/errors. Never turn stale AsyncValue data into a confirmed total.
@@ -26,6 +27,10 @@ class JournalNutritionOverview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final key = localDateKey(day);
     final targetState = ref.watch(nutritionTargetProvider(key));
+    final budgetState = ref.watch(dailyEnergyBudgetProvider(key));
+    final budget = !budgetState.isLoading && !budgetState.hasError
+        ? budgetState.value
+        : null;
     final targetReady = !targetState.isLoading && !targetState.hasError;
     final target = targetReady ? targetState.value : null;
     final totals = !meals.isLoading && !meals.hasError && meals.value != null
@@ -69,14 +74,25 @@ class JournalNutritionOverview extends ConsumerWidget {
           children: [
             Text('Đã ghi / mục tiêu', style: theme.textTheme.labelMedium),
             Text(
-              '${amount(totals?.kcal)} kcal / ${goal(target?.kcalTarget)} kcal',
+              '${amount(totals?.kcal)} kcal / ${goal(budget?.kcalTarget)} kcal',
               key: const ValueKey('nutrition-daily-totals'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
-            if (totals != null && target != null)
-              Text(comparison(totals.kcal, target.kcalTarget, 'kcal')),
+            if (totals != null && budget != null)
+              Text(comparison(totals.kcal, budget.kcalTarget, 'kcal')),
+            if (budget != null && budget.adjustmentKcal > 0)
+              Text(
+                'Gốc ${amount(target?.kcalTarget)} + bước đã xác nhận ${amount(budget.adjustmentKcal)} kcal · ước tính',
+              ),
+            if (budget?.hasUnappliedAdjustment == true)
+              Text(budget!.explanation),
+            if (budgetState.hasError && target != null)
+              TextButton(
+                onPressed: () => retryEnergyBudget(ref, key),
+                child: const Text('Chưa tải đủ ngân sách · Thử lại'),
+              ),
             if (totals != null && meals.value!.isEmpty)
               const Text('Chưa ghi bữa ăn'),
             if (meals.isLoading)

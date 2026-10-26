@@ -14,13 +14,12 @@ final activityRepositoryProvider = Provider<ActivityRepository>(
 );
 
 final activityLogsProvider = StreamProvider.autoDispose
-    .family<List<ActivityLog>, String>((ref, dateKey) async* {
+    .family<List<ActivityLog>, String>((ref, dateKey) {
       final user = ref.watch(authSessionProvider).value;
       if (user == null) {
-        yield const [];
-        return;
+        return Stream.value(const []);
       }
-      yield* subscriptionStream(
+      return subscriptionStream(
         ref.watch(activityRepositoryProvider).watchLogs(user.uid, dateKey),
       );
     }, retry: (_, _) => null);

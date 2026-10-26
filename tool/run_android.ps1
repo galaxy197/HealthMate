@@ -13,4 +13,5 @@ if (-not $flutter) {
   $flutter = 'D:\Flutter\flutter\bin\flutter.bat'
 }
 $debugToken = (Get-Content -Raw -LiteralPath $tokenPath).Trim()
-& $flutter run -d $DeviceId "--dart-define=HEALTHMATE_APP_CHECK_DEBUG_TOKEN=$debugToken"
+$chatConfig = Join-Path $PSScriptRoot '..\config\chat-api.json'
+& $flutter run -d $DeviceId "--dart-define=HEALTHMATE_APP_CHECK_DEBUG_TOKEN=$debugToken" "--dart-define-from-file=$chatConfig"

@@ -1,5 +1,147 @@
 # Giai đoạn 10 — Báo cáo kiểm thử và rà soát MVP
 
+## Mới nhất26/10/2026 — Mục2–3–4
+
+Full Flutter608/608,82giây; Ruleslocal73/73 vàFirebaseSDK23/23; candidateMVP không
+admin64/64; Androidacceptance cuối1scenario+teardown51giây exit0; debugbuild24giây
+qua. Cả3ảnh UIcalo/ngủ/tiến độ đã xem. Testkhôngtrộncalonghỉ/bướctínhsẵn, tạm
+ngừngcreditkhiđổigoal/cóactivitynhậptay, consent/retry, thốngnhấtDashboard/Journal/
+chat, sleepoverlap/midnight/missing/invalidday vàtrungbìnhcânmỗingàynhưnhau.
+Analyzer cuối0issues,49,2giây;format34file0thayđổi,diffcheckexit0,sourceaudit438file
+khôngkhớp cácmẫu secret kiểm tra (không phải kiểm toán APK).
+
+Native kiểm thông báo giờ ngủ thực, dữ liệu thiết lập/goal, biểu đồ30ngày,
+calo fixture xác nhận→ngân sách và đổi UID dọn thông báo, không lẫn cache.
+Không sensor thật trên AVD;6000bước là fixture UI/mô hình. Chưa thử/cài điện thoại.
+Deploy chỉRules thành công, cảnh báo unusedknownNumbercũ, đọcserverkhớp6a1762dd…,
+rulesete0057d3e-f72e-405c-b50c-cd5063e25c6c. Khôngghi/thửuserproduction.
+Chi tiết nguồn/đơn vị/dữ liệu/giới hạn và log [wellness-insights.md](wellness-insights.md).
+
+## Mới nhất26/10/2026 — Rollout mục1
+
+Đã chạy lại **61/61 Rules tests** đúng candidate MVP, exit0,19,7giây; log
+`build/wellness-rollout-candidate-tests.log`. Baseline đọc mới khớp bản đã review,
+backup và diff lưu riêng. Firebase compiler/deploy qua; có1warning unused
+knownNumber, không có compilation error. Đọc lại Rules trên server khớp SHA256
+`2bb6a4a230da4d516cb757c564944782924e875ff9cc1f3b7397951773d59f62`;
+ruleset `8add3549-ea41-4a5d-9f5c-22d1b62808cc`.
+
+APK hash/manifest đúng bản thường đã nghiệm thu. Không sửa Flutter/native nên
+không chạy lại597 tests/analyze/build; kết quả bên dưới thuộc đợt source trước.
+Không test bằng cách tạo user hoặc ghi fixture trong production. ADB không có
+thiết bị; user chọn kết nối sau, chưa cài APK hoặc kiểm cảm biến/lưu app qua Firebase
+thật. Chi tiết và log: [wellness-rollout.md](wellness-rollout.md).
+
+## 26/10/2026 — Nghiệm thu đợt mở rộng 6 tính năng
+
+Kết quả ưu tiên cho source hiện tại; kết quả giai đoạn10 bên dưới là lịch sử.
+
+| Lệnh/lượt chạy cuối | Kết quả |
+| --- | --- |
+| `flutter analyze --no-pub` | 0 issues, 25,7 giây |
+| `flutter test --no-pub` | 597/597, 66 giây |
+| `node --test tool/food_catalog.test.cjs` | 10/10 |
+| `tool/test_emulators.ps1` | 70/70 Rules và22/22 Flutter SDK, exit0 |
+| `node tool/test_stage10_rules_candidate.cjs --wellness` trong Firestore demo | 61/61, exit0 |
+| `tool/test_android_core.ps1 -Suite wellness` trên AVD riêng | exit0, 1 end-to-end + teardown, 25 giây trong test |
+| `flutter build apk --debug --no-pub` | Thành công, Gradle14,7 giây |
+| `node tool/audit_source_secrets.cjs` | 424 file, 0 khớp các mẫu kiểm tra |
+
+Đã kiểm tra thực: notification Android xuất hiện rồi được gỡ khi ghi bữa;
+SQLite v3 round-trip extras/aliases/portion; ngủ start/finish/history; plan lưu
+Firestore nhưng không tự cộng journal; dưỡng chất thiếu/zero; đổi UID không đọc
+cache/lịch/notification cũ. SDK kiểm tra idempotent finish ngủ và chuyển plan→journal,
+step sync không giảm số cũ. Rules kiểm verified/khách/chéoUID,5 hàng meal/plan/template
+và6 ingredient recipe có đủ nutrients, dữ liệu sai ở giữa/cuối bị chặn.
+
+Native lượt1 phát hiện chờ catalog autoDispose và lượt2 phát hiện UnmountedRef
+khi đổi tài khoản; đã sửa và lượt3 qua. Một lượt cuối Rules vẫn dùng schema3 là
+"unsupported" cho custom food trong fixture cũ; cập nhật ca phiên bản chưa hỗ trợ
+thành4 theo schema mới và chạy lại toàn bộ70+SDK, không bỏ validation dữ liệu sai.
+
+Chỉ dùng Firebase Emulator demo/AVD HealthMateMaintenanceQA; AI tắt bằng cờ rõ
+ràng trong integration build, APK bàn giao dùng entry point app thật. Skia chỉ
+được chọn ở runner QA vì Impeller/SwiftShader API30 vượt giới hạn uniform; không
+đổi renderer của APK thường. SourceRules test bao gồm admin đang tạm gác, candidate
+MVP riêng đã bỏ toàn bộ quyền quản trị và cũng qua61ca.
+
+Chưa kiểm trên điện thoại thật/Android13+ hoặc độ chính xác step counter. AVD
+không có sensor, app báo không hỗ trợ; không dùng số bước giả để nhận pass. Chưa
+đo giao alarm đúng giờ sau Doze/reboot/OEM; notification tức thời đã kiểm thật.
+Chưa deploy Rules hoặc cài APK điện thoại. Release signing chưa cấu hình.
+Artifacts/log/hash/cấu hình còn thiếu: [wellness-expansion.md](wellness-expansion.md).
+
+## Mới nhất 25–26/10/2026 — Giai đoạn 10 theo yêu cầu
+
+Phần này ưu tiên hơn kết quả lịch sử bên dưới. Đã sửa parser USDA, bảo vệ cache
+danh mục công khai, giữ giá trị chưa biết/zero đúng nghĩa, bỏ log tìm kiếm nhạy
+cảm và bổ sung kiểm tra verified email cho admin local. Không bật lại web admin,
+không đổi model/quota, không thêm package và không tác động dữ liệu production.
+
+| Kiểm tra | Kết quả thực tế |
+| --- | --- |
+| `flutter analyze --no-pub` | No issues found, 51,5 giây |
+| `flutter test --no-pub` | 584/584 qua, 68 giây |
+| `tool/test_emulators.ps1` | 60/60 Rules (52 MVP + 8 admin lúc đó), 19/19 Flutter SDK, catalog import 155 tạo/155 bỏ qua khi retry |
+| Admin Rules sau bổ sung email gate | 9/9 qua, tổng hiện tại 61 ca Rules đã kiểm tra |
+| MVP candidate Rules tách admin | 52/52 qua, 19,5 giây |
+| Auth Emulator email actions | 1/1 luồng verify/reset/refresh token; mã dùng một lần và mật khẩu cũ bị chặn |
+| Worker tests/check/audit | 21/21 qua; syntax qua; npm audit 0 vulnerabilities |
+| Android native core | SQLite cache + 10 checkpoint nghiệp vụ qua; exit0, 4phút13giây, log round7 |
+| Android H7 dữ liệu riêng tư | 2pha qua (17giây/44giây); process death, draft mã hóa, offline/retry, SAF CSV/readback, đổi UID khi export và xóa dữ liệu đúng UID; exit0 |
+| APK debug với URL chatbot thật | Build qua, assembleDebug 15,1 giây, 236.547.388 byte |
+| Format/diff check | 11 Dart file trong phạm vi đúng format, diff-check sạch; check 271 file có 12 file ngoài phạm vi lệch format, exit1, không ghi sửa |
+
+Android native chạy riêng bằng AVD `HealthMateMaintenanceQA` và backend Emulator
+demo. Các lần đầu dừng vì bài thử cũ chưa mở disclosure Mục tiêu, đợi SnackBar,
+còn đọc giao diện Tiến độ/ngày cũ hoặc runner chưa truyền AI=false rõ ràng.
+Đã sửa thao tác/cấu hình fixture, giữ các assertion dữ liệu và quyền. Lượt cuối
+qua toàn bộ, bao gồm UID thứ hai không đọc/thấy dữ liệu của UID trước.
+
+APK: `build/releases/healthmate-stage10-debug.apk`, SHA-256
+`7EC5FCD80B9CD67FF042F475BFAA70D9210A59E808D8E40E828A375DB5A61205`.
+Chưa cài điện thoại vì người dùng chọn thử sau; chưa build signed release do
+thiếu khóa riêng. Không ghi Emulator OOB là đã kiểm tra Inbox Gmail thật.
+
+**Chưa triển khai production:** Rules thật thiếu verified email gate và schema
+dinh dưỡng mới. Candidate MVP đã qua 52 tests, loại phần admin; phải duyệt trước
+khi đổi điều kiện truy cập tài khoản chưa xác minh. App Check AI được xác nhận
+ENFORCED; Firestore trả thiếu enforcementMode nên chưa được coi đã enforce.
+Chi tiết lỗi, file, log, candidate hash và rollback tại
+[báo cáo bảo mật](stage10-security-review.md). Không chuyển Giai đoạn 11.
+
+## Bổ sung mới nhất25/10 — chatbot 50 lượt và khôi phục tab (Giai đoạn9)
+
+Format qua; focused chat62/62,full Flutter578/578 (~67s); analyze cuối18info
+có sẵn,0warning/error,exit1. Rules local lần cuối52/52,candidate production
+4/4ca chat bao gồm UID/atomic pair/validation/50–51lượt. Lượt full Rules đầu
+51/52 do assertion onboarding; test đó trên baseline trước thay đổi đã qua,
+chạy full lại cũng qua. Ghi nhận dấu hiệu phụ thuộc thời điểm, chưa sửa ngoài scope.
+APK debug có URL thật build42,2s,236.539.039bytes. Đã deploy/đọc lại đúng hash
+Rules production chỉ đổi trần chat; không đẩy file local có các thay đổi khác.
+Người dùng chọn cài/thử APK sau: chưa có kết quả native của bản mới. Chi tiết
+và log: [chatbot-capacity-update.md](chatbot-capacity-update.md).
+
+## Bổ sung25/10 — Giai đoạn9, kết nối API thật
+
+Trạng thái mới nhất ở [chatbot-live-qa.md](chatbot-live-qa.md), ưu tiên hơn phần
+lịch sử dưới đây. Worker đã deploy;21/21tests và syntax qua,auditproduction0;
+endpoint thật thiếu/saiJWT401. Benchmark20fixture bằng model thật qua REST:
+20/20đúng nguồn/ngày và hoàn tất,1,258–5,494s,median1,892s. Đây không phải test
+độ chính xác dinh dưỡng hay native E2E. APK debug có URL build qua45,9s;
+adb install -r trả Success, app đã mở, giữ dữ liệu. Kết quả native sau sửa nằm
+ở đoạn tiếp theo. Flutter569tests là lượt full gần nhất trước thay đổi này;
+không chạy lại full để ghi kết quả mới.
+
+Native lần đầu báo "Phản hồi AI vượt giới hạn"; đã sửa SSE transport budget,
+giữ text budget.55/55focusedchat tests qua8s,2regressions mới. Dart replay capture
+thật45.817byte/844ký tự qua. APK sửa17,1s qua,analyze3file sạch; cài đè lần hai
+Success,lastUpdateTime25/10/2026 02:59:04; người dùng xác nhận câu kiến thức chung
+trả lời đầy đủ. Sau đó người dùng xác nhận mục tiêu kcal và follow-up đạm khớp
+số liệu hoặc báo thiếu dữ liệu đúng. Luồng chính native đã chạy; chưa ghi các
+test offline/quota/đổi UID/lịch sử mở lại là đã qua.
+Full analyze cuối8,9s:18info có sẵn,0warning/error,exit1 do info; targeted3file0issues.
+
 Ngày kiểm tra: **16/10/2026**. Phạm vi chỉ Giai đoạn 10; không triển khai Giai đoạn 11.
 Người dùng đã duyệt MVP/demo **18+**, cập nhật onboarding và chặn gọi AI khi
 chưa xác nhận đủ điều kiện. Giữ lựa chọn Gemini Developer API free tier:
@@ -1164,6 +1306,43 @@ indexes/schema hoặc package. Chưa kiểm chứng camera/API online trên máy
 - Không chạy lại security emulator hay API/camera thật; không đổi nghiệp vụ,
   Firebase Rules/indexes/schema, dependency hoặc triển khai production.
 
+## 23/10/2026 — Quét ảnh, khẩu phần mã vạch và lưu món riêng
+
+Nền Git 63cda3f; phạm vi và cách dùng ở [scanner-update.md](scanner-update.md).
+
+| Lệnh/kiểm tra | Kết quả thực tế | Log |
+| --- | --- | --- |
+| `dart format --output=none --set-exit-if-changed` trên các file Dart thay đổi | **13 file, 0 thay đổi**, exit 0 | Kết quả terminal cuối |
+| `git -c core.whitespace=cr-at-eol diff --check` | **Qua**, exit 0 | Kết quả terminal cuối |
+| Flutter test đầy đủ `--no-version-check test --no-pub --reporter expanded` | **501/501 qua**, 54 giây, exit 0 | build/scanner-full-test.log |
+| Flutter analyze `--no-version-check analyze --no-pub` | **20 info, 0 warning/error**, 11,1 giây, exit 1 | build/scanner-analyze.log |
+| Android debug `--no-version-check build apk --debug --no-pub` | **Qua**, assembleDebug 37,6 giây, exit 0; KGP warning còn | build/scanner-build.log |
+| `firebase emulators:exec --config firebase.emulators.json --only firestore --project demo-healthmate-rules "npm test --prefix rules-tests"` | **51/51 qua**, 15,8 giây chạy test, exit 0 | build/scanner-rules.log |
+
+11 test mới (4 barcode, 7 ảnh/thư viện) bổ sung trên suite 490 trước đó: quy đổi
+30g từ 500kcal/100g thành 150kcal; đổi lượng, round-trip snapshot và chất xơ;
+input dấu phẩy, rỗng/âm/quá giới hạn; thiếu khác 0; kJ, lỗi mạng/quota/JSON và
+không tìm thấy. Scanner kiểm tra parser/null/giới hạn, catalog ưu tiên AI, form
+điền đúng nhưng không tự ghi, lưu món riêng theo UID rồi lưu bữa đúng 250g/500kcal,
+failed save retry cùng ID, đăng xuất khi pending và ảnh không phải món ăn.
+
+Các lượt phát triển đầu có lỗi fixture http.Response mã hóa Latin-1 và locator
+ngoài viewport; đã sửa charset UTF-8 và cuộn đúng ListView. Test còn phát hiện
+SnackBar che nút xác nhận sau lưu; sản phẩm chuyển sang thông báo inline, không
+che nút. Giữ nguyên assertion dinh dưỡng/lưu/UID; không bỏ hoặc skip test.
+
+Analyze còn các info cũ withOpacity trong glass/skeleton, print trong search và
+http ở dev_dependencies; không tắt lint/nâng package. Model/API theo tài liệu
+Firebase hiện hành, schema nullable được xác nhận tương thích SDK firebase_ai
+4.0.0 đang cài. Không đổi model/provider, package, Rules/index/schema hoặc billing.
+
+Emulator dùng project demo cố định, không đụng dữ liệu production; các lỗi
+PERMISSION_DENIED trong log thuộc assertion từ chối truy cập như dự kiến.
+Chưa xác minh Rules production hỗ trợ schema/chất xơ H0–H7 đã ghi trong README.
+Không camera/cloud AI thật: ADB không có thiết bị kết nối. Unit/widget dùng fake
+services và dữ liệu tổng hợp; không dùng kết quả này để khẳng định chất lượng
+nhận diện hoặc App Check thật. Không push/deploy, không lưu ảnh gốc.
+
 ### 2026-10-23 — Kiểm tra trước khi đồng bộ GitHub
 
 - Theo yêu cầu người dùng, gom đầy đủ các thay đổi UI, thanh điều hướng 5 ô,
@@ -1182,3 +1361,302 @@ indexes/schema hoặc package. Chưa kiểm chứng camera/API online trên máy
 - Không sửa mã nguồn nghiệp vụ trong lượt đồng bộ, không chạy lại build APK;
   kết quả build gần nhất của chính thay đổi này là bản debug qua ngày 20/10.
   Không deploy Firebase; kết quả push và mã commit xác nhận sau khi GitHub nhận.
+
+## 23/10/2026 — Xác minh bản sửa độ trễ scanner trên Android
+
+| Lệnh/kiểm tra | Kết quả thực tế | Log/nguồn |
+| --- | --- | --- |
+| Flutter test đầy đủ --no-version-check test --no-pub --reporter expanded | **504/504 qua**, 91 giây, exit 0 | build/scanner-latency-full-test.log |
+| Flutter analyze --no-version-check analyze --no-pub | **18 info, 0 warning/error**, 7,6 giây, exit 1 | build/scanner-latency-analyze-final.log |
+| Flutter debug build --no-version-check build apk --debug --no-pub | **Qua**, assembleDebug 57,1 giây, exit 0 | build/scanner-latency-build.log |
+| Dart format --output=none --set-exit-if-changed trên 4 file Dart bản sửa | **0 thay đổi**, exit 0 | Terminal |
+| REST probe cùng Firebase AI Logic, App Check, ảnh người dùng và schema thật | HTTP 200, JSON được parser ứng dụng chấp nhận, **16,898 giây** | build/scanner-live-result.json; test runtime |
+| adb install -r -t APK debug | **Success**, cập nhật giữ dữ liệu | Terminal cài đặt |
+| Người dùng chọn ảnh/phân tích trên điện thoại | App Check **44 ms**, HTTP 200 **6743 ms**, parse thành công **6767 ms** | HM_DIAG quan sát qua ADB; người dùng xác nhận đã thấy kết quả |
+
+Ba test runtime mới kiểm tra cấu hình model/thinking/schema, phân loại lỗi và
+HTTP transport/close. Lượt test đầu phát hiện chuỗi lỗi app-check có dấu gạch
+nối chưa được phân loại; đã sửa mapping rồi chạy lại đầy đủ, không bỏ test.
+http chuyển từ dev sang runtime dependency nên hai info cũ liên quan import
+runtime được xử lý; 18 info còn lại ở glass/skeleton và print tìm kiếm có sẵn.
+
+Model cũ gemini-3.8-flash không trả lời trong 30 giây ở hai probe nhỏ; model mới
+trả HTTP 200. Lượt điện thoại cũ lỗi SDK sau 8,868 giây chưa có mã cụ thể, do đó
+không khẳng định chính xác nguyên nhân lỗi gốc. Thay model riêng scanner,
+minimal thinking, ảnh 1024 px và xử lý lỗi được xác minh bằng lượt thành công
+thật trên điện thoại. Kết quả dinh dưỡng vẫn là ước tính, không được kiểm định
+bằng phép đo thực phẩm. Không cam kết mọi lượt dưới 7 giây.
+
+Chưa kiểm tra lại thao tác chụp camera hoặc lưu món production; không thay
+Rules/schema/billing/App Check enforcement, không push/deploy. Rules emulator
+không chạy lại trong lượt này vì không thay đổi; kết quả 51/51 ở mục trước.
+Build/log/probe cục bộ nằm trong build bị Git ignore, không đưa credential vào
+source hoặc tài liệu. Xem scanner-update.md để biết phạm vi và tài liệu model.
+
+### 23/10/2026 — Chẩn đoán chênh lệch hai món, chưa sửa sản phẩm
+
+- Đối chiếu sáu ảnh người dùng và chạy hai trường hợp qua FoodScannerDialog thật
+  với response dựng từ ảnh; không gọi lại cloud AI và không sửa code sản phẩm.
+- 2/2 probe qua: tái hiện cơm tấm bị tự ghép Cơm trắng chín cho toàn bộ 450 g
+  (585 kcal, đạm 12,11 g, béo 1,26 g); bít tết quy đổi đúng 220 × 3,5 = 770 kcal.
+- Lệnh: flutter --no-version-check test --no-pub
+  build/scanner_comparison_probe_test.dart --plain-name "comparison probe"
+  --reporter expanded. Phần thực thi 2 giây; build/scanner-comparison-probe.log.
+- Probe chỉ chứng minh hành vi hiện tại và lỗi ghép món; không chứng minh độ
+  chính xác dinh dưỡng. Chưa sửa nên không chạy lại full suite/analyze/build.
+  Chi tiết và giới hạn đối chiếu ở scanner-update.md. Không push/deploy.
+
+## 23/10/2026 — Kiểm thử bản sửa ghép nguồn của món nhiều thành phần
+
+| Lệnh/kiểm tra | Kết quả thực tế | Log |
+| --- | --- | --- |
+| Flutter test nhóm food_scan_catalog_matcher, food_scanner, scanner_runtime --no-pub --reporter expanded | **25/25 qua**, 13 giây, exit 0 | build/scanner-whole-dish-tests.log |
+| Flutter test đầy đủ --no-version-check test --no-pub --reporter expanded | **512/512 qua**, 68 giây, exit 0 | build/scanner-whole-dish-full-test.log |
+| Flutter analyze --no-version-check analyze --no-pub, lần cuối | **18 info cũ, 0 warning/error**, 7,1 giây, exit 1 | build/scanner-whole-dish-analyze-final.log |
+| Flutter build --no-version-check build apk --debug --no-pub | **Qua**, assembleDebug 28,4 giây, exit 0; cảnh báo KGP còn | build/scanner-whole-dish-build.log |
+| Dart format --output=none --set-exit-if-changed trên 5 file Dart bản sửa | **0 thay đổi**, exit 0 | Terminal |
+| git -c core.whitespace=cr-at-eol diff --check | **Qua**, exit 0 | Terminal |
+| adb devices (hai lần) | Không có thiết bị kết nối; **chưa cài APK** | Terminal |
+
+Bổ sung 8 test: 4 matcher (không khớp nguyên liệu, tên/tên tương đương đầy đủ và
+Unicode tiếng Việt, nhiều kết quả bất kể thứ tự, gộp ID trùng); 4 widget (cơm tấm
+không lấy số cơm trắng, giữ số AI qua form món riêng đến snapshot bữa ăn; bít tết
+quy đổi đúng; trùng tên không tự chọn; sửa tên không lấy lại searchTerms cũ).
+Test ưu tiên catalog có sẵn được mở rộng để kiểm tra chuyển sang AI rồi chọn
+lại catalog. Giữ assertion nguồn, khẩu phần, số liệu và không ghi trước xác nhận.
+
+Lần compile test đầu dùng nhầm tên getter suggestedQuery trong test mới; sửa
+thành initialSearch đúng giao diện hiện có rồi chạy lại nhóm và toàn suite qua.
+Analyze ban đầu có 4 info phát sinh từ file probe tạm của lượt chẩn đoán trước
+trong build; đổi đuôi file tạm sang .dart.txt để giữ bằng chứng nhưng không đưa
+vào phân tích Dart, rồi chạy lại. Không tắt lint hoặc thay analysis_options.
+
+Kết quả dinh dưỡng trong test là fixture, không phải phép đo thực phẩm hoặc
+response cloud mới. Giữ model/schema và không chạy probe AI cloud trong lượt
+này. Không chạy lại rules emulator vì không thay Rules/schema. Không push/deploy;
+APK build/app/outputs/flutter-apk/app-debug.apk chờ thiết bị để cài và nghiệm thu.
+
+## 23/10/2026 — Thêm bữa ăn hợp nhất với camera xem trước
+
+| Lệnh/kiểm tra | Kết quả thực tế | Log/ảnh |
+| --- | --- | --- |
+| flutter test --no-pub test/food_scanner_test.dart test/navigation_features_test.dart test/core_journal_test.dart --reporter expanded | **70/70 qua**, 13 giây, exit 0 | build/unified-meal-focused.log |
+| flutter test --no-pub --dart-define=HEALTHMATE_CAPTURE_UNIFIED_MEAL=true test/unified_meal_entry_test.dart --reporter expanded | **6/6 qua**, 4 giây, exit 0 | build/unified-meal-entry-test.log; build/unified-meal-camera.png |
+| flutter test --no-pub test/compact_ui_test.dart test/nutrition_test.dart test/stage_6b_test.dart --reporter expanded | **18/18 qua**, 5 giây, exit 0 | build/unified-meal-regression-test.log |
+| flutter --no-version-check test --no-pub --reporter expanded | **518/518 qua**, 67 giây, exit 0 | build/unified-meal-full-final.log |
+| flutter --no-version-check analyze --no-pub | **18 info cũ, 0 warning/error**, 8,7 giây, exit 1 | build/unified-meal-analyze-final.log |
+| flutter --no-version-check build apk --debug --no-pub | **Qua**, assembleDebug 29,9 giây, exit 0; KGP warning còn | build/unified-meal-build-final.log |
+| dart format --output=none --set-exit-if-changed trên 18 file Dart lượt UI | **0 thay đổi**, exit 0 | Terminal |
+| git -c core.whitespace=cr-at-eol diff --check | **Qua**, exit 0 | Terminal |
+| aapt dump permissions APK | CAMERA có; RECORD_AUDIO và WRITE_EXTERNAL_STORAGE không có; quyền đọc thư viện cũ còn | build/unified-meal-permissions.log |
+| adb devices nhiều lần | Không có thiết bị, **chưa cài APK** | Terminal |
+
+Sáu test mới: camera serialize init/dispose/đổi chủ và từ chối capture phiên cũ;
+nháp nhập tay 120g giữ qua chụp ảnh và tab yêu thích đến lưu, không tự gửi AI;
+barcode đóng camera trước khi mở, thêm 30g vào cùng nháp với phép tính đúng;
+chọn món yêu thích vẫn giữ món nhập trước; lỗi quyền/thử lại, inactive/resumed,
+đổi tab trên 360px ở text scale 1 và 2. Test scanner hiện có tiếp tục kiểm tra
+consent, parsing, UID guard, AI/catalog priority, món riêng, khẩu phần và lưu.
+
+Các lỗi trong lượt phát triển đã xử lý: lỗi chọn ảnh ban đầu không hiện ở pane
+camera (đã đưa thông báo vào pane); locator ngoài viewport sau thêm thanh tab
+(đổi thành cuộn đúng ListView, giữ assertion); test chuyển màn bằng Navigator.pop
+cũ chuyển sang callback chọn món trong cùng nháp; host test standalone bổ sung
+ProviderScope. Full suite đầu 515 qua/3 lỗi, đã sửa setup/thao tác test phù hợp
+luồng mới rồi chạy lại 518/518. Không bỏ/skip test hoặc assertion dữ liệu.
+
+Snapshot có font BeVietnamPro và MaterialIcons thật, đã mở kiểm tra bố cục.
+Camera dùng fake session nên preview đen; không dùng làm bằng chứng camera thật.
+Lượt export snapshot đầu bị chờ do xử lý ảnh ngoài runAsync; đã đưa toàn bộ
+export vào runAsync và chạy lại qua. Bản build đầu sau thêm plugin qua 101,8
+ giây; build cuối 29,9 giây. Braces lint mới đã sửa, không tắt lint.
+
+Thêm camera 0.12.0+2 qua tooling offline; lockfile không nâng phiên bản package
+có sẵn. Không thay database/Rules nên không chạy lại emulator. Không gọi AI cloud
+hoặc API barcode thật trong lượt UI. APK build/app/outputs/flutter-apk/app-debug.apk
+chờ thiết bị; cần kiểm tra native camera và chuyển barcode trên Android thật.
+Không push/deploy, không xóa dữ liệu hoặc thay App Check/billing.
+# Web quản trị — kết quả 23/10/2026
+
+Phạm vi: catalog, Firestore account access, app config và audit; chỉ dữ liệu
+demo local. Không dùng tài khoản/nhật ký thật và không gọi AI hoặc deploy.
+
+| Kiểm tra đã chạy | Kết quả |
+| --- | --- |
+| `npm --prefix admin-web run check` | Syntax các module UI/Firebase/validation qua |
+| `npm --prefix admin-web test` | **5/5 qua**: null/zero, số Việt/NaN, mass, URL, khẩu phần, aliases, config, ID/audit, timestamp nanosecond |
+| `FIRESTORE_EMULATOR_HOST=127.0.0.1:8092 npm --prefix rules-tests test` | **59/59 qua**, 11,1 giây; project demo tách biệt web fixture |
+| `flutter test test/admin_runtime_test.dart` | **5/5 qua**: parsing, rollout off, fail closed/AI flags, identity-only sync, khóa đóng dialog/bảo trì/offline |
+| `flutter test` | **523/523 qua**, 78 giây; log `build/admin-flutter-tests.log` |
+| `flutter analyze` | **18 info cũ, 0 warning/error**, exit 1, 35,9 giây; `build/admin-flutter-analyze.log` |
+| `flutter build apk --debug` | **Qua**, assembleDebug 27,7 giây; `build/admin-android-build.log`; APK chưa cài thiết bị, cờ quản trị false mặc định |
+| Dart format các file admin/runtime sửa | Qua; không format hàng loạt file ngoài phạm vi |
+| `git diff --check` | Qua; Git có thông báo LF/CRLF, không lỗi whitespace |
+| Browser localhost + Auth/Firestore Emulator | Admin login, đọc counts thật, tạo món có nguồn, sửa chất xơ/ẩn món, khóa rồi mở lại member, tắt rồi bật lại scanner, hiển thị audit, logout, member login bị chặn admin |
+
+Rules mới kiểm tra role không tự cấp được; guest/user thường không quản trị;
+admin không đọc `users/alice`/meal logs; catalog validation, legacy metadata
+không bị ghi đè; thiếu/giả audit bị rollback target; audit append-only;
+suspension chặn owner read/write/catalog, vẫn đọc được lý do, reopen phục hồi;
+không khóa admin/self/UID chưa có directory; config whitelist/role revocation;
+directory metadata khớp profile/token, không thêm sức khỏe/đổi createdAt.
+51 test cũ giữ nguyên assertion, gồm 5 món với fiber partial và 6 nguyên liệu.
+
+Lỗi phát hiện và xử lý khi phát triển: Rules Map.keys() là list nên phải
+chuyển sang set khi đối chiếu audit; kiểm tra account control làm trường hợp
+5 món sát budget 1000 expression thất bại, đã bỏ lookup quantity không dùng
+trên gram rows và chạy lại cả 59 test; không nới validation hoặc bỏ test.
+Unit Riverpod cần listener giữ stream hoạt động; đã sửa harness. Widget test
+phát hiện trạng thái maintenance cũ che lỗi mạng; gate nay ưu tiên lỗi xác minh.
+Timestamp conflict check giữ nanosecond thay vì làm tròn millisecond.
+
+Log thêm: `build/admin-rules-all.log`, `build/admin-runtime-tests.log`.
+Ảnh bằng chứng UI: `docs/ux/admin-web-overview.png` (dữ liệu emulator, không phải
+production). Chưa kiểm tra layout web trên thiết bị nhỏ hoặc App Check/domain
+production, chưa bật cờ quản trị trên điện thoại. Emulators/server thử nghiệm
+được dừng sau QA; chạy lại theo `admin-web/README.md`.
+# Auth mobile — 24/10/2026
+
+| Kiểm tra thực tế | Kết quả |
+| --- | --- |
+| `flutter test --no-pub` | **534/534 qua**, 82s; `build/auth-full-tests.log` |
+| `flutter test --no-pub --dart-define=HEALTHMATE_CAPTURE_AUTH=true test/auth_completion_test.dart test/auth_test.dart test/account_security_test.dart` | **35/35 qua**, 5s sau chỉnh copy/logo; `build/auth-final-focused.log` |
+| `flutter analyze --no-pub` | 18 info cũ, không warning/error, exit1; `build/auth-final-analyze.log` |
+| `flutter build apk --debug --no-pub` | Qua; plugin build101,4s; APK cuối10,8s, `build/auth-android-build-final.log` |
+| `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm --prefix rules-tests test` | **60/60 qua**, 18s; `build/auth-rules-results.log` |
+| `npm --prefix rules-tests run test:auth` | **1/1 qua**, 1,3s; `build/auth-email-e2e.log` |
+| Dart format file auth/router/profile/test/helper sửa và `git diff --check` | Qua; không bỏ thay đổi cũ hoặc format toàn repo |
+| Đọc Firebase config qua API đã đăng nhập sẵn | Project config200: Email/Password bật; Google IDP404; list IDP200 rỗng. Chỉ đọc, không ghi config/token vào source. |
+| `adb devices` | Không có device kết nối; chưa cài APK hoặc chạy native UI |
+
+11 test mới: min8 nhưng login mật khẩu cũ vẫn được; Google cancel/collision/
+retry và chống gửi trùng; user chưa verified không bootstrap profile và không
+vào route riêng tư; refresh chỉ mở sau server xác minh; resend hết cooldown0
+và resume; gửi lỗi có retry; kết quả trễ của UID A không đổi trạng thái B;
+reset lỗi/neutral success/cooldown; Google-only reauth trước delete; layout
+verification 360/390px text scale2. Snapshot trong `docs/ux/auth/` đã mở kiểm
+tra bằng mắt, dùng fake repositories và font/icon thật, không giả ảnh thiết bị.
+
+Email E2E chạy trên Auth/Firestore Emulator loopback: tạo user giả, gửi
+VERIFY_EMAIL, lấy/tiêu thụ OOB code, link dùng lại bị từ chối; token cũ vẫn bị
+chặn đọc profile, token refresh được đọc. PASSWORD_RESET tạo link, kiểm tra
+code, đặt mật khẩu mới; link giả/đã dùng bị từ chối; password cũ không đăng nhập
+được, password mới được và giữ emailVerified. Không log code/token, không gửi
+email thật, xóa đúng fixture đã tạo ở cuối test.
+
+Rules giữ 59 case cũ, thêm verified-claim boundary cho cả false/thiếu claim và
+cross UID. Verified fixture ghi rõ để giữ ý nghĩa test nghiệp vụ; không thay
+assertion chặn quyền, không dùng fixture verified để thay test xác minh email.
+Helper Android C6/H7 đã đổi sang tiêu thụ link email emulator thật nhưng chưa
+chạy lại trên Android vì không có thiết bị. Không coi REST E2E là Google OAuth
+hoặc nghiệm thu giao thư production.
+
+Sửa trong QA: thêm required emailVerified làm rõ trạng thái identity trong
+fixture; bỏ await nhầm trên lifecycle void của harness; reset dialog ban đầu
+hiện lỗi hai nơi (dialog và form sau lưng), đã chỉ hiện trong dialog khi mở;
+timer cập nhật cả khi cooldown về0; UID guard bỏ kết quả email của phiên cũ;
+braces lint mới đã sửa, không tắt lint. Full534 qua trước vòng chỉnh copy/logo,
+35 auth qua sau vòng cuối. KGP warning và 18 info cũ vẫn còn.
+
+Blocker production: `google-services.json` chưa có OAuth client và Google chưa
+bật; Rules mới chưa deploy; chưa nhận/mở thư thật hoặc chọn Google account trên
+điện thoại. Xem `docs/authentication-flow.md`. Web admin tạm gác theo yêu cầu;
+không cấu hình Facebook, không thay đổi provider/health data production.
+
+### Cấu hình Google tiếp nối — 24/10/2026, trước bước lưu
+
+- `firebase apps:android:sha:list`: ban đầu chỉ có SHA-256; thêm SHA-1 debug
+  thành công rồi đọc lại đủ hai fingerprint đúng Android App ID.
+- `firebase apps:sdkconfig ANDROID ... --out build/google-services-before-enable.json`:
+  thành công, project/package/app ID đúng, `oauth_client` vẫn rỗng. Chưa thay
+  file cấu hình trong app, chưa build/test lại vì chưa có cấu hình mới.
+- Console Google chưa bấm Save: đang chờ xác nhận email hỗ trợ công khai.
+  Không có ADB device. Không có bằng chứng đăng nhập Google production.
+
+### Google đã bật sau xác nhận — 24/10/2026 (thay blocker Google phía trên)
+
+- Console trả Success: Google enabled và bảng provider Google Enabled.
+  Đọc lại Google IDP API200: enabled=true, có client ID; không log secret/token.
+- SDK config CLI: đúng project/app/package; Android OAuth client_type1 khớp
+  SHA-1 debug đã đăng ký, Web client_type3 có mặt. Cập nhật JSON trong Android.
+- So sánh JSON trước/sau: cấu hình ngoài OAuth client giữ nguyên, không có
+  client_secret. Resource Gradle `default_web_client_id` khớp Web OAuth ID.
+- `flutter --no-version-check build apk --debug --no-pub`: qua11,1s,
+  `build/google-enabled-android-build.log`; APK app-debug.apk, KGP warning cũ.
+- Whitespace check qua. Không đổi Dart/test ở bước config nên không chạy lại
+  format/analyze/unit suite; kết quả auth local ở trên vẫn là lần chạy trước.
+- ADB không có thiết bị: chưa cài APK/nghiệm thu native Google OAuth hoặc thư
+  inbox. Không đổi Rules/billing/health data, không tiếp tục admin.
+
+# Chatbot theo nhật ký/mục tiêu — 25/10/2026
+
+- Focused: `flutter test --no-pub test/chatbot_test.dart test/chatbot_personal_test.dart --dart-define=HEALTHMATE_CAPTURE_CHAT=true`
+  **32/32qua**,11s, build/chatbot-personal-focused-final.log. Font/icon thật
+  được nạp khi chụp; snapshot đã mở bằng view_image, có360px scale100%/200%.
+- Full Flutter sau cập nhật nhãn navigation: **548/548qua**,65s,
+  build/chatbot-personal-full-final.log. Vòng chốt sau sửa thêm routing mục tiêu
+  khác dinh dưỡng **548/548qua**,73s, build/chatbot-personal-accepted-tests.log.
+- `dart format --output=none --set-exit-if-changed`12file:0thay đổi.
+- `flutter analyze --no-pub`:18info có sẵn,0warning/error,48s,exit1,
+  build/chatbot-personal-accepted-analyze.log. Không gọi analyze sạch.
+- `flutter build apk --debug --no-pub`:qua25,7s,
+  build/chatbot-personal-build-final.log. KGP warning cũ; APK debug chưa cài.
+- Whitespace check qua; không đổi package/collection/schema/Rules/index.
+  Không chạy Rules emulator vì giữ nguyên payload chat/schema quyền.
+
+14test mới kiểm tra: ngày/tuần/calendar và ngày sai/tương lai/ngoài phạm vi;
+followup giữ intent/phạm vi và ngày viết rõ ưu tiên; canonical topic/medical/
+write/offtopic guards; tổng tuần loại biên và mẫu số ngày có bản ghi; target
+còn/vượt/partial macro; version target theo từng ngày và protein attainment;
+thiếu target/nhật ký/lỗi nguồn không tạo tổng giả; nước không đọc bữa;
+tóm tắt không giấu nguồn lỗi; cân nặng có ngày đo không xuất private note;
+controller nhớ/xóa context; gõ kiến thức có disclosure và chỉ gửi enum;
+late target response sau signout không lưu; layout360px ở2text scales.
+
+QA phát hiện test navigation còn tìm headline cũ, đã cập nhật nhãn mới và thêm
+assert composer, giữ các assert route/đăng xuất/nguồn. Không bỏ assertion nghiệp
+vụ để né lỗi. Lỗi source bữa ăn giữ thông báo cụ thể. Analyze ban đầu phát hiện
+unused import trong test mới; đã bỏ import rồi chạy lại, không tắt lint.
+
+ADB không có device; chưa thử Gemini production hoặc chat UI native trong
+lượt này. Test fake và snapshot không phải bằng chứng cloud/độ đúng của model.
+USDA parser và Rules rollout từ audit vẫn là việc riêng chưa sửa. Không ghi dữ
+liệu production, không nâng billing, không deploy hoặc tiếp tục admin.
+
+## 25/10/2026 — Chatbot Cloudflare API, QA local (chưa live)
+
+- Flutter full: `flutter --no-version-check test --no-pub --reporter expanded`
+  **569/569**, 56s, `build/chat-api-full-tests-final.log`.
+- Nhóm chat: **51/51** trước thêm 2 layout; layout/capture riêng **2/2** ở 360px,
+  scale1.0/2.0, font thật; đã xem 4 ảnh trong `docs/ux/chatbot-api`. Sau bổ sung,
+  full 569 bao gồm cả 2 case này. Ảnh dùng service/repositories fake.
+- Format: 17 file chat/test helper được kiểm tra, 0 thay đổi; whitespace qua.
+- Analyze: 18 info cũ (withOpacity/print), 0 warning/error, exit1, 6,8s;
+  `build/chat-api-analyze-final.log`, không gọi analyzer sạch.
+- APK debug: build 10,9s, exit0, KGP warning cũ; log
+  `build/chat-api-android-build-final.log`, output app-debug.apk 236.534.148 byte.
+  Không có URL API thật trong bản build; chưa cài thiết bị.
+- Worker: `npm test` **18/18**, `npm run check` qua, `npm audit` 0 vulnerabilities,
+  `npm run build` chỉ Wrangler dry-run bundle48,14KiB qua, không deploy;
+  `build/chat-api-worker-tests.log`, `build/chat-api-worker-build.log`.
+
+21 case Flutter mới kiểm tra schema read-only/date bounds; tối thiểu ngữ cảnh,
+chặn metadata/UID/token vào body; UTF-8 chia từng byte, SSE/finish/truncation và
+ẩn reasoning; HTTP lỗi không lộ body; không tải dữ liệu khi kế hoạch sai; đổi
+UID trước/sau đọc chặn truyền tiếp; cancel đóng transport; catalog math/source;
+consent từ chối/đồng ý, free-form history, idempotent retry, local mode không
+gọi cả 2 AI, stop/signout và giao diện chữ lớn. Case Worker dùng JWT RS256 thật
+với key tổng hợp để kiểm project/verified/expiry/app/tamper; xác thực trước AI,
+schema/body/rate/model cố định và streaming no-store. AI output vẫn là fixture.
+
+Trong QA đã sửa bug UI chặn nút chủ đề khi ô nhập trống; harness mới dùng UTF-8
+Response.bytes, đúng asset Material Icons và completion matcher; xử lý cleanup
+stream trong widget fake async để không treo. Không bỏ assertion nghiệp vụ.
+Audit ban đầu phát hiện undici dev dependency; override bản vá7.30.1, audit và
+tests/dry-run đã chạy lại, không hạ Wrangler hoặc dùng audit fix --force.
+
+`wrangler whoami` chưa đăng nhập, người dùng đang tạo Free; chưa deploy/có URL,
+chưa gọi Qwen live/benchmark tiếng Việt hoặc đo latency. ADB không có thiết bị.
+Không chạy lại Rules emulator vì không đổi schema/Rules. Không đọc nhật ký thật,
+ghi production, thay billing hoặc push/commit. Setup và giới hạn xác thực,
+quota phân tán, token revocation/CPU/JSON/SSE cần live QA: `chat-api/README.md`.

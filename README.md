@@ -1,5 +1,92 @@
 # HealthMate
 
+## Mã nguồn và đề xuất giao diện — 26/10/2026
+
+Mã Flutter, Worker chatbot và web admin thử nghiệm được lưu chung trong repo.
+Web admin vẫn tạm gác. [Đề xuất điều hướng](docs/ui-navigation-proposal.md):
+avatar hồ sơ góc trái trên, năm mục Hôm nay/Dinh dưỡng/Tập luyện/Tiến độ/Trợ lý.
+Đây là đề xuất, chưa thay đổi giao diện hoặc bổ sung buổi tập có hướng dẫn.
+
+[Bản chụp Rules MVP đã xác minh](deploy/README.md) được lưu để clone lại có thể
+đối chiếu; Rules ở gốc còn phần thử nghiệm admin, không deploy mặc định vào production.
+Các mục cũ bên dưới là lịch sử; trạng thái mới nhất được ghi ở đầu tài liệu.
+
+## Mới nhất26/10 — Năng lượng, tiến độ cân nặng và giấc ngủ
+
+**Thêm → Thói quen & kế hoạch**: tab Bước chân có ước tính calo và lựa chọn xác nhận
+cộng ngân sách hôm nay; tab Tiến độ nối ngân sách với cân nặng/mục tiêu; Giấc ngủ
+có biểu đồ7/30ngày, mục tiêu tự đặt và lời nhắc local. Mặc định không tự cộng calo
+từ bước hoặc giờ ngủ. Phần cộng sau xác nhận thống nhất ở Tổng quan, Nhật ký và chat.
+Rules2collectionmới đã deploy/đọc lại xác nhận.608Flutter/73Rules/23SDK/nativeQAqua.
+APK: `build/releases/healthmate-wellness-insights-debug.apk`; chưa cài điện thoại
+theo lựa chọn kết nối sau. [Hướng dẫn và giới hạn](docs/wellness-insights.md).
+
+## Mở rộng thói quen và kế hoạch — 26/10/2026
+
+Trong APK mới, mở **Thêm → Thói quen & kế hoạch**: nhắc bữa local, thực đơn7 ngày,
+bước chân opt-in, giờ ngủ thủ công có sửa/lịch sử và8 dưỡng chất mở rộng. Tìm món
+có asset offline162 thực phẩm/công thức có nguồn và khẩu phần tham khảo điều chỉnh được.
+Không thêm dịch vụ trả phí. Bản debug: `build/releases/healthmate-wellness-debug.apk`.
+
+Source đã qua analyze,597 Flutter tests,70 Rules,22 SDK và Android QA. **Rules MVP
+đã deploy và đọc lại xác nhận đúng bản vào 26/10/2026**, sau lượt kiểm thử lại61/61.
+Ngủ/thực đơn/đồng bộ bước và snapshot schema mới đã có Rules trên Firebase thật.
+Admin tiếp tục tạm gác. Người dùng chọn kết nối điện thoại sau, nên chưa cài APK
+và chưa nghiệm thu cảm biến/lưu dữ liệu trên máy thật.
+[Trạng thái rollout và bước thử điện thoại](docs/wellness-rollout.md).
+[Hướng dẫn, kiểm thử, giới hạn và hash APK](docs/wellness-expansion.md).
+
+## Kiểm thử và bảo mật — 25–26/10/2026
+
+Giai đoạn 10 đã sửa parser USDA/cache công khai và kiểm tra Flutter, Firebase
+Emulator, Worker cùng Android QA. Bản debug mới nằm trong
+`build/releases/healthmate-stage10-debug.apk`; chưa cài lên điện thoại.
+Rules production còn thiếu email gate và schema dinh dưỡng mới; candidate MVP
+đã chuẩn bị, chưa triển khai. Xem [kết quả và giới hạn](docs/stage10-security-review.md).
+Web admin tiếp tục tạm gác; không tự chuyển sang Giai đoạn 11.
+
+## Hoàn thiện auth điện thoại — 24/10/2026
+
+Đăng nhập email hoặc **Tiếp tục với Google**, đăng ký/xác minh email trước khi
+mở dữ liệu, quên mật khẩu qua liên kết Firebase và gửi lại có thời gian chờ.
+Google đã bật trên Firebase thật, đăng ký SHA debug và cập nhật
+`google-services.json` có OAuth client. Cần cài APK mới và thử trên điện thoại;
+Rules mới chưa deploy. Facebook đã bỏ theo yêu cầu, web admin tạm gác.
+[Luồng, cấu hình và nghiệm thu](docs/authentication-flow.md).
+
+## Web quản trị — 23/10/2026
+
+Mã nguồn web nằm trong `admin-web`, có thể mở cùng dự án trong VS Code.
+HTML/CSS/JavaScript + Firebase Web SDK: danh mục, khóa/mở truy cập tài khoản,
+cấu hình app và nhật ký quản trị. Bản local dùng Firebase Emulator, chưa kết nối
+hoặc triển khai Firebase production. [Hướng dẫn chạy và thiết lập](admin-web/README.md).
+Mobile chỉ nhận cấu hình/quyền từ xa sau khi build với
+`HEALTHMATE_ENABLE_ADMIN_CONTROLS=true` và Rules đã được chuẩn bị.
+
+## Màn hình thêm bữa ăn hợp nhất — 23/10/2026
+
+Thêm bữa ăn và Quét món dùng chung một màn hình với **Nhập tay · Ảnh · Yêu thích**.
+Tab Ảnh có camera xem trước, chụp/chọn ảnh và lối vào quét mã vạch; các món được
+thêm vào cùng bản nháp, kiểm tra rồi mới lưu nhật ký. [Cách dùng và giới hạn](docs/unified-meal-entry.md).
+
+## Cập nhật quét món — 23/10/2026
+
+Quét ảnh hiển thị tên/thành phần, kcal, đạm, carbohydrate, chất béo, chất xơ trên
+100 g và theo khẩu phần; ưu tiên catalog, số AI ghi rõ ước tính. Bấm **Kiểm tra
+và lưu vào Món của tôi** để xác nhận/lưu món chưa có vào thư viện riêng; lưu bữa
+ăn vẫn là bước riêng. Mã vạch giữ đúng gram đã chỉnh và quy đổi dinh dưỡng theo
+khẩu phần. [Luồng sử dụng, nguồn dữ liệu và giới hạn](docs/scanner-update.md).
+
+Đã sửa việc ghép cả đĩa nhiều thành phần vào một nguyên liệu: scanner chỉ tự
+chọn một món trùng đầy đủ tên/tên tương đương duy nhất. Khớp từ “cơm” không còn
+lấy dinh dưỡng cơm trắng cho cả đĩa cơm tấm. Khi chưa khớp, giữ nguồn AI ước tính
+cho cả món để kiểm tra/lưu; có thể chuyển từ danh mục về ước tính AI.
+
+Đã kiểm tra chọn ảnh và phân tích AI trên điện thoại thật: một lượt thành công
+trong 6,77 giây, người dùng xác nhận đã thấy kết quả. Chưa nghiệm thu riêng thao
+tác chụp camera. Lưu với schema/chất xơ mở rộng còn phụ thuộc Rules production;
+xem trạng thái Rules H0–H7 bên dưới.
+
 Ứng dụng Flutter giúp người từ **18 tuổi** theo dõi thói quen lành mạnh.
 Android là nền tảng chính;
 web phục vụ xem và kiểm tra giao diện trong quá trình phát triển.
@@ -116,8 +203,10 @@ khoản, giữ draft hồ sơ/cân nặng khi lưu lỗi và giữ đúng thời
 - Nhật ký bữa ăn hỗ trợ tìm món, chọn khẩu phần, loại bữa/thời điểm, xem tổng
   kcal/protein/carb/fat, thêm/sửa/xóa và lưu snapshot dưới UID.
 - AI Food Scanner trên Android cho phép chụp/chọn ảnh, dùng Firebase AI Logic với
-  Gemini Developer API và model `gemini-3.8-flash` để gợi ý món. Người dùng luôn
-  xác nhận món/khẩu phần trước khi lưu; AI không quyết định số dinh dưỡng.
+  Gemini Developer API và model `gemini-3.5-flash-lite` để giảm độ trễ. Người dùng
+  kiểm tra món/khẩu phần; số AI chỉ là ước tính, catalog được chọn là nguồn ưu tiên.
+  Có thể cấu hình riêng qua `HEALTHMATE_FOOD_SCANNER_MODEL`; cờ cũ
+  `HEALTHMATE_AI_MODEL` vẫn được hỗ trợ nhưng có thể ghi đè model nhanh mặc định.
 - App Check dùng debug provider trong debug và Play Integrity trong release.
   Trạng thái enforcement hiện tại cần kiểm tra trong Console trước khi demo.
   Ảnh được mã hóa lại từ pixel để bỏ metadata gốc rồi chỉ gửi sau xác nhận;
@@ -283,8 +372,9 @@ Android application ID hiện là `com.example.healthmate`; cần chốt namespa
 thương hiệu trước khi phát hành. `firebase_options.dart` và
 `android/app/google-services.json` chỉ chứa client configuration mà Firebase SDK
 cần để kết nối. Không đưa service-account JSON, Admin SDK credential hoặc secret
-server vào repository. Build release vẫn dùng debug signing theo template Flutter;
-icon ứng dụng và favicon vẫn là icon template.
+server vào repository. Build release yêu cầu cấu hình ký riêng trong
+`android/key.properties` (ngoài Git); Gradle dừng nếu thiếu cấu hình, không dùng
+debug signing thay thế. Hiện chưa có khóa phát hành trên máy này.
 
 Cloud Firestore mặc định dùng Native mode tại `asia-southeast1` (Singapore).
 Schema và quyền truy cập được mô tả tại
@@ -308,8 +398,11 @@ Tuân theo `AGENTS.md`: mỗi lượt chỉ thực hiện giai đoạn được 
    chủ động đổi project/platform, không tự ghi đè cấu hình hiện tại.
 2. Trong Authentication bật **Email/Password**. Dùng Firestore Native mode và
    review Rules hiện có; không bật test mode công khai để vượt lỗi permission.
-   Rules Giai đoạn 7/9/10 còn ở source, chưa deploy trong lượt này. Cần yêu cầu
-   triển khai riêng trước khi thử ghi Goals/Quest/Chat trên production.
+   Production đã có các collection MVP và trần chat 50 lượt; Rules local còn
+   các thay đổi chưa triển khai. Đợt kiểm tra 25–26/10 phát hiện production thiếu
+   kiểm tra email đã xác minh và định dạng dinh dưỡng mới. Xem
+   [bản rà soát Giai đoạn 10](docs/stage10-security-review.md) trước khi deploy;
+   không deploy cả file local vì còn chứa phần admin đang tạm gác.
 3. Trước khi thử AI trên Android, kiểm tra Firebase AI Logic đã cấu hình
    **Gemini Developer API**, model còn được hỗ trợ và quota trong project.
    Không bật billing hoặc thêm API key Gemini riêng vào Flutter để vượt hạn mức.
@@ -321,9 +414,11 @@ Tuân theo `AGENTS.md`: mỗi lượt chỉ thực hiện giai đoạn được 
    chứa token. Bản release dùng Play Integrity và SHA-256 ký phát hành, cần
    cấu hình/kiểm tra riêng. Không tắt enforcement production để sửa lỗi debug.
 
-Không dùng Storage trong MVP hiện tại. Không có Cloud Functions hoặc backend
-riêng. Lựa chọn miễn phí giữ dữ liệu nhật ký/hội thoại khỏi model: Chat chỉ gửi
-ba câu hỏi kiến thức định sẵn. Scanner yêu cầu đồng ý **cho từng ảnh**; chỉ chọn
+Không dùng Storage hoặc Cloud Functions. Theo lựa chọn mới của người dùng,
+chatbot gọi Cloudflare Worker đã triển khai; chỉ gửi ngữ cảnh cần thiết sau khi
+đồng ý dùng Chat AI. Chế độ tra cứu nhật ký tại app không gửi AI. Các giới hạn
+và cấu hình nằm ở [tài liệu chatbot](docs/chatbot.md).
+Scanner dùng Firebase AI Logic/Gemini, yêu cầu đồng ý **cho từng ảnh**; chỉ chọn
 ảnh món ăn không có khuôn mặt, giấy tờ hay nội dung cá nhân. Re-encode ảnh bỏ
 EXIF/GPS gốc, nhưng không loại được thông tin cá nhân xuất hiện trong pixel.
 [Điều khoản Gemini](https://ai.google.dev/gemini-api/terms) áp dụng cho payload gửi đi.
@@ -364,39 +459,54 @@ chưa kiểm thử chuyển máy trên OEM thực và không tuyên bố xóa d�
 Giai đoạn 10 đã build APK **debug**, chưa xác minh Gemini/App Check/camera trên
 Android thật trong lượt này. Trước phát hành công khai cần chốt application ID,
 icon, release keystore/App Signing, SHA-256 và Play Integrity, kiểm tra Rules
-production theo quy trình được phê duyệt. Cấu hình ký release hiện vẫn là debug
-template, vì vậy bản hiện tại phục vụ phát triển/demo, chưa sẵn sàng phát hành.
+production theo quy trình được phê duyệt. Cấu hình ký release chưa được cung cấp;
+bản debug hiện tại phục vụ phát triển/demo, chưa sẵn sàng phát hành công khai.
 
 ## Trò chuyện HealthMate (Giai đoạn 9)
 
-Mở **Cá nhân → Trò chuyện cùng HealthMate**. Hỏi kcal/macro, nước, vận động
-hoặc tóm tắt ngày. Chọn ngày bằng lịch; câu hỏi có “hôm nay”/“hôm qua” dùng
-ngày tương ứng tại thời điểm gửi. Số liệu được lấy mới từ repository, tính tại
-ứng dụng; không có bản ghi khác với không ăn/uống/vận động.
+**Cập nhật 25/10: API chatbot Cloudflare đã triển khai, APK debug đã gắn URL.**
+Qwen lập kế hoạch đọc dữ liệu, Llama 3.3 70B trả lời tiếng Việt trong cùng dịch vụ.
+Đã benchmark model thật với dữ liệu tổng hợp; native E2E xem
+[báo cáo live](docs/chatbot-live-qa.md). API có Firebase JWT/App Check, kế hoạch tra
+cứu giới hạn, streaming, hội thoại nhiều lượt và số liệu do app tính. Không thêm
+database, không bật billing. Xem [setup API](chat-api/README.md) để đăng nhập,
+triển khai lại Worker; chạy/build app với `--dart-define-from-file=config/chat-api.json`.
+Không có URL thì giao diện báo chưa kết nối và giữ luồng hiện có bên dưới.
+Có chế độ **Tra cứu nhật ký · không gửi AI**, không tự chuyển nhật ký sang Gemini
+miễn phí khi Cloudflare lỗi/hết quota. Kết quả benchmark không đảm bảo model luôn đúng.
+
+### Luồng hiện có khi chưa cấu hình API Cloudflare
+
+Mở **Thêm → Trò chuyện cùng HealthMate**. Hỏi kcal/macro, nước, vận động,
+cân nặng, tóm tắt ngày/tuần hoặc lượng còn lại theo mục tiêu dinh dưỡng. Hỗ trợ
+ngày cụ thể, hôm nay/hôm qua, tuần này/tuần trước/7ngày; câu nối tiếp giữ cùng
+phạm vi. Số liệu lấy mới từ repository, tính tại app; không coi thiếu bản ghi là0.
 
 Theo lựa chọn giữ Gemini Developer API free tier của người dùng: AI chỉ nhận
-**ba chủ đề kiến thức chung định sẵn**, mỗi yêu cầu độc lập. Không gửi nội dung
+**10 chủ đề kiến thức chung**, mỗi yêu cầu độc lập. Có thể nhập “Protein là gì?”
+để app nhận diện chủ đề rồi xin đồng ý trước gửi prompt chung. Không gửi nội dung
 tự nhập, dữ liệu nhật ký, hồ sơ hoặc lịch sử hội thoại tới model. Đây là phạm vi
 đã điều chỉnh sau khi kiểm tra [điều khoản dịch vụ miễn phí](https://ai.google.dev/gemini-api/terms#unpaid-services);
 không bật chế độ AI phân tích dữ liệu sức khỏe cá nhân. Thông báo xử lý dữ liệu
 xuất hiện trước khi gửi chủ đề AI lần đầu trong mỗi lần vào Chat.
 
-Firebase AI Logic dùng `gemini-3.8-flash`, kiểm tra trong
+Firebase AI Logic dùng `gemini-3.5-flash-lite`, kiểm tra trong
 [danh sách model chính thức](https://firebase.google.com/docs/ai-logic/models)
-ngày 16/10/2026. Có thể đổi qua `--dart-define=HEALTHMATE_CHAT_MODEL=<model-được-hỗ-trợ>`;
-cần kiểm tra lại model/quota khi đổi. Model cấu hình thinking thấp, tối đa 2048
+ngày 25/10/2026. Có thể đổi qua `--dart-define=HEALTHMATE_CHAT_MODEL=<model-được-hỗ-trợ>`;
+cần kiểm tra lại model/quota khi đổi. Flash-Lite dùng thinking minimal, tối đa 2048
 output tokens và 6000 ký tự. Không thêm API key riêng hay package mới.
 
 - AI chạy trên Android có App Check hiện có; web/desktop chỉ tra cứu nhật ký.
 - Có streaming, dừng nhận, lỗi mạng/hạn mức, thử lại. Dừng không bảo đảm server
   hủy xử lý hoặc hoàn lại quota. Bản AI chưa hoàn chỉnh không được lưu.
-- Lưu cặp tin nhắn nguyên tử theo UID, tối đa 20 lượt/phiên; lịch sử hiển thị 20
+- Lưu cặp tin nhắn nguyên tử theo UID, tối đa 50 lượt/phiên; lịch sử hiển thị 20
   phiên gần nhất. Thử lại sau lỗi lưu dùng cùng ID và đáp án, không gọi AI lại.
 - Khi lỗi lưu, đáp án hoàn chỉnh hiển thị nhãn chưa lưu. Rời màn hình có thể mất
   bản chưa lưu; chỉ lịch sử đã được Firestore xác nhận tồn tại khi mở lại.
 - Không có listener lịch sử thường trực; tải lại bằng menu lịch sử khi cần.
-- Rules Chat trong source cần được review/deploy riêng trước khi lưu vào
-  production. **Giai đoạn 9 không deploy Rules/indexes, không bật billing.**
+- Production đã có Rules chat từ18/10 (metadata audit24/10). Rules local mới
+  cho verified claim/schema dinh dưỡng/admin chưa deploy. Không đổi schema chat.
+  **Lượt mở rộng không deploy Rules/indexes, không bật billing.**
 
 Chi tiết schema, giới hạn, cách kiểm tra trên máy thật:
 [`docs/chatbot.md`](docs/chatbot.md).

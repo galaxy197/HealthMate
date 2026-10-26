@@ -9,7 +9,7 @@ import '../data/food_local_database.dart';
 import '../data/nutrition_repository.dart';
 import '../data/unified_food_search_service.dart';
 import '../data/usda_api_service.dart';
-import '../data/vietnamese_foods_preload.dart';
+import '../data/bundled_vietnamese_foods.dart';
 import '../models/nutrition_failure.dart';
 import '../models/nutrition_models.dart';
 
@@ -36,15 +36,13 @@ final unifiedFoodSearchProvider = Provider<UnifiedFoodSearchService>(
 );
 
 // Preload Vietnamese foods on app start
-final vietnameseFoodsPreloadProvider = FutureProvider.autoDispose<void>((ref) async {
+final vietnameseFoodsPreloadProvider = FutureProvider.autoDispose<void>((
+  ref,
+) async {
   final db = ref.watch(foodLocalDatabaseProvider);
-  final stats = await db.getCacheStats();
-
-  // Only preload if cache is empty or has few items
-  if (stats['total']! < 20) {
-    final foods = getVietnamesePopularFoods();
-    await db.cacheFoodsBatch(foods);
-  }
+  // Idempotent refresh replaces the old unsourced preload with the versioned
+  // app asset. Never put private library foods in this shared cache.
+  await db.cacheFoodsBatch(await loadBundledVietnameseFoods());
 });
 
 final foodCatalogProvider = StreamProvider.autoDispose<List<FoodCatalogItem>>((
@@ -56,28 +54,24 @@ final foodCatalogProvider = StreamProvider.autoDispose<List<FoodCatalogItem>>((
 });
 
 final mealLogsProvider = StreamProvider.autoDispose
-    .family<List<MealLog>, DateTime>((ref, localDate) async* {
+    .family<List<MealLog>, DateTime>((ref, localDate) {
       final user = ref.watch(authSessionProvider).value;
       if (user == null) {
-        yield const [];
-        return;
+        return Stream.value(const []);
       }
-      yield* subscriptionStream(
+      return subscriptionStream(
         ref
             .watch(nutritionRepositoryProvider)
             .watchMealLogs(user.uid, localDate),
       );
     }, retry: (_, _) => null);
 
-final recentMealsProvider = StreamProvider.autoDispose<RecentMealPage>((
-  ref,
-) async* {
+final recentMealsProvider = StreamProvider.autoDispose<RecentMealPage>((ref) {
   final user = ref.watch(authSessionProvider).value;
   if (user == null) {
-    yield const RecentMealPage(meals: []);
-    return;
+    return Stream.value(const RecentMealPage(meals: []));
   }
-  yield* subscriptionStream(
+  return subscriptionStream(
     ref.watch(nutritionRepositoryProvider).watchRecentMeals(user.uid),
   );
 }, retry: (_, _) => null);

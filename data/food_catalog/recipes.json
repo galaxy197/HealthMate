@@ -1,55 +1,1678 @@
 {
-  "version": "vn-expansion-2026-10-16",
+  "version": "vn-wellness-2026-10-26",
   "method": "Công thức tham khảo do HealthMate giả định, không phải kết quả phân tích của Viện Dinh dưỡng cho món hoàn chỉnh. Cộng dinh dưỡng nguyên liệu rồi chia khối lượng thành phẩm; giả định giữ lại toàn bộ phần nguyên liệu ăn được và dầu/đường đã khai báo. Nước thêm vào không có kcal. Khối lượng nguyên liệu ở đúng trạng thái của mục tham chiếu (sống/khô/chín).",
   "limitation": "Không đại diện mọi cách nấu, quán ăn hoặc nhãn hàng. Nước dùng được mô hình hóa bằng nước và lượng dầu/gia vị đã liệt kê, không suy ra nước dùng thực tế không có kcal. Các gia vị năng lượng đáng kể phải được cân/ghi thêm nếu khẩu phần thực tế khác. Nhập g thành phẩm, không mặc định một tô/ổ là 100 g.",
   "recipes": [
-    {"id":"vn-rice-base","name":"Cơm tẻ nền công thức","publish":false,"category":"Ngũ cốc","yieldGrams":270,"ingredients":[["1004",100]]},
-    {"id":"vn-bun-tuoi","name":"Bún tươi (ước tính từ bột gạo)","alternateNames":["bún tươi","bún","rice vermicelli"],"category":"Ngũ cốc","yieldGrams":330,"ingredients":[["1017",100]]},
-    {"id":"vn-com-gao-lut","name":"Cơm gạo lứt chín","alternateNames":["cơm gạo lức","brown rice cooked"],"category":"Ngũ cốc","yieldGrams":280,"ingredients":[["1005",100]]},
-    {"id":"vn-xoi-trang","name":"Xôi trắng","alternateNames":["xôi nếp","xôi không nhân"],"category":"Món ăn Việt","yieldGrams":210,"ingredients":[["1001",100]]},
-    {"id":"vn-xoi-dau-xanh","name":"Xôi đậu xanh","alternateNames":["xôi đỗ xanh"],"category":"Món ăn Việt","yieldGrams":290,"ingredients":[["1001",100],["3010",35],["6002",4]]},
-    {"id":"vn-xoi-ga","name":"Xôi gà","alternateNames":["xôi thịt gà"],"category":"Món ăn Việt","yieldGrams":300,"ingredients":[["1001",85],["7013",95],["6002",5],["4039",15]]},
-    {"id":"vn-pho-bo","name":"Phở bò","alternateNames":["phở tái","phở bò tái","beef pho"],"category":"Món ăn Việt","yieldGrams":600,"ingredients":[["1013",200],["7003",90],["4039",25],["4036",30],["6002",5],["12013",4]]},
-    {"id":"vn-pho-ga","name":"Phở gà","alternateNames":["phở thịt gà","chicken pho"],"category":"Món ăn Việt","yieldGrams":600,"ingredients":[["1013",200],["7013",100],["4039",25],["4036",30],["6002",3],["12013",4]]},
-    {"id":"vn-bun-bo-hue","name":"Bún bò Huế (bản giản lược)","alternateNames":["bún bò huế","bún bò"],"category":"Món ăn Việt","yieldGrams":650,"ingredients":[["vn-bun-tuoi",220],["7003",80],["7053",60],["4039",25],["4036",35],["6002",8],["12013",5]]},
-    {"id":"vn-bun-thit-nuong","name":"Bún thịt nướng","alternateNames":["bún heo nướng","bun thit nuong"],"category":"Món ăn Việt","yieldGrams":430,"ingredients":[["vn-bun-tuoi",220],["7017",110],["4027",40],["4069",30],["3017",12],["6002",8],["12013",12]]},
-    {"id":"vn-bun-cha","name":"Bún chả","alternateNames":["bún chả Hà Nội"],"category":"Món ăn Việt","yieldGrams":500,"ingredients":[["vn-bun-tuoi",220],["7017",70],["7016",45],["4007",25],["4069",35],["6002",5],["12013",15]]},
-    {"id":"vn-bun-rieu","name":"Bún riêu cua (bản giản lược)","alternateNames":["bún riêu","bún riêu cua"],"category":"Món ăn Việt","yieldGrams":600,"ingredients":[["vn-bun-tuoi",210],["8034",70],["3025",70],["4005",90],["6002",8],["12013",5]]},
-    {"id":"vn-bun-ca","name":"Bún cá","alternateNames":["bún cá lóc","fish noodle soup"],"category":"Món ăn Việt","yieldGrams":600,"ingredients":[["vn-bun-tuoi",210],["8022",120],["4005",70],["4036",30],["6002",6],["12013",4]]},
-    {"id":"vn-bun-bo-xao","name":"Bún bò xào","alternateNames":["bún bò Nam Bộ"],"category":"Món ăn Việt","yieldGrams":430,"ingredients":[["vn-bun-tuoi",220],["7003",110],["4036",50],["4069",30],["3017",12],["6002",10],["12013",8]]},
-    {"id":"vn-hu-tieu","name":"Hủ tiếu tôm thịt (bản giản lược)","alternateNames":["hủ tiếu","hủ tiếu Nam Vang"],"category":"Món ăn Việt","yieldGrams":600,"ingredients":[["vn-bun-tuoi",220],["7017",65],["8051",70],["4036",40],["4039",20],["6002",6],["12013",5]]},
-    {"id":"vn-mi-quang","name":"Mì Quảng gà tôm (bản giản lược)","alternateNames":["mì quảng","mì quảng gà"],"category":"Món ăn Việt","yieldGrams":500,"ingredients":[["1013",220],["7013",80],["8051",50],["3017",12],["4069",30],["6002",8],["12013",5]]},
-    {"id":"vn-mien-ga","name":"Miến gà","alternateNames":["miến thịt gà"],"category":"Món ăn Việt","yieldGrams":550,"ingredients":[["2015",65],["7013",100],["4039",25],["4123",30],["6002",4],["12013",3]]},
-    {"id":"vn-mi-xao-bo","name":"Mì xào bò rau củ","alternateNames":["mì xào bò","mì xào"],"category":"Món ăn Việt","yieldGrams":400,"ingredients":[["1022",80],["7003",100],["4015",70],["4007",40],["4039",25],["6002",12],["12013",5]]},
-    {"id":"vn-mien-xao-rau","name":"Miến xào rau nấm","alternateNames":["miến xào chay","miến xào"],"category":"Món ăn Việt","yieldGrams":360,"ingredients":[["2015",70],["4007",50],["4010",80],["4123",60],["6002",12],["12013",4]]},
-    {"id":"vn-chao-thit","name":"Cháo thịt bằm","alternateNames":["cháo thịt heo","cháo thịt lợn"],"category":"Món ăn Việt","yieldGrams":500,"ingredients":[["1004",55],["7017",85],["4007",30],["6002",4]]},
-    {"id":"vn-chao-ga","name":"Cháo gà","alternateNames":["cháo thịt gà"],"category":"Món ăn Việt","yieldGrams":500,"ingredients":[["1004",55],["7013",100],["4039",20],["6002",3]]},
-    {"id":"vn-chao-trung","name":"Cháo trứng gà","alternateNames":["cháo trứng"],"category":"Món ăn Việt","yieldGrams":450,"ingredients":[["1004",50],["9001",55],["6002",3]]},
-    {"id":"vn-chao-dau-xanh","name":"Cháo đậu xanh","alternateNames":["cháo đỗ xanh","cháo chay"],"category":"Món ăn Việt","yieldGrams":500,"ingredients":[["1004",45],["3010",35],["6002",3]]},
-    {"id":"vn-com-tam-suon","name":"Cơm tấm sườn (bản giản lược)","alternateNames":["cơm tấm","cơm sườn","cơm sườn nướng"],"category":"Món ăn Việt","yieldGrams":420,"ingredients":[["vn-rice-base",240],["7053",130],["4027",45],["4005",30],["6002",8],["12013",10]]},
-    {"id":"vn-com-ga","name":"Cơm gà (bản giản lược)","alternateNames":["cơm gà luộc","chicken rice"],"category":"Món ăn Việt","yieldGrams":420,"ingredients":[["vn-rice-base",240],["7013",140],["4027",45],["4039",20],["6002",8],["12013",5]]},
-    {"id":"vn-com-chien-trung","name":"Cơm chiên trứng","alternateNames":["cơm rang trứng","egg fried rice"],"category":"Món ăn Việt","yieldGrams":400,"ingredients":[["vn-rice-base",280],["9001",60],["4007",35],["4039",20],["6002",12]]},
-    {"id":"vn-com-chien-duong-chau","name":"Cơm chiên Dương Châu (bản giản lược)","alternateNames":["cơm rang thập cẩm","cơm chiên dương châu"],"category":"Món ăn Việt","yieldGrams":450,"ingredients":[["vn-rice-base",270],["9001",50],["8051",50],["7071",25],["4031",30],["4007",30],["6002",12]]},
-    {"id":"vn-banh-mi-trung","name":"Bánh mì trứng","alternateNames":["bánh mì ốp la","banh mi egg"],"category":"Món ăn Việt","yieldGrams":210,"ingredients":[["1012",95],["9001",60],["4027",25],["4007",15],["6002",7],["12013",3]]},
-    {"id":"vn-banh-mi-thit","name":"Bánh mì thịt (bản giản lược)","alternateNames":["bánh mì pate","bánh mì thịt chả"],"category":"Món ăn Việt","yieldGrams":230,"ingredients":[["1012",95],["7017",45],["7069",25],["7063",20],["4027",25],["4007",15],["6002",5],["12013",5]]},
-    {"id":"vn-banh-cuon","name":"Bánh cuốn thịt","alternateNames":["bánh cuốn nóng","bánh ướt nhân thịt"],"category":"Món ăn Việt","yieldGrams":350,"ingredients":[["1017",65],["7017",65],["4123",25],["4039",30],["6002",10],["12013",5]]},
-    {"id":"vn-banh-xeo","name":"Bánh xèo tôm thịt","alternateNames":["bánh xèo"],"category":"Món ăn Việt","yieldGrams":350,"ingredients":[["1017",65],["7017",45],["8051",50],["4036",70],["3001",15],["6002",16],["12013",4]]},
-    {"id":"vn-goi-cuon","name":"Gỏi cuốn tôm thịt","alternateNames":["gỏi cuốn","nem cuốn","summer rolls"],"category":"Món ăn Việt","yieldGrams":300,"ingredients":[["1010",25],["vn-bun-tuoi",80],["7017",45],["8051",60],["4069",35],["4027",30],["3017",8],["12013",7]]},
-    {"id":"vn-cha-gio","name":"Chả giò chiên","alternateNames":["nem rán","nem chiên","spring rolls"],"category":"Món ăn Việt","yieldGrams":250,"ingredients":[["1010",35],["7017",90],["2015",15],["4007",35],["4123",20],["9001",30],["6002",25]]},
-    {"id":"vn-thit-luoc","name":"Thịt heo nạc luộc","alternateNames":["thịt lợn luộc","thịt heo luộc"],"category":"Món nhà","yieldGrams":75,"ingredients":[["7017",100]]},
-    {"id":"vn-thit-kho-trung","name":"Thịt kho trứng","alternateNames":["thịt kho tàu","thịt kho hột vịt"],"category":"Món nhà","yieldGrams":280,"ingredients":[["7016",130],["7017",50],["9004",70],["12013",12],["6002",4]]},
-    {"id":"vn-thit-kho-tieu","name":"Thịt heo kho tiêu","alternateNames":["thịt kho tiêu","thịt nạc kho"],"category":"Món nhà","yieldGrams":170,"ingredients":[["7017",200],["12013",10],["6002",6],["4039",15]]},
-    {"id":"vn-ga-kho","name":"Gà kho (bản giản lược)","alternateNames":["gà kho sả","thịt gà kho"],"category":"Món nhà","yieldGrams":170,"ingredients":[["7013",200],["6002",6],["12013",8],["4039",15]]},
-    {"id":"vn-bo-xao-rau","name":"Bò xào rau củ","alternateNames":["thịt bò xào","bò xào hành tây"],"category":"Món nhà","yieldGrams":300,"ingredients":[["7003",160],["4039",80],["4100",80],["6002",12],["12013",5]]},
-    {"id":"vn-dau-sot-ca","name":"Đậu phụ sốt cà chua","alternateNames":["đậu hũ sốt cà","đậu sốt cà"],"category":"Món nhà","yieldGrams":300,"ingredients":[["3025",200],["4005",120],["6002",10],["12013",5]]},
-    {"id":"vn-rau-muong-luoc","name":"Rau muống luộc","alternateNames":["rau luộc","rau muống chín"],"category":"Món nhà","yieldGrams":90,"ingredients":[["4083",100]]},
-    {"id":"vn-rau-muong-xao","name":"Rau muống xào tỏi","alternateNames":["rau muống xào"],"category":"Món nhà","yieldGrams":210,"ingredients":[["4083",230],["4103",10],["6002",12]]},
-    {"id":"vn-canh-bau-tom","name":"Canh bầu nấu tôm","alternateNames":["canh bầu","bầu nấu tôm"],"category":"Món nhà","yieldGrams":500,"ingredients":[["4001",180],["8051",60],["6002",3]]},
-    {"id":"vn-canh-chua-ca","name":"Canh chua cá lóc (bản giản lược)","alternateNames":["canh chua cá","canh chua"],"category":"Món nhà","yieldGrams":600,"ingredients":[["8022",100],["4005",80],["5015",60],["4036",50],["6002",4],["12013",8]]},
-    {"id":"vn-canh-cai-thit","name":"Canh cải thịt bằm","alternateNames":["canh cải xanh","canh thịt bằm"],"category":"Món nhà","yieldGrams":500,"ingredients":[["4016",160],["7017",70],["6002",3]]},
-    {"id":"vn-tom-hap","name":"Tôm hấp (bóc vỏ)","alternateNames":["tôm luộc","tôm hấp"],"category":"Món nhà","yieldGrams":80,"ingredients":[["8051",100]]},
-    {"id":"vn-ca-loc-hap","name":"Cá lóc hấp (thịt chín)","alternateNames":["cá quả hấp","cá lóc luộc"],"category":"Món nhà","yieldGrams":80,"ingredients":[["8022",100]]},
-    {"id":"vn-che-dau-xanh","name":"Chè đậu xanh (công thức ít thành phần)","alternateNames":["chè đậu xanh","chè đỗ xanh"],"category":"Món ăn Việt","yieldGrams":350,"ingredients":[["3010",45],["12013",25]]},
-    {"id":"vn-che-dau-den","name":"Chè đậu đen (không cốt dừa)","alternateNames":["chè đỗ đen","chè đậu đen"],"category":"Món ăn Việt","yieldGrams":350,"ingredients":[["3004",45],["12013",25]]}
+    {
+      "id": "vn-rice-base",
+      "name": "Cơm tẻ nền công thức",
+      "publish": false,
+      "category": "Ngũ cốc",
+      "yieldGrams": 270,
+      "ingredients": [
+        [
+          "1004",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-tuoi",
+      "name": "Bún tươi (ước tính từ bột gạo)",
+      "alternateNames": [
+        "bún tươi",
+        "bún",
+        "rice vermicelli"
+      ],
+      "category": "Ngũ cốc",
+      "yieldGrams": 330,
+      "ingredients": [
+        [
+          "1017",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-gao-lut",
+      "name": "Cơm gạo lứt chín",
+      "alternateNames": [
+        "cơm gạo lức",
+        "brown rice cooked"
+      ],
+      "category": "Ngũ cốc",
+      "yieldGrams": 280,
+      "ingredients": [
+        [
+          "1005",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-xoi-trang",
+      "name": "Xôi trắng",
+      "alternateNames": [
+        "xôi nếp",
+        "xôi không nhân"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 210,
+      "ingredients": [
+        [
+          "1001",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-xoi-dau-xanh",
+      "name": "Xôi đậu xanh",
+      "alternateNames": [
+        "xôi đỗ xanh"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 290,
+      "ingredients": [
+        [
+          "1001",
+          100
+        ],
+        [
+          "3010",
+          35
+        ],
+        [
+          "6002",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-xoi-ga",
+      "name": "Xôi gà",
+      "alternateNames": [
+        "xôi thịt gà"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 300,
+      "ingredients": [
+        [
+          "1001",
+          85
+        ],
+        [
+          "7013",
+          95
+        ],
+        [
+          "6002",
+          5
+        ],
+        [
+          "4039",
+          15
+        ]
+      ]
+    },
+    {
+      "id": "vn-pho-bo",
+      "name": "Phở bò",
+      "alternateNames": [
+        "phở tái",
+        "phở bò tái",
+        "beef pho"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 600,
+      "ingredients": [
+        [
+          "1013",
+          200
+        ],
+        [
+          "7003",
+          90
+        ],
+        [
+          "4039",
+          25
+        ],
+        [
+          "4036",
+          30
+        ],
+        [
+          "6002",
+          5
+        ],
+        [
+          "12013",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-pho-ga",
+      "name": "Phở gà",
+      "alternateNames": [
+        "phở thịt gà",
+        "chicken pho"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 600,
+      "ingredients": [
+        [
+          "1013",
+          200
+        ],
+        [
+          "7013",
+          100
+        ],
+        [
+          "4039",
+          25
+        ],
+        [
+          "4036",
+          30
+        ],
+        [
+          "6002",
+          3
+        ],
+        [
+          "12013",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-bo-hue",
+      "name": "Bún bò Huế (bản giản lược)",
+      "alternateNames": [
+        "bún bò huế",
+        "bún bò"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 650,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          220
+        ],
+        [
+          "7003",
+          80
+        ],
+        [
+          "7053",
+          60
+        ],
+        [
+          "4039",
+          25
+        ],
+        [
+          "4036",
+          35
+        ],
+        [
+          "6002",
+          8
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-thit-nuong",
+      "name": "Bún thịt nướng",
+      "alternateNames": [
+        "bún heo nướng",
+        "bun thit nuong"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 430,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          220
+        ],
+        [
+          "7017",
+          110
+        ],
+        [
+          "4027",
+          40
+        ],
+        [
+          "4069",
+          30
+        ],
+        [
+          "3017",
+          12
+        ],
+        [
+          "6002",
+          8
+        ],
+        [
+          "12013",
+          12
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-cha",
+      "name": "Bún chả",
+      "alternateNames": [
+        "bún chả Hà Nội"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 500,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          220
+        ],
+        [
+          "7017",
+          70
+        ],
+        [
+          "7016",
+          45
+        ],
+        [
+          "4007",
+          25
+        ],
+        [
+          "4069",
+          35
+        ],
+        [
+          "6002",
+          5
+        ],
+        [
+          "12013",
+          15
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-rieu",
+      "name": "Bún riêu cua (bản giản lược)",
+      "alternateNames": [
+        "bún riêu",
+        "bún riêu cua"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 600,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          210
+        ],
+        [
+          "8034",
+          70
+        ],
+        [
+          "3025",
+          70
+        ],
+        [
+          "4005",
+          90
+        ],
+        [
+          "6002",
+          8
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-ca",
+      "name": "Bún cá",
+      "alternateNames": [
+        "bún cá lóc",
+        "fish noodle soup"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 600,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          210
+        ],
+        [
+          "8022",
+          120
+        ],
+        [
+          "4005",
+          70
+        ],
+        [
+          "4036",
+          30
+        ],
+        [
+          "6002",
+          6
+        ],
+        [
+          "12013",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-bo-xao",
+      "name": "Bún bò xào",
+      "alternateNames": [
+        "bún bò Nam Bộ"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 430,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          220
+        ],
+        [
+          "7003",
+          110
+        ],
+        [
+          "4036",
+          50
+        ],
+        [
+          "4069",
+          30
+        ],
+        [
+          "3017",
+          12
+        ],
+        [
+          "6002",
+          10
+        ],
+        [
+          "12013",
+          8
+        ]
+      ]
+    },
+    {
+      "id": "vn-hu-tieu",
+      "name": "Hủ tiếu tôm thịt (bản giản lược)",
+      "alternateNames": [
+        "hủ tiếu",
+        "hủ tiếu Nam Vang"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 600,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          220
+        ],
+        [
+          "7017",
+          65
+        ],
+        [
+          "8051",
+          70
+        ],
+        [
+          "4036",
+          40
+        ],
+        [
+          "4039",
+          20
+        ],
+        [
+          "6002",
+          6
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-mi-quang",
+      "name": "Mì Quảng gà tôm (bản giản lược)",
+      "alternateNames": [
+        "mì quảng",
+        "mì quảng gà"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 500,
+      "ingredients": [
+        [
+          "1013",
+          220
+        ],
+        [
+          "7013",
+          80
+        ],
+        [
+          "8051",
+          50
+        ],
+        [
+          "3017",
+          12
+        ],
+        [
+          "4069",
+          30
+        ],
+        [
+          "6002",
+          8
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-mien-ga",
+      "name": "Miến gà",
+      "alternateNames": [
+        "miến thịt gà"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 550,
+      "ingredients": [
+        [
+          "2015",
+          65
+        ],
+        [
+          "7013",
+          100
+        ],
+        [
+          "4039",
+          25
+        ],
+        [
+          "4123",
+          30
+        ],
+        [
+          "6002",
+          4
+        ],
+        [
+          "12013",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "vn-mi-xao-bo",
+      "name": "Mì xào bò rau củ",
+      "alternateNames": [
+        "mì xào bò",
+        "mì xào"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 400,
+      "ingredients": [
+        [
+          "1022",
+          80
+        ],
+        [
+          "7003",
+          100
+        ],
+        [
+          "4015",
+          70
+        ],
+        [
+          "4007",
+          40
+        ],
+        [
+          "4039",
+          25
+        ],
+        [
+          "6002",
+          12
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-mien-xao-rau",
+      "name": "Miến xào rau nấm",
+      "alternateNames": [
+        "miến xào chay",
+        "miến xào"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 360,
+      "ingredients": [
+        [
+          "2015",
+          70
+        ],
+        [
+          "4007",
+          50
+        ],
+        [
+          "4010",
+          80
+        ],
+        [
+          "4123",
+          60
+        ],
+        [
+          "6002",
+          12
+        ],
+        [
+          "12013",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-chao-thit",
+      "name": "Cháo thịt bằm",
+      "alternateNames": [
+        "cháo thịt heo",
+        "cháo thịt lợn"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 500,
+      "ingredients": [
+        [
+          "1004",
+          55
+        ],
+        [
+          "7017",
+          85
+        ],
+        [
+          "4007",
+          30
+        ],
+        [
+          "6002",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-chao-ga",
+      "name": "Cháo gà",
+      "alternateNames": [
+        "cháo thịt gà"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 500,
+      "ingredients": [
+        [
+          "1004",
+          55
+        ],
+        [
+          "7013",
+          100
+        ],
+        [
+          "4039",
+          20
+        ],
+        [
+          "6002",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "vn-chao-trung",
+      "name": "Cháo trứng gà",
+      "alternateNames": [
+        "cháo trứng"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 450,
+      "ingredients": [
+        [
+          "1004",
+          50
+        ],
+        [
+          "9001",
+          55
+        ],
+        [
+          "6002",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "vn-chao-dau-xanh",
+      "name": "Cháo đậu xanh",
+      "alternateNames": [
+        "cháo đỗ xanh",
+        "cháo chay"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 500,
+      "ingredients": [
+        [
+          "1004",
+          45
+        ],
+        [
+          "3010",
+          35
+        ],
+        [
+          "6002",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-tam-suon",
+      "name": "Cơm tấm sườn (bản giản lược)",
+      "alternateNames": [
+        "cơm tấm",
+        "cơm sườn",
+        "cơm sườn nướng"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 420,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          240
+        ],
+        [
+          "7053",
+          130
+        ],
+        [
+          "4027",
+          45
+        ],
+        [
+          "4005",
+          30
+        ],
+        [
+          "6002",
+          8
+        ],
+        [
+          "12013",
+          10
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-ga",
+      "name": "Cơm gà (bản giản lược)",
+      "alternateNames": [
+        "cơm gà luộc",
+        "chicken rice"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 420,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          240
+        ],
+        [
+          "7013",
+          140
+        ],
+        [
+          "4027",
+          45
+        ],
+        [
+          "4039",
+          20
+        ],
+        [
+          "6002",
+          8
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-chien-trung",
+      "name": "Cơm chiên trứng",
+      "alternateNames": [
+        "cơm rang trứng",
+        "egg fried rice"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 400,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          280
+        ],
+        [
+          "9001",
+          60
+        ],
+        [
+          "4007",
+          35
+        ],
+        [
+          "4039",
+          20
+        ],
+        [
+          "6002",
+          12
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-chien-duong-chau",
+      "name": "Cơm chiên Dương Châu (bản giản lược)",
+      "alternateNames": [
+        "cơm rang thập cẩm",
+        "cơm chiên dương châu"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 450,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          270
+        ],
+        [
+          "9001",
+          50
+        ],
+        [
+          "8051",
+          50
+        ],
+        [
+          "7071",
+          25
+        ],
+        [
+          "4031",
+          30
+        ],
+        [
+          "4007",
+          30
+        ],
+        [
+          "6002",
+          12
+        ]
+      ]
+    },
+    {
+      "id": "vn-banh-mi-trung",
+      "name": "Bánh mì trứng",
+      "alternateNames": [
+        "bánh mì ốp la",
+        "banh mi egg"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 210,
+      "ingredients": [
+        [
+          "1012",
+          95
+        ],
+        [
+          "9001",
+          60
+        ],
+        [
+          "4027",
+          25
+        ],
+        [
+          "4007",
+          15
+        ],
+        [
+          "6002",
+          7
+        ],
+        [
+          "12013",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "vn-banh-mi-thit",
+      "name": "Bánh mì thịt (bản giản lược)",
+      "alternateNames": [
+        "bánh mì pate",
+        "bánh mì thịt chả"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 230,
+      "ingredients": [
+        [
+          "1012",
+          95
+        ],
+        [
+          "7017",
+          45
+        ],
+        [
+          "7069",
+          25
+        ],
+        [
+          "7063",
+          20
+        ],
+        [
+          "4027",
+          25
+        ],
+        [
+          "4007",
+          15
+        ],
+        [
+          "6002",
+          5
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-banh-cuon",
+      "name": "Bánh cuốn thịt",
+      "alternateNames": [
+        "bánh cuốn nóng",
+        "bánh ướt nhân thịt"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 350,
+      "ingredients": [
+        [
+          "1017",
+          65
+        ],
+        [
+          "7017",
+          65
+        ],
+        [
+          "4123",
+          25
+        ],
+        [
+          "4039",
+          30
+        ],
+        [
+          "6002",
+          10
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-banh-xeo",
+      "name": "Bánh xèo tôm thịt",
+      "alternateNames": [
+        "bánh xèo"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 350,
+      "ingredients": [
+        [
+          "1017",
+          65
+        ],
+        [
+          "7017",
+          45
+        ],
+        [
+          "8051",
+          50
+        ],
+        [
+          "4036",
+          70
+        ],
+        [
+          "3001",
+          15
+        ],
+        [
+          "6002",
+          16
+        ],
+        [
+          "12013",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-goi-cuon",
+      "name": "Gỏi cuốn tôm thịt",
+      "alternateNames": [
+        "gỏi cuốn",
+        "nem cuốn",
+        "summer rolls"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 300,
+      "ingredients": [
+        [
+          "1010",
+          25
+        ],
+        [
+          "vn-bun-tuoi",
+          80
+        ],
+        [
+          "7017",
+          45
+        ],
+        [
+          "8051",
+          60
+        ],
+        [
+          "4069",
+          35
+        ],
+        [
+          "4027",
+          30
+        ],
+        [
+          "3017",
+          8
+        ],
+        [
+          "12013",
+          7
+        ]
+      ]
+    },
+    {
+      "id": "vn-cha-gio",
+      "name": "Chả giò chiên",
+      "alternateNames": [
+        "nem rán",
+        "nem chiên",
+        "spring rolls"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 250,
+      "ingredients": [
+        [
+          "1010",
+          35
+        ],
+        [
+          "7017",
+          90
+        ],
+        [
+          "2015",
+          15
+        ],
+        [
+          "4007",
+          35
+        ],
+        [
+          "4123",
+          20
+        ],
+        [
+          "9001",
+          30
+        ],
+        [
+          "6002",
+          25
+        ]
+      ]
+    },
+    {
+      "id": "vn-thit-luoc",
+      "name": "Thịt heo nạc luộc",
+      "alternateNames": [
+        "thịt lợn luộc",
+        "thịt heo luộc"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 75,
+      "ingredients": [
+        [
+          "7017",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-thit-kho-trung",
+      "name": "Thịt kho trứng",
+      "alternateNames": [
+        "thịt kho tàu",
+        "thịt kho hột vịt"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 280,
+      "ingredients": [
+        [
+          "7016",
+          130
+        ],
+        [
+          "7017",
+          50
+        ],
+        [
+          "9004",
+          70
+        ],
+        [
+          "12013",
+          12
+        ],
+        [
+          "6002",
+          4
+        ]
+      ]
+    },
+    {
+      "id": "vn-thit-kho-tieu",
+      "name": "Thịt heo kho tiêu",
+      "alternateNames": [
+        "thịt kho tiêu",
+        "thịt nạc kho"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 170,
+      "ingredients": [
+        [
+          "7017",
+          200
+        ],
+        [
+          "12013",
+          10
+        ],
+        [
+          "6002",
+          6
+        ],
+        [
+          "4039",
+          15
+        ]
+      ]
+    },
+    {
+      "id": "vn-ga-kho",
+      "name": "Gà kho (bản giản lược)",
+      "alternateNames": [
+        "gà kho sả",
+        "thịt gà kho"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 170,
+      "ingredients": [
+        [
+          "7013",
+          200
+        ],
+        [
+          "6002",
+          6
+        ],
+        [
+          "12013",
+          8
+        ],
+        [
+          "4039",
+          15
+        ]
+      ]
+    },
+    {
+      "id": "vn-bo-xao-rau",
+      "name": "Bò xào rau củ",
+      "alternateNames": [
+        "thịt bò xào",
+        "bò xào hành tây"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 300,
+      "ingredients": [
+        [
+          "7003",
+          160
+        ],
+        [
+          "4039",
+          80
+        ],
+        [
+          "4100",
+          80
+        ],
+        [
+          "6002",
+          12
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-dau-sot-ca",
+      "name": "Đậu phụ sốt cà chua",
+      "alternateNames": [
+        "đậu hũ sốt cà",
+        "đậu sốt cà"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 300,
+      "ingredients": [
+        [
+          "3025",
+          200
+        ],
+        [
+          "4005",
+          120
+        ],
+        [
+          "6002",
+          10
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-rau-muong-luoc",
+      "name": "Rau muống luộc",
+      "alternateNames": [
+        "rau luộc",
+        "rau muống chín"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 90,
+      "ingredients": [
+        [
+          "4083",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-rau-muong-xao",
+      "name": "Rau muống xào tỏi",
+      "alternateNames": [
+        "rau muống xào"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 210,
+      "ingredients": [
+        [
+          "4083",
+          230
+        ],
+        [
+          "4103",
+          10
+        ],
+        [
+          "6002",
+          12
+        ]
+      ]
+    },
+    {
+      "id": "vn-canh-bau-tom",
+      "name": "Canh bầu nấu tôm",
+      "alternateNames": [
+        "canh bầu",
+        "bầu nấu tôm"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 500,
+      "ingredients": [
+        [
+          "4001",
+          180
+        ],
+        [
+          "8051",
+          60
+        ],
+        [
+          "6002",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "vn-canh-chua-ca",
+      "name": "Canh chua cá lóc (bản giản lược)",
+      "alternateNames": [
+        "canh chua cá",
+        "canh chua"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 600,
+      "ingredients": [
+        [
+          "8022",
+          100
+        ],
+        [
+          "4005",
+          80
+        ],
+        [
+          "5015",
+          60
+        ],
+        [
+          "4036",
+          50
+        ],
+        [
+          "6002",
+          4
+        ],
+        [
+          "12013",
+          8
+        ]
+      ]
+    },
+    {
+      "id": "vn-canh-cai-thit",
+      "name": "Canh cải thịt bằm",
+      "alternateNames": [
+        "canh cải xanh",
+        "canh thịt bằm"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 500,
+      "ingredients": [
+        [
+          "4016",
+          160
+        ],
+        [
+          "7017",
+          70
+        ],
+        [
+          "6002",
+          3
+        ]
+      ]
+    },
+    {
+      "id": "vn-tom-hap",
+      "name": "Tôm hấp (bóc vỏ)",
+      "alternateNames": [
+        "tôm luộc",
+        "tôm hấp"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 80,
+      "ingredients": [
+        [
+          "8051",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-ca-loc-hap",
+      "name": "Cá lóc hấp (thịt chín)",
+      "alternateNames": [
+        "cá quả hấp",
+        "cá lóc luộc"
+      ],
+      "category": "Món nhà",
+      "yieldGrams": 80,
+      "ingredients": [
+        [
+          "8022",
+          100
+        ]
+      ]
+    },
+    {
+      "id": "vn-che-dau-xanh",
+      "name": "Chè đậu xanh (công thức ít thành phần)",
+      "alternateNames": [
+        "chè đậu xanh",
+        "chè đỗ xanh"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 350,
+      "ingredients": [
+        [
+          "3010",
+          45
+        ],
+        [
+          "12013",
+          25
+        ]
+      ]
+    },
+    {
+      "id": "vn-che-dau-den",
+      "name": "Chè đậu đen (không cốt dừa)",
+      "alternateNames": [
+        "chè đỗ đen",
+        "chè đậu đen"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 350,
+      "ingredients": [
+        [
+          "3004",
+          45
+        ],
+        [
+          "12013",
+          25
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-suon-trung",
+      "name": "Cơm sườn trứng (công thức tham khảo)",
+      "alternateNames": [
+        "cơm tấm sườn trứng",
+        "cơm sườn ốp la"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 450,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          240
+        ],
+        [
+          "7053",
+          150
+        ],
+        [
+          "9001",
+          60
+        ],
+        [
+          "4027",
+          40
+        ],
+        [
+          "4005",
+          30
+        ],
+        [
+          "6002",
+          12
+        ],
+        [
+          "12013",
+          8
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-ga-trung",
+      "name": "Cơm gà trứng (công thức tham khảo)",
+      "alternateNames": [
+        "cơm gà ốp la"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 460,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          240
+        ],
+        [
+          "7013",
+          140
+        ],
+        [
+          "9001",
+          60
+        ],
+        [
+          "4027",
+          40
+        ],
+        [
+          "6002",
+          10
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-dau-rau",
+      "name": "Cơm đậu phụ rau (công thức tham khảo)",
+      "alternateNames": [
+        "cơm chay đậu hũ"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 480,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          220
+        ],
+        [
+          "3025",
+          180
+        ],
+        [
+          "4083",
+          100
+        ],
+        [
+          "6002",
+          10
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-bun-dau-rau",
+      "name": "Bún đậu phụ rau (công thức tham khảo)",
+      "alternateNames": [
+        "bún chay đậu hũ"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 450,
+      "ingredients": [
+        [
+          "vn-bun-tuoi",
+          220
+        ],
+        [
+          "3025",
+          160
+        ],
+        [
+          "4027",
+          50
+        ],
+        [
+          "4069",
+          35
+        ],
+        [
+          "6002",
+          8
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-banh-mi-ga",
+      "name": "Bánh mì gà (công thức tham khảo)",
+      "alternateNames": [
+        "banh mi ga"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 230,
+      "ingredients": [
+        [
+          "1012",
+          95
+        ],
+        [
+          "7013",
+          100
+        ],
+        [
+          "4027",
+          30
+        ],
+        [
+          "4007",
+          20
+        ],
+        [
+          "6002",
+          6
+        ],
+        [
+          "12013",
+          5
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-thit-kho-trung",
+      "name": "Cơm thịt kho trứng (công thức tham khảo)",
+      "alternateNames": [
+        "cơm thịt kho tàu"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 470,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          240
+        ],
+        [
+          "vn-thit-kho-trung",
+          150
+        ],
+        [
+          "vn-rau-muong-luoc",
+          80
+        ]
+      ]
+    },
+    {
+      "id": "vn-com-bo-xao-rau",
+      "name": "Cơm bò xào rau (công thức tham khảo)",
+      "alternateNames": [
+        "cơm bò xào"
+      ],
+      "category": "Món ăn Việt",
+      "yieldGrams": 460,
+      "ingredients": [
+        [
+          "vn-rice-base",
+          240
+        ],
+        [
+          "vn-bo-xao-rau",
+          220
+        ]
+      ]
+    }
   ]
 }
