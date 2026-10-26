@@ -55,6 +55,16 @@ test('an assigned admin role does not bypass email verification',async()=>{
   }
 });
 
+test('only admin can inspect another directory account role; nobody can list or grant roles',async()=>{
+  await env.withSecurityRulesDisabled(c=>setDoc(doc(c.firestore(),'admin_roles/protected'),{enabled:false}));
+  await assertSucceeds(getDoc(doc(db('admin'),'admin_roles/protected')));
+  await assertSucceeds(getDoc(doc(db('admin'),'admin_roles/alice')));
+  await assertFails(getDoc(doc(db('alice'),'admin_roles/protected')));
+  await assertFails(getDocs(collection(db('admin'),'admin_roles')));
+  await assertFails(setDoc(doc(db('admin'),'admin_roles/alice'),{enabled:true}));
+  await assertFails(deleteDoc(doc(db('admin'),'admin_roles/admin')));
+});
+
 test('roles cannot be self-granted; ordinary users and guests cannot administer or read directory/audit',async()=>{
   for(const a of [db('alice'),env.unauthenticatedContext().firestore()]) {
     await assertFails(setDoc(doc(a,'admin_roles/alice'),{enabled:true}));

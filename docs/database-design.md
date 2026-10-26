@@ -1,5 +1,47 @@
 # Thiết kế dữ liệu HealthMate
 
+## 27/10 — Câu trả lời cá nhân hóa 20 câu
+
+Thêm map tùy chọn `users/{uid}.personalization`, version1, 15 trường: formulaSex,
+pace, guidance, activity, exerciseDays, exerciseMinutes, exerciseType, diet,
+avoidFoods, produce, sweetDrinks, sleepHours, sleepSchedule, barrier, priority.
+Null nghĩa chưa trả lời, không phải không có/0. Whitelist Rules, không admin đọc,
+không gửi AI. Field tùy chọn giữ schema profile2 tương thích; không backfill.
+Core ngày sinh/chiều cao/mục tiêu/cân nặng không nhân bản. HealthGoal thêm
+`gain_muscle`; giá trị tăng cân cũ giữ nguyên. Sửa khảo sát không ghi đè số đo cũ.
+Chi tiết: [personalization-questionnaire.md](personalization-questionnaire.md).
+
+
+## 27/10/2026 — Admin đã rollout production
+
+Các collection `admin_roles`, `user_directory`, `account_controls`, `app_config`,
+`admin_audit` và cập nhật catalog có audit đã có Rules trên server, hash5d02e187…,
+đọc lại khớp source. Owner health reads/writes thêm kiểm tra account_controls;
+không mở health data cho admin. Schema chi tiết ở mục admin bên dưới.
+Role đầu tiên đã cấp đúng email người dùng chọn. Chưa bulk import Auth/directory;
+directory đồng bộ bởi mobile bật cờ admin. Giữ7 audit QA thành công, fixture khác
+đã dọn; không thay nhật ký thật. [Rollout/giới hạn](admin-production.md).
+
+## 27/10/2026 — Báo cáo năm/tùy chọn, không đổi lưu trữ
+
+Không thêm field/collection hoặc TTL. 7/30/90 là cửa sổ đọc, không tự xóa các nhật
+ký theo tuổi dữ liệu. Báo cáo/CSV mới ghép tối đa 366 ngày mỗi lượt từ các lần đọc
+≤90 ngày, giữ nguyên repository/Rules theo UID. Ghép snapshot theo ID và target
+theo ngày hiệu lực; không ghi đè lịch sử, không tạo bản tổng năm giả.
+CSV giữ schema cũ; đầu vào mở đến 366 ngày, file tối đa 5 MB. Xem
+[year-and-custom-reports.md](year-and-custom-reports.md).
+
+## 26/10/2026 — Cá nhân hóa kcal, giữ schema mục tiêu hiện có
+
+Kế hoạch tính trên thiết bị, chỉ lưu sau xác nhận qua `NutritionTargetRepository`
+vào `users/{uid}/nutrition_targets/{effectiveFromDateKey}`. Không thêm field hay
+collection; schemaVersion 1/source `user_manual` giữ nghĩa mục tiêu do người dùng
+chọn, kể cả khi tham khảo bộ tính. Kcal và ba chất được lưu dưới dạng mục tiêu,
+không phải số đo chuyển hóa hay dữ liệu dinh dưỡng thực phẩm. Đầu vào tính thêm
+(hệ số sinh lý/hoạt động/nhịp) không được lưu; hồ sơ/cân nặng cũ giữ nguyên.
+Không cần Rules rollout. Quy trình xác nhận, giới hạn và retry hai repository
+trong onboarding xem [personalized-nutrition.md](personalized-nutrition.md).
+
 ## Mới nhất26/10/2026 — thiết lập và điều chỉnh năng lượng theo ngày
 
 Thêm `users/{uid}/wellness_preferences/main`: stepLengthCm (nullable20..200),
@@ -828,7 +870,7 @@ Thiết kế này là phần mở rộng người dùng yêu cầu: catalog, tà
 
 | Đường dẫn | Dữ liệu | Quyền client |
 | --- | --- | --- |
-| `admin_roles/{uid}` | `enabled: bool` | Chỉ đọc role của chính UID; không list/ghi. Chủ dự án cấp/thu hồi bằng Console/IAM. |
+| `admin_roles/{uid}` | `enabled: bool` | Owner đọc role chính mình; admin đã xác minh được GET role theo UID đã biết để bảo vệ tài khoản quản trị. Không list/ghi. Chủ dự án cấp/thu hồi bằng Console/IAM. |
 | `user_directory/{uid}` | `displayName`, `email`, `createdAt`, `updatedAt` | Owner đang hoạt động tự đồng bộ tên khớp profile và email khớp Auth token; admin đọc danh sách. Không chứa dữ liệu sức khỏe. |
 | `account_controls/{uid}` | `status: active/suspended`, `reason`, `updatedAt`, `updatedBy`, `lastAdminOperationId` | Owner được đọc trạng thái kể cả khi bị khóa; chỉ admin ghi có audit, không khóa chính mình hoặc UID có document role. Không xóa từ client. |
 | `app_config/runtime` | `chatbotEnabled`, `foodScannerEnabled`, `maintenanceMode`, `maintenanceMessage`, ba metadata quản trị | Người đăng nhập đang hoạt động đọc; admin ghi có audit. Không chứa model/key/secret. |

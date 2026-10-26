@@ -1074,3 +1074,47 @@ test('C4 favorite custom and recipe require own source, stable namespace and rem
     await assertFails(setDoc(favorite,data));
   }
 });
+
+// Versioned twenty-question profile survey: private, bounded and backwards compatible.
+const surveyData = () => ({version:1, formulaSex:null, pace:null, guidance:null,
+  activity:null, exerciseDays:null, exerciseMinutes:null, exerciseType:null,
+  diet:null, avoidFoods:null, produce:null, sweetDrinks:null, sleepHours:null,
+  sleepSchedule:null, barrier:null, priority:null});
+
+test('personalization round trip is owner-only, old profile updates preserve it, admin cannot read it', async () => {
+  const db = verifiedContext('alice',{email:'alice@example.com'}).firestore();
+  const ref = doc(db,'users/alice');
+  await assertSucceeds(setDoc(ref,{...profileData(),personalization:{...surveyData(),
+    formulaSex:'female',guidance:'preferNotSay',exerciseDays:0,avoidFoods:'Đậu phộng',sleepHours:7.5,priority:'sleep'}}));
+  await assertSucceeds(getDoc(ref));
+  await assertSucceeds(updateDoc(ref,{displayName:'Alice edited',updatedAt:serverTimestamp()}));
+  const saved = await getDoc(ref);
+  require('node:assert/strict').equal(saved.data().personalization.avoidFoods,'Đậu phộng');
+  await assertFails(getDoc(doc(verifiedContext('bob',{email:'bob@example.com'}).firestore(),'users/alice')));
+  await assertFails(updateDoc(doc(verifiedContext('bob').firestore(),'users/alice'),{personalization:surveyData()}));
+  await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(),'users/alice')));
+  await environment.withSecurityRulesDisabled(async c => setDoc(doc(c.firestore(),'admin_roles/admin'),{enabled:true}));
+  await assertFails(getDoc(doc(verifiedContext('admin').firestore(),'users/alice')));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test('survey rejects malformed, oversized, unknown and contradictory fields', async () => {
+  const db = verifiedContext('alice',{email:'alice@example.com'}).firestore();
+  const ref = doc(db,'users/alice');
+  await assertSucceeds(setDoc(ref,profileData()));
+  for (const change of [{version:2},{admin:true},{exerciseDays:8},{exerciseDays:'3'},
+    {exerciseMinutes:-30},{formulaSex:'made-up'},{sleepHours:25},{sleepHours:-1},
+    {sleepHours:NaN},{avoidFoods:'x'.repeat(201)},{guidance:true},
+    {exerciseDays:0,exerciseMinutes:30},{diet:['vegan']}]) {
+    await assertFails(updateDoc(ref,{personalization:{...surveyData(),...change},updatedAt:serverTimestamp()}));
+  }
+  await assertFails(updateDoc(ref,{personalization:{version:1},updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(ref,{personalization:null,updatedAt:serverTimestamp()}));
+});
+
+test('new muscle goal and legacy gain goal remain valid without rewriting existing records', async () => {
+  const db = verifiedContext('alice',{email:'alice@example.com'}).firestore();
+  const ref = doc(db,'users/alice');
+  await assertSucceeds(setDoc(ref,{...profileData(),healthGoal:'gain_muscle',personalization:surveyData()}));
+  await assertSucceeds(updateDoc(ref,{healthGoal:'gain_weight_or_muscle',targetWeightKg:75,updatedAt:serverTimestamp()}));
+});

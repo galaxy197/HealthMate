@@ -1,5 +1,125 @@
 # Tiến độ HealthMate
 
+## 27/10/2026 — Bộ 20 câu cá nhân hóa đã hoàn tất
+
+Phạm vi mở rộng hồ sơ/onboarding (Giai đoạn 3): đúng 20 câu, chia các phần ngắn;
+nhánh không tập/không đổi cân nặng bỏ câu không liên quan. Câu bổ sung có thể để
+sau, null không phải 0/không có. Câu 1–9 dùng bộ tính kcal hiện có, phải xem lại
+và xác nhận trước lưu. Người cũ không bị ép làm lại; vào Thêm → Cá nhân hóa ·
+20 câu hỏi. Có 5 mục tiêu, tách thêm Tăng cơ; giá trị tăng cân cũ giữ nguyên.
+Lưu map version1 theo UID, không gửi AI/không cho admin đọc. Sửa câu trả lời giữ
+số đo cũ; cân nặng đổi thêm số đo, không đổi không tạo log. Giữ toàn bộ source
+admin/cá nhân hóa/báo cáo đang chờ commit trước đó theo yêu cầu up GitHub.
+
+Kiểm tra thực tế: format phần thay đổi 0 lệch; analyze 0 issues (7 giây);
+full Flutter **646/646** (66 giây). Sau chỉnh text phân nhóm/giới hạn subtitle,
+chạy lại analyze 0 issues và **7/7** ca khảo sát (3 giây). **39/39** ca hồi quy
+Auth/account/widget/khảo sát qua sau sửa vị trí entry, không sửa test Auth để
+bỏ qua lỗi. Rules **77/77** (24,8 giây); web **20/20**, SDK Emulator **4/4**.
+Lần thử Rules đầu thiếu Java21 ở PATH/Emulator chưa lên nên không kết nối được;
+đã chạy bằng Java21 và server8092. SDK lượt đầu thiếu fixture, seed local
+--extended rồi 4/4; không hạ rule. Secret scan 478 file text, 0 mẫu credential
+nhạy cảm; không phải chứng nhận audit toàn bộ lịch sử Git/APK.
+
+Rules đã deploy scoped `firestore:rules`, không đổi Hosting/indexes/billing.
+Readback hash `04a81618172e2a843e71c57b21208a080aa2643c14c55efce2dd24e6ab0c0428` khớp source,
+ruleset `04f3777e-84c5-42a2-b242-56c1640a0bbe`. Backup trước/sau chỉ ở build/.
+Warning knownNumber unused có sẵn; build còn warning Kotlin plugin có sẵn.
+APK debug build qua **30,1 giây**, giữ define admin + AI debug cục bộ:
+`build/releases/healthmate-questionnaire-20-debug.apk` (236777378 byte),
+SHA256 `3afab0533edc044304ec1105a5b09d02e8c1063273ec332a3d02a1b32f20e984`. Chưa cài/thử trên điện thoại, không public APK/debug token.
+Ảnh font thật 360×800/chữ150% đã xem, không overflow; một số lựa chọn dài hiển
+thị dấu …, có toàn bộ nội dung trong phần xem lại. Không coi đây là nghiệm thu native.
+
+File chính: models/personalization_answers.dart, presentation/personalization_questions.dart,
+onboarding_screen.dart, profile_screen.dart, repository/model hồ sơ, router,
+firestore.rules, test/personalization_questionnaire_test.dart và Rules tests.
+Thiết kế/nguồn/giới hạn: [personalization-questionnaire.md](personalization-questionnaire.md).
+Chưa áp bộ lọc thực đơn tự động theo chế độ ăn/dị ứng, chưa tự sửa lịch nhắc ngủ.
+Bước kế tiếp đề xuất: nghiệm thu luồng 20 câu trên điện thoại; không tự mở giai đoạn khác.
+
+
+## 27/10/2026 — Rollout admin production theo yêu cầu
+
+Đã cấu hình reCAPTCHA Enterprise SCORE/App Check web cho hai domain Firebase,
+giữ threshold0,5 và enforcement AI cũ; billing vẫn false. Cấp role đúng email
+`luuxuantung285600@gmail.com` đã verified. Vì tài khoản chỉ có Google provider,
+bổ sung nút Google sign-in và xử lý popup, CSP; production đợi App Check token.
+Deploy scoped Rules/Hosting thành công, URL https://healthmate-app-20261013.web.app.
+Rules đọc lại khớp hash5d02e187…/rulesete4c952fa…, không đổi indexes/health data.
+
+File chính: admin-web Firebase adapter/UI/server/prepare tool, DOM auth test,
+production-smoke opt-in; docs/admin-production/README/handoff/test-report.
+20/20 web,4/4 SDK Emulator,74/74 Rules;17 kiểm tra end-user trên Firebase thật
+qua, cleanup6 danh tính QA/fixture đã xác minh, giữ7 audit QA thành công.
+11/11 tệp HTTPS khớp nguồn/header; token App Check sai bị403; runtime5/5 với
+cờ true. Build debug21,6giây qua, giữ warningKGP cũ. APK
+`build/releases/healthmate-admin-enabled-debug.apk`, chưa cài; source flag vẫn
+false, build mới đã truyền true. Không commit/push, không nâng billing.
+
+Người dùng chọn thử browser sau. Chưa nghiệm thu popup/token App Check hợp lệ
+trình duyệt thật hoặc inbox email; không bật enforcement Firestore/Auth toàn
+project trước metrics/mobileQA. Bước đề xuất: nghiệm thu thủ công web/APK khi
+sẵn sàng, không tự làm tính năng mới. [Chi tiết](admin-production.md).
+
+## 27/10/2026 — Hoàn thiện admin: danh mục/tài khoản/cấu hình
+
+Theo yêu cầu mới, tiếp tục admin từng tạm gác; không chuyển sang giai đoạn mobile
+khác. Hoàn thiện dashboard 4 số đếm, tìm/lọc toàn bộ danh sách ≤5.000 mục, trang
+25 mục/STT, chi tiết/archive/restore có xác nhận, XLSX toàn bộ kết quả lọc và
+trạng thái lỗi/đổi phiên. Ghi có audit/version/server ACK. Admin GET role theo UID
+đã biết, không list/cấp role; dữ liệu sức khỏe vẫn riêng tư.
+
+File chính: `admin-web/dist/{app,firebase,list-model,xlsx-export}.mjs`, style,
+tests DOM/list/XLSX/SDK, seed extended, package/lock, tool kiểm tra chỉ đọc/gói
+review, `firestore.rules`, hai suite Rules và tài liệu. Linkedom chỉ dev test;
+không đổi Dart/schema/index/production config. Giữ toàn bộ thay đổi cũ chưa commit.
+
+Kiểm thử: syntax qua, 19/19 Node/DOM, 4/4 SDK Emulator, 74/74 Rules, 5/5 Flutter
+runtime, audit production deps 0; XLSX được openpyxl đọc đủ 67 dòng/16 cột, HTTP
+headers/path checks qua. Chưa kiểm tra trực quan trình duyệt vì local browser bị
+tắt trong Work settings; chưa chứng minh email inbox/App Check thật.
+
+Admin chọn `luuxuantung285600@gmail.com`, đã kiểm tra chỉ đọc tồn tại/verified.
+Thiếu web App Check site key, chưa grant role/deploy Rules/Hosting/bật flag mobile.
+Backup Rules thật và gói review dưới build; giữ bản MVP production đang chạy.
+Chi tiết và checklist còn thiếu: [admin-completion.md](admin-completion.md).
+Tiếp theo đề xuất: cấu hình và nghiệm thu admin production; chưa tự thực hiện.
+
+## 27/10/2026 — Giai đoạn 8 mở rộng: báo cáo năm và khoảng tùy chọn
+
+Thêm chọn năm, từ ngày–đến ngày hoặc số ngày 1–366 trong Tiến độ; năm hiện tại
+đến hôm nay, năm cũ đầy đủ; tổng hợp tháng và chi tiết ngày phân trang. CSV Android
+hỗ trợ 366 ngày, prefill khoảng đang xem. Không tự xóa dữ liệu sau 7/30/90 ngày,
+không đổi schema/Rules/backend hoặc mở rộng màn wellness riêng.
+Files chính: ReportRange/range loader/providers, PeriodReportPanel, ProgressScreen,
+ReportRangeDialog, CSV model/service/dialog và tests. Giữ thay đổi cá nhân hóa cũ.
+Kết quả cuối kiểm thử/analyze/build và giới hạn: đầu test-report; tài liệu
+[year-and-custom-reports.md](year-and-custom-reports.md).
+Full cuối 639/639 (112 giây), analyze 0 issues (48,2 giây), format 15 file 0 thay
+đổi, build debug qua (26,8 giây), diff check qua, source audit 449 tệp không khớp
+mẫu secret. APK riêng `build/releases/healthmate-year-reports-debug.apk`, chưa cài.
+Không commit/push/deploy/cài điện thoại. Tiếp theo đề xuất: nghiệm thu báo cáo/CSV
+trên điện thoại khi kết nối; không tự triển khai giai đoạn khác.
+
+## 26/10/2026 — Giai đoạn 7 bổ sung: cá nhân hóa mục tiêu dinh dưỡng
+
+Theo yêu cầu mới, nối onboarding 5 bước với đề xuất kcal/macros, thêm lối hoàn
+thiện kế hoạch cho tài khoản cũ ở Hôm nay/Thêm và bộ tính trong form mục tiêu.
+Model Mifflin–St Jeor + hoạt động/nhịp/phân bổ có nguồn và giới hạn; phải xác nhận
+trước lưu, không tự thay mục tiêu cũ/hồi tố lịch sử. Không thêm API/dependency/schema.
+
+Files chính: `personal_nutrition_plan.dart`, `personal_nutrition_planner.dart`,
+onboarding, target card/form, dashboard calorie card; test mới và fixture onboarding
+trong core acceptance. Cập nhật database/README/handoff/test-report.
+Full cuối 625/625 (92 giây), analyze cuối 0 issues (18,1 giây), format 10 file
+0 thay đổi. Build debug Android thành công (72,5 giây); diff check qua và audit
+445 tệp nguồn không phát hiện mẫu secret. Kết quả/log trong test-report.
+Mô tả nguồn/cách dùng/giới hạn:
+[personalized-nutrition.md](personalized-nutrition.md).
+Không deploy/push hoặc cài máy thật; không tự chuyển sang thiết kế tab/bài tập.
+Tiếp theo đề xuất: nghiệm thu kế hoạch dinh dưỡng trên điện thoại khi kết nối.
+
 ## 26/10/2026 — Xuất bản mã nguồn và đề xuất giao diện
 
 Phạm vi theo yêu cầu mới: commit/push mã nguồn Flutter, Worker và admin thử nghiệm

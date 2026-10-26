@@ -7,6 +7,7 @@ import '../../nutrition/models/nutrition_models.dart';
 import '../models/nutrition_target.dart';
 import '../providers/nutrition_target_providers.dart';
 import 'nutrition_target_form.dart';
+import 'personal_nutrition_planner.dart';
 import '../../wellness/providers/energy_providers.dart';
 
 class NutritionTargetCard extends ConsumerWidget {
@@ -151,6 +152,17 @@ class NutritionTargetCard extends ConsumerWidget {
                   'So sánh chỉ từ nhật ký đã ghi, không khẳng định bạn đã ghi đủ ngày.',
                 ),
             ],
+            if (ready)
+              TextButton.icon(
+                key: const ValueKey('personalize-nutrition-target'),
+                onPressed: () => openPersonalNutritionPlanner(context),
+                icon: const Icon(Icons.calculate_outlined),
+                label: Text(
+                  value == null
+                      ? 'Cá nhân hóa kế hoạch kcal'
+                      : 'Tính lại kế hoạch kcal từ hôm nay',
+                ),
+              ),
             if (ready)
               TextButton.icon(
                 key: ValueKey('edit-nutrition-target-$key'),

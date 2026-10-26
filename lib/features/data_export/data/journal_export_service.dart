@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:async' as async show AsyncError;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/data/private_local_data.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -13,6 +14,8 @@ import '../../activity/providers/activity_providers.dart';
 import '../../profile/data/health_profile_repository.dart';
 import '../../profile/providers/profile_providers.dart';
 import '../models/journal_csv.dart';
+import '../../reports/models/period_report.dart';
+import '../../reports/data/report_range_loader.dart';
 
 final journalExportServiceProvider = Provider<JournalExportService>((ref) {
   var session = 0;
@@ -75,15 +78,51 @@ class JournalExportService {
 
     // Validate range before starting any network reads.
     buildJournalCsv(start: start, endExclusive: end);
+    final range = ReportRange.inclusive(
+      start,
+      DateTime(end.year, end.month, end.day - 1),
+    );
     _busy = true;
     String? ticket;
     try {
       final (meals, waterLogs, activities, weights) = await (
-        nutrition.loadRange(uid, start, end),
-        water.loadRange(uid, start, end),
-        activity.loadRange(uid, start, end),
-        profile.loadBodyMetricsRange(uid, start, end),
-      ).wait.timeout(const Duration(seconds: 30));
+        loadReportRange(
+          range,
+          (c) => nutrition.loadRange(uid, c.start, c.end),
+          keyOf: (m) => m.id,
+          isCurrent: () {
+            check();
+            return true;
+          },
+        ),
+        loadReportRange(
+          range,
+          (c) => water.loadRange(uid, c.start, c.end),
+          keyOf: (w) => w.id,
+          isCurrent: () {
+            check();
+            return true;
+          },
+        ),
+        loadReportRange(
+          range,
+          (c) => activity.loadRange(uid, c.start, c.end),
+          keyOf: (a) => a.id,
+          isCurrent: () {
+            check();
+            return true;
+          },
+        ),
+        loadReportRange(
+          range,
+          (c) => profile.loadBodyMetricsRange(uid, c.start, c.end),
+          keyOf: (m) => m.id,
+          isCurrent: () {
+            check();
+            return true;
+          },
+        ),
+      ).wait;
       check();
       final csv = buildJournalCsv(
         start: start,
@@ -108,6 +147,23 @@ class JournalExportService {
       }
       check();
       return verified;
+    } on ParallelWaitError catch (error) {
+      // Never interpret a partially successful parallel read as a full export.
+      check();
+      final errors =
+          error.errors
+              as (
+                async.AsyncError?,
+                async.AsyncError?,
+                async.AsyncError?,
+                async.AsyncError?,
+              );
+      for (final failure in [errors.$1, errors.$2, errors.$3, errors.$4]) {
+        if (failure != null) {
+          Error.throwWithStackTrace(failure.error, failure.stackTrace);
+        }
+      }
+      rethrow;
     } finally {
       if (ticket != null) {
         try {

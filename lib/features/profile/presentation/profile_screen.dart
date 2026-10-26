@@ -98,6 +98,23 @@ class ProfileScreen extends ConsumerWidget {
           onDeleteAccount: () => _deleteAccount(context, ref),
         ),
         const SizedBox(height: AppSpacing.md),
+        Card(
+          child: ListTile(
+            key: const ValueKey('open-personalization'),
+            leading: const Icon(Icons.tune_rounded),
+            title: const Text('Cá nhân hóa · 20 câu hỏi'),
+            subtitle: Text(
+              profile?.personalization == null
+                  ? 'Bổ sung mục tiêu và thói quen khi bạn sẵn sàng'
+                  : profile!.personalization!.segmentLabels.join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push(AppRoutes.personalization),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
         _ProfileCard(
           state: profileState,
           profile: profile,

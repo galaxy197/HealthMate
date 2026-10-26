@@ -14,19 +14,30 @@ import '../providers/report_providers.dart';
 import 'day_review_controls.dart';
 
 class PeriodReportPanel extends ConsumerStatefulWidget {
-  const PeriodReportPanel({required this.days, required this.today, super.key});
+  const PeriodReportPanel({
+    required this.days,
+    required this.today,
+    this.selectedRange,
+    super.key,
+  });
   final int days;
   final DateTime today;
+  final ReportRange? selectedRange;
   @override
   ConsumerState<PeriodReportPanel> createState() => _PeriodReportPanelState();
 }
 
 class _PeriodReportPanelState extends ConsumerState<PeriodReportPanel> {
   int _offset = 0;
+  int _detailsPage = 0;
   @override
   void didUpdateWidget(covariant PeriodReportPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.days != widget.days) _offset = 0;
+    if (oldWidget.days != widget.days ||
+        oldWidget.selectedRange != widget.selectedRange) {
+      _offset = 0;
+      _detailsPage = 0;
+    }
   }
 
   Widget _source<T>(
@@ -58,12 +69,13 @@ class _PeriodReportPanelState extends ConsumerState<PeriodReportPanel> {
   @override
   Widget build(BuildContext context) {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
-    final end = DateTime(
+    final rollingEnd = DateTime(
       widget.today.year,
       widget.today.month,
       widget.today.day + 1 + widget.days * _offset,
     );
-    final range = ReportRange(end, widget.days);
+    final range = widget.selectedRange ?? ReportRange(rollingEnd, widget.days);
+    final end = range.end;
     final meals = ref.watch(periodMealsProvider(range));
     final targets = ref.watch(periodTargetsProvider(range));
     final reviews = ref.watch(dayReviewsProvider(range));
@@ -90,12 +102,16 @@ class _PeriodReportPanelState extends ConsumerState<PeriodReportPanel> {
         ),
         Row(
           children: [
-            IconButton(
-              key: const ValueKey('previous-period'),
-              tooltip: 'Khoảng trước',
-              onPressed: () => setState(() => _offset--),
-              icon: const Icon(Icons.chevron_left),
-            ),
+            if (widget.selectedRange == null)
+              IconButton(
+                key: const ValueKey('previous-period'),
+                tooltip: 'Khoảng trước',
+                onPressed: () => setState(() {
+                  _offset--;
+                  _detailsPage = 0;
+                }),
+                icon: const Icon(Icons.chevron_left),
+              ),
             Expanded(
               child: Text(
                 '${date.format(range.start)} – ${date.format(DateTime(end.year, end.month, end.day - 1))}',
@@ -103,17 +119,31 @@ class _PeriodReportPanelState extends ConsumerState<PeriodReportPanel> {
                 textAlign: TextAlign.center,
               ),
             ),
-            IconButton(
-              key: const ValueKey('next-period'),
-              tooltip: 'Khoảng sau',
-              onPressed: _offset < 0 ? () => setState(() => _offset++) : null,
-              icon: const Icon(Icons.chevron_right),
-            ),
+            if (widget.selectedRange == null)
+              IconButton(
+                key: const ValueKey('next-period'),
+                tooltip: 'Khoảng sau',
+                onPressed: _offset < 0
+                    ? () => setState(() {
+                        _offset++;
+                        _detailsPage = 0;
+                      })
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+              ),
           ],
         ),
         const Text(
           'Theo ngày địa phương đã ghi nhận. Kéo biểu đồ để xem từng ngày.',
         ),
+        Text(
+          '${range.days} ngày · Khoảng xem không phải thời hạn lưu dữ liệu.',
+          key: const ValueKey('report-day-count'),
+        ),
+        if (range.days > 90)
+          const Text(
+            'Báo cáo dài được tải theo từng phần; nhiều dữ liệu có thể cần thêm thời gian. Chỉ hiện tổng khi nguồn đó đã tải đủ.',
+          ),
         _source('bữa ăn', meals, () => ref.invalidate(periodMealsProvider(range)), (
           logs,
         ) {
@@ -174,11 +204,88 @@ class _PeriodReportPanelState extends ConsumerState<PeriodReportPanel> {
                 'Xanh: kcal đã ghi (có thể chưa đủ) · Nét đứt: mục tiêu gốc đúng ngày, chưa cộng điều chỉnh bước.',
               ),
               _EnergyChart(coverage: coverage, targets: versions),
+              if (range.days > 90)
+                ExpansionTile(
+                  key: const ValueKey('period-month-details'),
+                  title: const Text('Tổng hợp theo tháng'),
+                  children: [
+                    for (final month in {
+                      for (final d in coverage.dates) DateTime(d.year, d.month),
+                    })
+                      Builder(
+                        builder: (context) {
+                          final days = coverage.dates
+                              .where(
+                                (d) =>
+                                    d.year == month.year &&
+                                    d.month == month.month,
+                              )
+                              .toList();
+                          final logs = days.expand(coverage.logs).toList();
+                          final confirmedDays = days
+                              .where(
+                                (d) =>
+                                    coverage.logs(d).isNotEmpty &&
+                                    coverage.confirmed(d),
+                              )
+                              .toList();
+                          final confirmedAverage = confirmedDays.isEmpty
+                              ? null
+                              : confirmedDays.fold(
+                                      0.0,
+                                      (sum, d) =>
+                                          sum +
+                                          totalMealNutrition(
+                                            coverage.logs(d),
+                                          ).kcal,
+                                    ) /
+                                    confirmedDays.length;
+                          return ListTile(
+                            title: Text(
+                              'Tháng ${DateFormat('MM/yyyy').format(month)} · ${number.format(totalMealNutrition(logs).kcal)} kcal đã ghi',
+                            ),
+                            subtitle: Text(
+                              '${days.where((d) => coverage.logs(d).isNotEmpty).length}/${days.length} ngày có ghi · ${nutritionLabel(totalMealNutrition(logs))}\n${confirmedAverage == null ? 'Chưa có trung bình ngày đã xác nhận' : 'Trung bình ${number.format(confirmedAverage)} kcal / ${confirmedDays.length} ngày có bữa đã xác nhận'}',
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
               ExpansionTile(
                 key: const ValueKey('period-day-details'),
                 title: const Text('Chi tiết từng ngày / xác nhận'),
                 children: [
-                  for (final day in coverage.dates)
+                  if (coverage.dates.length > 31)
+                    Row(
+                      children: [
+                        IconButton(
+                          key: const ValueKey('report-details-previous'),
+                          tooltip: 'Nhóm ngày trước',
+                          onPressed: _detailsPage > 0
+                              ? () => setState(() => _detailsPage--)
+                              : null,
+                          icon: const Icon(Icons.chevron_left),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Trang ${_detailsPage + 1}/${(coverage.dates.length / 31).ceil()}',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        IconButton(
+                          key: const ValueKey('report-details-next'),
+                          tooltip: 'Nhóm ngày sau',
+                          onPressed:
+                              (_detailsPage + 1) * 31 < coverage.dates.length
+                              ? () => setState(() => _detailsPage++)
+                              : null,
+                          icon: const Icon(Icons.chevron_right),
+                        ),
+                      ],
+                    ),
+                  for (final day
+                      in coverage.dates.skip(_detailsPage * 31).take(31))
                     ListTile(
                       title: Text(date.format(day)),
                       subtitle: Text(
@@ -311,7 +418,7 @@ class _EnergyChart extends StatelessWidget {
         child: LineChart(
           LineChartData(
             minX: 0,
-            maxX: (coverage.range.days - 1).toDouble(),
+            maxX: math.max(1, coverage.range.days - 1).toDouble(),
             minY: 0,
             maxY: maxY * 1.1,
             lineBarsData: [
@@ -341,7 +448,11 @@ class _EnergyChart extends StatelessWidget {
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
-                  interval: coverage.range.days > 30 ? 14 : 7,
+                  interval: coverage.range.days > 90
+                      ? 30
+                      : coverage.range.days > 30
+                      ? 14
+                      : 7,
                   getTitlesWidget: (v, meta) => SideTitleWidget(
                     meta: meta,
                     child: Text(

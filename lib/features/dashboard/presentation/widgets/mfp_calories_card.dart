@@ -10,6 +10,7 @@ class MfpCaloriesCard extends StatelessWidget {
     this.targetStatus,
     this.editKey,
     this.budgetNote,
+    this.onPersonalize,
     super.key,
   });
   final double? consumed;
@@ -18,6 +19,7 @@ class MfpCaloriesCard extends StatelessWidget {
   final String? targetStatus;
   final Key? editKey;
   final String? budgetNote;
+  final VoidCallback? onPersonalize;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -94,6 +96,13 @@ class MfpCaloriesCard extends StatelessWidget {
           if (consumed == null) const Text('Chưa có tổng nhật ký'),
           if (budgetNote != null)
             Text(budgetNote!, style: theme.textTheme.bodySmall),
+          if (onPersonalize != null)
+            TextButton.icon(
+              key: const ValueKey('open-personal-nutrition'),
+              onPressed: onPersonalize,
+              icon: const Icon(Icons.calculate_outlined),
+              label: const Text('Hoàn thiện kế hoạch kcal'),
+            ),
         ],
       ),
     );

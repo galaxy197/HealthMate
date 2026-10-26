@@ -1,5 +1,162 @@
 # Giai đoạn 10 — Báo cáo kiểm thử và rà soát MVP
 
+## 27/10/2026 — Bộ 20 câu cá nhân hóa đã hoàn tất
+
+Phạm vi mở rộng hồ sơ/onboarding (Giai đoạn 3): đúng 20 câu, chia các phần ngắn;
+nhánh không tập/không đổi cân nặng bỏ câu không liên quan. Câu bổ sung có thể để
+sau, null không phải 0/không có. Câu 1–9 dùng bộ tính kcal hiện có, phải xem lại
+và xác nhận trước lưu. Người cũ không bị ép làm lại; vào Thêm → Cá nhân hóa ·
+20 câu hỏi. Có 5 mục tiêu, tách thêm Tăng cơ; giá trị tăng cân cũ giữ nguyên.
+Lưu map version1 theo UID, không gửi AI/không cho admin đọc. Sửa câu trả lời giữ
+số đo cũ; cân nặng đổi thêm số đo, không đổi không tạo log. Giữ toàn bộ source
+admin/cá nhân hóa/báo cáo đang chờ commit trước đó theo yêu cầu up GitHub.
+
+Kiểm tra thực tế: format phần thay đổi 0 lệch; analyze 0 issues (7 giây);
+full Flutter **646/646** (66 giây). Sau chỉnh text phân nhóm/giới hạn subtitle,
+chạy lại analyze 0 issues và **7/7** ca khảo sát (3 giây). **39/39** ca hồi quy
+Auth/account/widget/khảo sát qua sau sửa vị trí entry, không sửa test Auth để
+bỏ qua lỗi. Rules **77/77** (24,8 giây); web **20/20**, SDK Emulator **4/4**.
+Lần thử Rules đầu thiếu Java21 ở PATH/Emulator chưa lên nên không kết nối được;
+đã chạy bằng Java21 và server8092. SDK lượt đầu thiếu fixture, seed local
+--extended rồi 4/4; không hạ rule. Secret scan 478 file text, 0 mẫu credential
+nhạy cảm; không phải chứng nhận audit toàn bộ lịch sử Git/APK.
+
+Rules đã deploy scoped `firestore:rules`, không đổi Hosting/indexes/billing.
+Readback hash `04a81618172e2a843e71c57b21208a080aa2643c14c55efce2dd24e6ab0c0428` khớp source,
+ruleset `04f3777e-84c5-42a2-b242-56c1640a0bbe`. Backup trước/sau chỉ ở build/.
+Warning knownNumber unused có sẵn; build còn warning Kotlin plugin có sẵn.
+APK debug build qua **30,1 giây**, giữ define admin + AI debug cục bộ:
+`build/releases/healthmate-questionnaire-20-debug.apk` (236777378 byte),
+SHA256 `3afab0533edc044304ec1105a5b09d02e8c1063273ec332a3d02a1b32f20e984`. Chưa cài/thử trên điện thoại, không public APK/debug token.
+Ảnh font thật 360×800/chữ150% đã xem, không overflow; một số lựa chọn dài hiển
+thị dấu …, có toàn bộ nội dung trong phần xem lại. Không coi đây là nghiệm thu native.
+
+File chính: models/personalization_answers.dart, presentation/personalization_questions.dart,
+onboarding_screen.dart, profile_screen.dart, repository/model hồ sơ, router,
+firestore.rules, test/personalization_questionnaire_test.dart và Rules tests.
+Thiết kế/nguồn/giới hạn: [personalization-questionnaire.md](personalization-questionnaire.md).
+Chưa áp bộ lọc thực đơn tự động theo chế độ ăn/dị ứng, chưa tự sửa lịch nhắc ngủ.
+Bước kế tiếp đề xuất: nghiệm thu luồng 20 câu trên điện thoại; không tự mở giai đoạn khác.
+
+
+## 27/10/2026 — Nghiệm thu server production admin
+
+- Syntax qua; web **20/20**, SDK Emulator **4/4**, Rules **74/74** (11,3 giây).
+- Production smoke end-user ID tokens: **17/17 qua**. Hai lần đầu lỗi harness
+  timestamp máy/audit field contract; sửa fixture theo server, không nới Rules.
+  Lần cuối `build/admin-production-smoke-1793041420664.json` cleanup không lỗi.
+- Kiểm tra lại **6 danh tính QA** từ ba lượt đã xóa, fixture đã dọn; giữ **7
+  audit thành công**, không tính thao tác bị từ chối. Không đọc/sửa health data thật.
+- Deploy compile qua (warning knownNumber chưa dùng có sẵn); đọc lại Rules
+  khớp nguồn hash5d02e187…/rulesete4c952fa…. Indexes/AI enforcement/billing không đổi.
+- HTTPS **11/11 file** byte-for-byte + CSP/no-store/nosniff/no-referrer qua;
+  App Check token sai **403 App attestation failed**, role/email/Google/billing
+  readback xác nhận. Chưa chứng minh browser token hợp lệ.
+- Runtime **5/5** với define admin true; debug build qua **21,6 giây**, warning
+  KGP cũ. APK admin-enabled 236758930byte/hashd59c2bc6… chưa cài điện thoại.
+- Người dùng chọn **thử giao diện sau**. Browser vẫn chưa QA trực quan; popup
+  Google và email reset inbox chưa xác nhận. Không tuyên bố toàn bộ nghiệm thu UI
+  đã xong; chưa bật enforcement Firestore/Auth mới để tránh chặn app cũ.
+
+Logs và lệnh cụ thể: [admin-production.md](admin-production.md). Không đổi Dart
+source nên không lặp full639/analyze của lượt trước hoặc format ngoài phạm vi.
+
+## 27/10/2026 — Hoàn thiện admin theo yêu cầu mới
+
+- Syntax admin qua; `npm --prefix admin-web test`: **19/19**, 7,3 giây.
+- Production adapter + Firebase SDK 13.0.0 qua Auth/Firestore Emulator:
+  `npm --prefix admin-web run test:sdk`: **4/4**, 0,87 giây.
+- Toàn bộ source Rules: **74/74**, 12,1 giây, cổng 8092. Sửa suite wellness dùng
+  biến môi trường thay cổng cứng 8080; giữ assertion truy cập chéo/validation.
+- `flutter test --no-pub test/admin_runtime_test.dart`: **5/5**. Không sửa Dart;
+  full 639/639 và analyze 0 issues ở phần báo cáo năm bên dưới là lần chạy trước.
+- Audit production dependencies **0**; HTTP asset/headers/traversal/method qua.
+- XLSX thật được parser ZIP test và openpyxl độc lập đọc đủ 67 dòng ×16 cột;
+  null/zero/text giống formula giữ đúng kiểu. Không có dữ liệu sức khỏe thật.
+
+DOM dùng linkedom chỉ trong dev; SDK test dùng module production với cùng phiên
+bản Firebase, không đổi logic để giả thành công. Browser bị tắt trong Work settings,
+chưa QA hiển thị mới trực tiếp. Các test đều chạy local, không ghi production.
+Email admin được chọn đã verified qua kiểm tra read-only; chưa grant role, App
+Check web thiếu site key. Chưa deploy/kiểm thử production inbox, chưa bật cờ mobile.
+Chi tiết log/coverage/blocker: [admin-completion.md](admin-completion.md).
+
+## 27/10/2026 — Báo cáo năm và khoảng tùy chọn (Giai đoạn 8 mở rộng)
+
+- `dart format --output=none --set-exit-if-changed` trên 15 file Dart liên quan:
+  **0 file thay đổi**, exit 0.
+- `flutter analyze --no-pub`: **0 issues**, 48,2 giây, exit 0;
+  `build/year-reports-analyze-final.log`.
+- `flutter test --no-pub --reporter expanded`: **639/639**, 112 giây, exit 0;
+  `build/year-reports-full-final.log`. Gồm 14 ca mới, không bỏ kiểm tra quyền hoặc
+  lỗi nguồn. Nhóm báo cáo/CSV trước đó qua 54/54; ca mới cuối 14/14.
+- `flutter build apk --debug --no-pub --dart-define-from-file=<ignored local config>`:
+  **qua**, Gradle 26,8 giây, exit 0; `build/year-reports-build.log`. Giữ warning
+  KGP từ các plugin cũ về hỗ trợ Flutter tương lai; không tự nâng dependency.
+- `git diff --check`: qua. Source audit **449 tệp văn bản, không phát hiện mẫu
+  secret** (kiểm tra nguồn theo mẫu, không phải audit APK). Cấu hình debug và APK
+  nằm dưới `build/` đã kiểm tra được Git ignore.
+
+Bao phủ: năm nhuận 366 ngày/29-2, năm hiện tại 01/01–hôm nay, khoảng 1/123/366 ngày,
+đầu cuối bao gồm, khoảng đảo/quá giới hạn, calendar picker và hủy giữ khoảng cũ;
+ghép phần ≤90 ngày không mất/trùng ngày, dedup target đúng hiệu lực, thiếu nhật ký
+không là 0 đã ăn, tổng/tháng/ngày và mẫu số xác nhận, phân trang; lỗi phần sau giữ
+nguồn ở error thay vì tổng thiếu, retry, đổi UID bỏ dữ liệu cũ và dừng phần kế;
+CSV cả năm, nguồn lỗi không mở/ghi tệp, prefill khoảng báo cáo và consent vẫn tắt.
+Widget 360×800/chữ150% qua; ảnh font thật `build/year-report-ui/year.png` đã xem.
+
+Lượt đầu phát hiện lỗi bọc exception của tác vụ CSV song song; đã giữ lại đúng lỗi
+nguồn và lỗi đổi phiên để không báo nhầm. Ca CSV cũ được đổi mốc quá giới hạn từ
+91 sang 367 ngày theo yêu cầu mới; vẫn kiểm tra range đảo/trống/ID trùng.
+Full đầu 638/639 do test wellness cố định 26/10 nhưng Nhật ký mặc định là 27/10:
+đã chọn tường minh đúng ngày fixture, giữ các assertion ngân sách 1850/1800 và
+ngừng credit khi có activity. Full cuối qua. Không sửa logic wellness ngoài phạm vi.
+
+`mfp_ui_test` tự sinh lại 12 ảnh tracked; các ảnh này sạch khi bắt đầu lượt, đã
+giữ bản sinh trong `build/year-report-ui/generated-mfp/` và khôi phục đúng ảnh
+gốc để không thêm diff hình ngoài phạm vi. Các source chưa commit từ lượt cá nhân
+hóa dinh dưỡng vẫn được giữ nguyên.
+
+Không sửa repository query giới hạn 90 ngày/Rules/schema, không deploy backend,
+không gọi AI để lập báo cáo, không chạy lại Emulator/native acceptance hoặc cài
+điện thoại. Không coi test Emulator/native trước đây là vừa chạy lại. Bản APK
+thường và SHA256 ở [year-and-custom-reports.md](year-and-custom-reports.md).
+
+## 26/10/2026 — Cá nhân hóa mục tiêu dinh dưỡng (Giai đoạn 7 bổ sung)
+
+- `dart format` trên 10 file Dart sửa/tạo: lượt cuối **0 file thay đổi**.
+- `flutter analyze --no-pub`: **0 issues**, 18,1 giây, exit 0.
+  Log `build/personal-nutrition-analyze-final-2.log`.
+- `flutter test --no-pub --reporter expanded`: **625/625**, 92 giây, exit 0.
+  Log `build/personal-nutrition-full-final.log`. Có 17 ca mới; các fixture onboarding
+  cũ được cập nhật đúng bước kế hoạch có thể bỏ qua. Không bỏ assertion để né lỗi.
+- `flutter build apk --debug --no-pub --dart-define-from-file=<ignored local config>`:
+  **thành công**, Gradle 72,5 giây, exit 0. Log `build/personal-nutrition-build.log`.
+  Còn warning KGP từ một số plugin hiện có về hỗ trợ Flutter tương lai; không nâng
+  dependency ngoài phạm vi. Không có lỗi compile.
+- `git diff --check`: qua. `node tool/audit_source_secrets.cjs`: **445 tệp văn bản,
+  không phát hiện mẫu secret**. Đây là kiểm tra nguồn theo mẫu, không phải audit APK.
+
+Bao phủ mới: công thức Mifflin, hệ số/nhịp, rounding kcal/macro, giới hạn và dữ liệu
+thiếu/NaN, chiều hướng cân đích, birthday, cân cũ/tương lai; xác nhận trước ghi,
+giữ mục tiêu ngày cũ, phát hiện mục tiêu đổi khi đang xem, lỗi đọc/lưu và thử lại,
+không gửi lặp, logout khi chờ lưu, sang ngày mới, onboarding lưu target/profile
+hai bước và retry không trùng. Widget kiểm ngân sách Dashboard/Journal và context
+chat cùng lấy mục tiêu đã xác nhận. Màn 360×800/chữ150% qua; đã xem ảnh font thật
+`build/personal-nutrition-ui/questions.png`, `review.png` (dữ liệu fixture).
+
+Các lượt đầu phát hiện và đã sửa: reset draft khi nguồn seed tải lại/qua nửa đêm,
+cuộn làm khuất đầu kết quả với chữ lớn, frame logout có profile null. Lỗi fixture
+getter TextFormField và finder Scrollable đã sửa theo widget thật, giữ kiểm tra
+readonly, chống ghi lặp, lỗi lưu và tính nhất quán. Kết quả cuối ở log full nêu trên.
+
+Không đổi Rules/schema, không deploy Firebase/Cloudflare, không gọi AI để tính,
+không chạy lại Emulator Rules/SDK của đợt trước. Không nhận kết quả Emulator cũ
+là vừa chạy lại. Chưa cài/kiểm tra trên điện thoại thật hoặc chạy native acceptance
+cho luồng mới; user đã chọn kết nối sau. APK thường mới ở
+`build/releases/healthmate-personalized-nutrition-debug.apk`; hash và giới hạn
+ở [personalized-nutrition.md](personalized-nutrition.md).
+
 ## Mới nhất26/10/2026 — Mục2–3–4
 
 Full Flutter608/608,82giây; Ruleslocal73/73 vàFirebaseSDK23/23; candidateMVP không

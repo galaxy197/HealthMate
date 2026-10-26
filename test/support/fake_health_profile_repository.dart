@@ -124,6 +124,7 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
       birthDate: birthDate,
       healthGoal: HealthGoal.fromValue(healthGoal),
       targetWeightKg: targetWeightKg,
+      personalization: current.personalization,
       onboardingCompletedAt: current.onboardingCompletedAt,
       createdAt: current.createdAt,
       updatedAt: DateTime.now(),
@@ -153,16 +154,23 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
       targetWeightKg: draft.healthGoal.needsTargetWeight
           ? draft.targetWeightKg
           : null,
+      personalization: draft.personalization ?? current.personalization,
       onboardingCompletedAt: current.onboardingCompletedAt ?? now,
       createdAt: current.createdAt,
       updatedAt: now,
       schemaVersion: 2,
     );
-    final metricIndex = _metrics.indexWhere(
-      (metric) => metric.id == 'onboarding-current',
-    );
+    if (!draft.recordCurrentWeight) {
+      _profileChanges.add(_profile);
+      return;
+    }
+    final metricIndex = draft.isProfileEdit
+        ? -1
+        : _metrics.indexWhere((metric) => metric.id == 'onboarding-current');
     final metric = BodyMetric(
-      id: 'onboarding-current',
+      id: draft.isProfileEdit
+          ? 'survey-${now.microsecondsSinceEpoch}'
+          : 'onboarding-current',
       weightKg: draft.currentWeightKg,
       measuredAt: now,
       note: 'Cân nặng khi hoàn tất thiết lập ban đầu',

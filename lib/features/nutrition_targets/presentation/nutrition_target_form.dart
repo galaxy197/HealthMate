@@ -8,6 +8,7 @@ import '../../auth/providers/auth_providers.dart';
 import '../models/nutrition_target.dart';
 import '../providers/nutrition_target_providers.dart';
 import 'energy_estimate_dialog.dart';
+import 'personal_nutrition_planner.dart';
 
 Future<void> openNutritionTargetForm(
   BuildContext context,
@@ -208,6 +209,25 @@ class _NutritionTargetFormState extends ConsumerState<NutritionTargetForm>
                 children: [
                   const Text(
                     'Bạn tự thiết lập mục tiêu; có thể tham khảo mức duy trì trước khi nhập. Giới hạn 20.000 kcal và 5.000 g mỗi chất chỉ là giới hạn kỹ thuật.',
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey('personalize-target-form'),
+                    icon: const Icon(Icons.auto_awesome_outlined),
+                    label: const Text('Cá nhân hóa kcal và ba chất'),
+                    onPressed: () async {
+                      final result = await openPersonalNutritionPlanner(
+                        context,
+                        saveToAccount: false,
+                      );
+                      if (!_current || result == null) return;
+                      setState(() {
+                        _fill(result);
+                        _error = null;
+                      });
+                    },
+                  ),
+                  const Text(
+                    'Đề xuất chỉ điền vào form. Hãy kiểm tra ngày áp dụng và xác nhận Lưu mục tiêu.',
                   ),
                   TextButton.icon(
                     key: const ValueKey('open-energy-estimate'),

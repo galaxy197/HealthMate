@@ -24,6 +24,7 @@ import '../../nutrition/providers/nutrition_providers.dart';
 import '../../nutrition_targets/providers/nutrition_target_providers.dart';
 import '../../wellness/providers/energy_providers.dart';
 import '../../nutrition_targets/presentation/nutrition_target_form.dart';
+import '../../nutrition_targets/presentation/personal_nutrition_planner.dart';
 import '../../profile/models/body_metric.dart';
 import '../../profile/providers/profile_providers.dart';
 import '../../water/models/water_log.dart';
@@ -316,6 +317,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         MfpCaloriesCard(
           key: const ValueKey('dashboard-today-card'),
           editKey: const ValueKey('today-target-edit'),
+          onPersonalize:
+              targetReady && targetState.value == null && day == today
+              ? () => openPersonalNutritionPlanner(context)
+              : null,
           targetStatus: targetState.isLoading || budgetState.isLoading
               ? 'Đang tải mục tiêu dinh dưỡng…'
               : targetState.hasError || budgetState.hasError

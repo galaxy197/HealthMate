@@ -4,14 +4,32 @@ Web quản trị nằm ngay trong repository HealthMate, mở/sửa được b�
 HTML, CSS và JavaScript thuần; Firebase Web SDK 13.0.0 tải từ CDN chính thức.
 Không cần React, bundler, Admin SDK, service-account hoặc backend riêng.
 
-## Chức năng bản đầu
+## Chức năng hiện tại — 27/10/2026
 
-- Đăng nhập bằng Firebase Authentication; quyền đọc/ghi kiểm tra bằng Firestore Rules.
+- Đăng nhập email/mật khẩu hoặc Google bằng Firebase Auth; quyền đọc/ghi kiểm tra bằng Firestore Rules.
 - Thêm/sửa/ẩn/hiện món dùng chung, dinh dưỡng trên 100 g, chất xơ và nguồn.
 - Danh sách tài khoản đã đồng bộ: tên/email/UID; khóa/mở quyền dữ liệu HealthMate.
 - Bật/tắt quét ảnh AI, chatbot, chế độ bảo trì và thông báo.
 - Nhật ký quản trị ghi nguyên tử cùng thay đổi, không sửa/xóa từ client.
-- Phân trang 25 mục. Ô tìm kiếm chỉ lọc trang đang tải, không tìm toàn bộ database.
+- Dashboard có bốn số liệu thật: món, tài khoản đã đồng bộ, tài khoản tạm khóa và thao tác quản trị.
+- Tìm toàn bộ danh sách có/không dấu, lọc nhóm/trạng thái/vai trò, phân trang 25 mục và STT xuyên trang.
+- Xem chi tiết, xác nhận xóa khỏi danh mục và khôi phục món. Không hard delete để giữ liên kết/lịch sử.
+- Xuất Excel `.xlsx` cho **toàn bộ kết quả đang lọc trên mọi trang**, gồm món/tài khoản/audit.
+- Quên mật khẩu gửi yêu cầu email Firebase; logout/thu hồi quyền loại dữ liệu đang hiển thị.
+
+Danh sách tải tuần tự từng 200 document từ máy chủ, tối đa 5.000 mục/collection.
+Chỉ cho tìm/xuất sau khi tải đủ; lỗi hoặc quá giới hạn không xuất danh sách thiếu.
+Gõ tìm kiếm không đọc Firestore lại. Dùng **Tải lại** để cập nhật thay đổi của người khác;
+đây không phải ảnh chụp database tại cùng một thời điểm khi có ghi đồng thời.
+Danh sách tài khoản cần thêm lượt đọc trạng thái/role theo UID đã biết.
+
+Trạng thái: **đã publish https://healthmate-app-20261013.web.app**. App Check web,
+role và Rules/Hosting đã cấu hình. Dùng **Tiếp tục với Google →
+luuxuantung285600@gmail.com**; tài khoản này không có mật khẩu riêng.
+17 kiểm tra server thật qua, người dùng chọn thử giao diện sau. Client chờ token
+App Check trước mở đăng nhập; enforcement AI giữ nguyên, chưa bật enforcement
+mới cho Firestore/Auth. Thanh toán vẫn tắt.
+[Báo cáo production và APK nhận cấu hình](../docs/admin-production.md).
 
 Admin không được đọc hồ sơ, bữa ăn, cân nặng hoặc hội thoại của người khác.
 Không có nút tự cấp quyền, xóa tài khoản Auth hoặc đổi mật khẩu người dùng.
@@ -34,7 +52,7 @@ firebase emulators:start --config firebase.admin-emulators.json --only 'auth,fir
 Terminal 2 — tạo dữ liệu mẫu sau khi emulator báo sẵn sàng:
 
 ```powershell
-node admin-web/seed-emulators.mjs
+node admin-web/seed-emulators.mjs --extended
 ```
 
 Script chỉ gọi `127.0.0.1:9098/8092` và project `demo-healthmate-admin` cố định.
@@ -71,18 +89,22 @@ Dừng từng server bằng Ctrl+C sau khi thử.
 | `dist/app.mjs` | Đăng nhập, danh sách, form và trạng thái UI |
 | `dist/firebase.mjs` | Auth, truy vấn và transaction có audit |
 | `dist/validation.mjs` | Kiểm tra dữ liệu, đơn vị, phiên bản document |
+| `dist/list-model.mjs` | Tìm toàn bộ danh sách, lọc, phân trang và dữ liệu xuất |
+| `dist/xlsx-export.mjs` | Tạo XLSX thật, giữ giá trị người dùng dưới dạng text, không formula |
 | `dist/config.js` | Mặc định kết nối emulator, chưa trỏ Firebase thật |
 | `server.mjs` | Static server chỉ lắng nghe loopback, kèm CSP |
+| `tool/prepare-release.cjs` | Tạo gói review dưới build, không deploy/cấp role |
 
-## Kết nối Firebase thật — chưa thực hiện
+## Quy trình cấu hình Firebase thật — tham khảo cho lần triển khai sau
 
-Đây là các bước thiết lập khi chủ dự án yêu cầu triển khai; không phải lệnh
-cần chạy để thử bản local. Không dùng tài khoản fixture ở trên trong production.
+Rollout đầu đã hoàn thành theo yêu cầu ngày 27/10; các bước dưới là quy trình
+tham khảo, không chạy lại để thử local. Không dùng fixture trong production.
 
 1. Trong Firebase project HealthMate hiện có, đăng ký Web App, lấy **public web
    config**. Bật Email/Password nếu chưa có; chủ dự án tạo/chọn tài khoản admin
    và xác định UID chính xác trong Authentication.
-2. Chủ dự án dùng Firebase Console/IAM tạo `admin_roles/{UID}` với đúng field
+2. Chọn đúng tài khoản `luuxuantung285600@gmail.com` đã xác minh trong Authentication.
+   Chủ dự án dùng Firebase Console/IAM tạo `admin_roles/{UID}` với đúng field
    `enabled: true`. Không đặt role trong `users`, không cấp từ web/mobile.
    Thu hồi bằng `enabled: false`; client không thể sửa role. Một UID có document
    `admin_roles`, kể cả đã thu hồi, được bảo vệ khỏi khóa trên web; chủ dự án
@@ -113,9 +135,21 @@ window.HEALTHMATE_ADMIN_CONFIG = {
 Không đưa private key, service-account, Gemini key riêng, mật khẩu hoặc token
 debug vào các file này. Public config và site key không thay thế Security Rules.
 
-6. Host thư mục `dist` trên HTTPS sau khi được yêu cầu. Áp dụng các header CSP,
+6. Host bản cấu hình production riêng trên HTTPS sau khi được yêu cầu. Áp dụng các header CSP,
    nosniff/no-referrer/no-store của `server.mjs` trên hosting; không chỉ copy
-   giao diện rồi bỏ các header. Chưa tạo hosting hoặc publish trong lượt này.
+   giao diện rồi bỏ các header. Không sửa config emulator của repository để thử thật.
+   Dự án đã có Hosting site `healthmate-app-20261013`; publish vào đó sẽ thay nội
+   dung hiện tại, nên cần kiểm tra trước. Gói đã deploy là
+   `build/admin-production-20261027`; không dùng gói review cũ thiếu key.
+   Khi cần tạo lại, dùng readiness mới và **thư mục mới**:
+
+```powershell
+node admin-web/tool/prepare-release.cjs build/admin-rollout-ready-with-key.json build/admin-review-next
+```
+
+   Lệnh chỉ copy nguồn và public config; không gọi Firebase, không xác nhận key
+   đã hoạt động và không cấp quyền. Xem manifest; rà soát `firebase.review.json`
+   trước mọi lệnh deploy. Không deploy cả root `firebase.json` để bật admin.
 7. Sau khi Rules và quyền admin đã sẵn sàng, build bản mobile hỗ trợ:
 
 ```powershell
@@ -148,19 +182,28 @@ mobile có cờ này; đây không phải toàn bộ danh sách Firebase Authent
 ## Kiểm thử
 
 ```powershell
+# Cần Node.js hỗ trợ node:module registerHooks (máy kiểm thử hiện tại có sẵn).
+npm --prefix admin-web ci
 npm --prefix admin-web run check
 npm --prefix admin-web test
 # Emulator ở terminal 1 phải đang chạy:
+npm --prefix rules-tests ci
+npm --prefix admin-web run test:sdk
 $env:FIRESTORE_EMULATOR_HOST = '127.0.0.1:8092'
 npm --prefix rules-tests test
 flutter test test/admin_runtime_test.dart
 ```
 
-Nếu thiếu dependency cho Rules, chạy `npm --prefix rules-tests ci`; web vẫn
-không cần cài package. Test Rules dùng project demo riêng, không xóa dữ liệu
+Chỉ các bài test dùng dependency dev `linkedom`; chạy web không cần cài package.
+Test SDK dùng Firebase 13.0.0 từ rules-tests, đúng phiên bản CDN của production.
+Test Rules dùng project demo riêng, không xóa dữ liệu
 fixture trong project web admin. Kết quả thực tế: xem `../docs/test-report.md`.
 
-Tài liệu chính thức đã kiểm tra ngày 23/10/2026:
+`test/production-smoke.cjs` cần yêu cầu nghiệm thu thật và `--allow-production-qa`:
+tạo/xóa danh tính/document QA tạm, giữ audit; không nằm trong `npm test`, không
+thay thế test giao diện hoặc token App Check từ browser thật.
+
+Tài liệu chính thức đã kiểm tra ngày 27/10/2026:
 [Firestore transactions](https://firebase.google.com/docs/firestore/manage-data/transactions),
 [App Check Web Enterprise và hạn mức](https://firebase.google.com/docs/app-check/web/recaptcha-enterprise-provider),
 [Auth Admin user management](https://firebase.google.com/docs/auth/admin/manage-users).

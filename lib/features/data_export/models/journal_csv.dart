@@ -5,6 +5,7 @@ import '../../activity/models/activity_log.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../profile/models/body_metric.dart';
 import '../../water/models/water_log.dart';
+import '../../reports/models/period_report.dart';
 
 /// RFC 4180 cell encoding. Only generated finite numbers bypass text escaping.
 /// The apostrophe neutralizes spreadsheet formulas without removing user text.
@@ -79,8 +80,8 @@ String buildJournalCsv({
     endExclusive.month,
     endExclusive.day,
   ).difference(DateTime.utc(start.year, start.month, start.day)).inDays;
-  if (days < 1 || days > 90) {
-    throw const FormatException('Chọn khoảng xuất từ 1 đến 90 ngày.');
+  if (days < 1 || days > maxReportDays || !start.isBefore(endExclusive)) {
+    throw const FormatException('Chọn khoảng xuất từ 1 đến 366 ngày.');
   }
   final rows = <Map<String, Object?>>[];
   final ids = <String>{};

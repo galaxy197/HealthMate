@@ -14,6 +14,7 @@ import '../../profile/providers/profile_providers.dart';
 import '../../../core/utils/local_date_key.dart';
 import '../models/period_report.dart';
 import '../data/day_review_repository.dart';
+import '../data/report_range_loader.dart';
 
 final dayReviewRepositoryProvider = Provider<DayReviewRepository>(
   (ref) => FirebaseDayReviewRepository(FirebaseFirestore.instance),
@@ -25,50 +26,74 @@ String _uid(Ref ref) {
 }
 
 final periodMealsProvider = FutureProvider.autoDispose
-    .family<List<MealLog>, ReportRange>(
-      (ref, r) => ref
-          .watch(nutritionRepositoryProvider)
-          .loadRange(_uid(ref), r.start, r.end)
-          .timeout(const Duration(seconds: 20)),
-      retry: (_, _) => null,
-    );
+    .family<List<MealLog>, ReportRange>((ref, r) {
+      final uid = _uid(ref);
+      final repo = ref.watch(nutritionRepositoryProvider);
+      return loadReportRange(
+        r,
+        (c) => repo.loadRange(uid, c.start, c.end),
+        keyOf: (m) => m.id,
+        isCurrent: () => ref.mounted,
+      );
+    }, retry: (_, _) => null);
+
 final periodWaterProvider = FutureProvider.autoDispose
-    .family<List<WaterLog>, ReportRange>(
-      (ref, r) => ref
-          .watch(waterRepositoryProvider)
-          .loadRange(_uid(ref), r.start, r.end)
-          .timeout(const Duration(seconds: 20)),
-      retry: (_, _) => null,
-    );
+    .family<List<WaterLog>, ReportRange>((ref, r) {
+      final uid = _uid(ref);
+      final repo = ref.watch(waterRepositoryProvider);
+      return loadReportRange(
+        r,
+        (c) => repo.loadRange(uid, c.start, c.end),
+        keyOf: (w) => w.id,
+        isCurrent: () => ref.mounted,
+      );
+    }, retry: (_, _) => null);
+
 final periodActivityProvider = FutureProvider.autoDispose
-    .family<List<ActivityLog>, ReportRange>(
-      (ref, r) => ref
-          .watch(activityRepositoryProvider)
-          .loadRange(_uid(ref), r.start, r.end)
-          .timeout(const Duration(seconds: 20)),
-      retry: (_, _) => null,
-    );
+    .family<List<ActivityLog>, ReportRange>((ref, r) {
+      final uid = _uid(ref);
+      final repo = ref.watch(activityRepositoryProvider);
+      return loadReportRange(
+        r,
+        (c) => repo.loadRange(uid, c.start, c.end),
+        keyOf: (a) => a.id,
+        isCurrent: () => ref.mounted,
+      );
+    }, retry: (_, _) => null);
+
 final periodMetricsProvider = FutureProvider.autoDispose
-    .family<List<BodyMetric>, ReportRange>(
-      (ref, r) => ref
-          .watch(healthProfileRepositoryProvider)
-          .loadBodyMetricsRange(_uid(ref), r.start, r.end)
-          .timeout(const Duration(seconds: 20)),
-      retry: (_, _) => null,
-    );
+    .family<List<BodyMetric>, ReportRange>((ref, r) {
+      final uid = _uid(ref);
+      final repo = ref.watch(healthProfileRepositoryProvider);
+      return loadReportRange(
+        r,
+        (c) => repo.loadBodyMetricsRange(uid, c.start, c.end),
+        keyOf: (m) => m.id,
+        isCurrent: () => ref.mounted,
+      );
+    }, retry: (_, _) => null);
+
 final periodTargetsProvider = FutureProvider.autoDispose
-    .family<List<NutritionTarget>, ReportRange>(
-      (ref, r) => ref
-          .watch(nutritionTargetRepositoryProvider)
-          .loadForRange(_uid(ref), localDateKey(r.start), localDateKey(r.end))
-          .timeout(const Duration(seconds: 20)),
-      retry: (_, _) => null,
-    );
+    .family<List<NutritionTarget>, ReportRange>((ref, r) {
+      final uid = _uid(ref);
+      final repo = ref.watch(nutritionTargetRepositoryProvider);
+      return loadReportRange(
+        r,
+        (c) =>
+            repo.loadForRange(uid, localDateKey(c.start), localDateKey(c.end)),
+        keyOf: (t) => t.effectiveFromDateKey,
+        isCurrent: () => ref.mounted,
+      );
+    }, retry: (_, _) => null);
+
 final dayReviewsProvider = FutureProvider.autoDispose
-    .family<List<DayReview>, ReportRange>(
-      (ref, r) => ref
-          .watch(dayReviewRepositoryProvider)
-          .load(_uid(ref), r)
-          .timeout(const Duration(seconds: 20)),
-      retry: (_, _) => null,
-    );
+    .family<List<DayReview>, ReportRange>((ref, r) {
+      final uid = _uid(ref);
+      final repo = ref.watch(dayReviewRepositoryProvider);
+      return loadReportRange(
+        r,
+        (c) => repo.load(uid, c),
+        keyOf: (d) => d.dateKey,
+        isCurrent: () => ref.mounted,
+      );
+    }, retry: (_, _) => null);

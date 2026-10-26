@@ -7,6 +7,7 @@ import '../models/health_goal.dart';
 import '../models/onboarding_draft.dart';
 import '../models/profile_failure.dart';
 import '../models/user_profile.dart';
+import '../models/personalization_answers.dart';
 import 'health_profile_repository.dart';
 
 class FirebaseHealthProfileRepository implements HealthProfileRepository {
@@ -100,13 +101,17 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
     required OnboardingDraft draft,
   }) => _guard(() async {
     final profileReference = _profile(uid);
-    final metricReference = _metrics(uid).doc('onboarding-current');
+    final metricReference = _metrics(
+      uid,
+    ).doc(draft.isProfileEdit ? null : 'onboarding-current');
     await _firestore.runTransaction((transaction) async {
       final profileSnapshot = await transaction.get(profileReference);
       if (!profileSnapshot.exists) {
         throw const ProfileFailure('Không tìm thấy hồ sơ để thiết lập.');
       }
-      final metricSnapshot = await transaction.get(metricReference);
+      final metricSnapshot = draft.recordCurrentWeight
+          ? await transaction.get(metricReference)
+          : null;
       transaction.update(profileReference, {
         'displayName': draft.displayName.trim(),
         'heightCm': draft.heightCm,
@@ -120,14 +125,21 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
             FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'schemaVersion': 2,
+        if (draft.personalization != null)
+          'personalization': draft.personalization!
+              .normalized(draft.healthGoal)
+              .toMap(),
       });
       final metricData = <String, Object?>{
         'weightKg': draft.currentWeightKg,
         'measuredAt': FieldValue.serverTimestamp(),
-        'note': 'Cân nặng khi hoàn tất thiết lập ban đầu',
+        'note': draft.isProfileEdit
+            ? 'Cân nặng khi cập nhật cá nhân hóa'
+            : 'Cân nặng khi hoàn tất thiết lập ban đầu',
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      if (metricSnapshot.exists) {
+      if (!draft.recordCurrentWeight) return;
+      if (metricSnapshot!.exists) {
         transaction.update(metricReference, metricData);
       } else {
         transaction.set(metricReference, {
@@ -250,6 +262,11 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
       createdAt: _date(data['createdAt']),
       updatedAt: _date(data['updatedAt']),
       schemaVersion: data['schemaVersion'] as int? ?? 1,
+      personalization: data['personalization'] is Map
+          ? PersonalizationAnswers.fromMap(
+              Map<String, dynamic>.from(data['personalization'] as Map),
+            )
+          : null,
     );
   }
 

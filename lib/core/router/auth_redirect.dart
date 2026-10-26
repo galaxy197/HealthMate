@@ -15,6 +15,7 @@ String _destination(Uri uri) {
     AppRoutes.profile,
     AppRoutes.progress,
     AppRoutes.foodLibrary,
+    AppRoutes.personalization,
     AppRoutes.about,
     AppRoutes.privacy,
     AppRoutes.disclaimer,

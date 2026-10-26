@@ -150,7 +150,7 @@ void main() {
       expect(
         () => buildJournalCsv(
           start: DateTime(2026, 1, 1),
-          endExclusive: DateTime(2026, 4, 2),
+          endExclusive: DateTime(2027, 1, 3), // 367 days exceeds annual export.
         ),
         throwsFormatException,
       );

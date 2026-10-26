@@ -66,6 +66,29 @@ service cloud.firestore {
             && d.servingGrams is number && d.servingGrams>0 && d.servingGrams<=2000));
     }
 
+    function validPersonalization(d) {
+      return d is map
+        && d.keys().hasAll(['version', 'formulaSex', 'pace', 'guidance', 'activity', 'exerciseDays', 'exerciseMinutes', 'exerciseType', 'diet', 'produce', 'sweetDrinks', 'sleepSchedule', 'barrier', 'priority', 'avoidFoods', 'sleepHours'])
+        && d.keys().hasOnly(['version', 'formulaSex', 'pace', 'guidance', 'activity', 'exerciseDays', 'exerciseMinutes', 'exerciseType', 'diet', 'produce', 'sweetDrinks', 'sleepSchedule', 'barrier', 'priority', 'avoidFoods', 'sleepHours'])
+        && d.version == 1
+        && (d.formulaSex == null || d.formulaSex in ['male', 'female'])
+        && (d.pace == null || d.pace in ['gentle', 'moderate'])
+        && (d.guidance == null || d.guidance in ['eligible', 'needsGuidance', 'preferNotSay'])
+        && (d.activity == null || d.activity in ['sedentary', 'light', 'active', 'heavy'])
+        && (d.exerciseDays == null || d.exerciseDays in [0, 1, 2, 3, 4, 5, 6, 7])
+        && (d.exerciseMinutes == null || d.exerciseMinutes in [15, 30, 45, 60, 90, 120, 180, 240])
+        && (d.exerciseType == null || d.exerciseType in ['light', 'moderate', 'vigorous', 'strength', 'other'])
+        && (d.diet == null || d.diet in ['general', 'vegetarian', 'vegan', 'other'])
+        && (d.produce == null || d.produce in ['rarely', 'someDays', 'daily'])
+        && (d.sweetDrinks == null || d.sweetDrinks in ['rarely', 'someDays', 'daily'])
+        && (d.sleepSchedule == null || d.sleepSchedule in ['regular', 'irregular', 'shift'])
+        && (d.barrier == null || d.barrier in ['time', 'budget', 'foodChoice', 'motivation', 'none'])
+        && (d.priority == null || d.priority in ['nutrition', 'activity', 'sleep'])
+        && (d.avoidFoods == null || (d.avoidFoods is string && d.avoidFoods.size() <= 200))
+        && (d.sleepHours == null || (d.sleepHours is number && d.sleepHours >= 0 && d.sleepHours <= 24))
+        && (d.exerciseDays != 0 || (d.exerciseMinutes == null && d.exerciseType == null));
+    }
+
     function validProfile() {
       let data = request.resource.data;
       return data.keys().hasAll([
@@ -76,8 +99,9 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
           'targetWeightKg', 'onboardingCompletedAt', 'createdAt', 'updatedAt',
-          'schemaVersion'
+          'schemaVersion', 'personalization'
         ])
+        && (!data.keys().hasAny(['personalization']) || validPersonalization(data.personalization))
         && data.displayName is string
         && data.displayName.size() <= 50
         && data.email is string
@@ -90,7 +114,7 @@ service cloud.firestore {
           || (data.birthDate is timestamp && data.birthDate <= request.time))
         && (data.healthGoal == null || data.healthGoal in [
           'lose_weight', 'maintain_weight', 'gain_weight_or_muscle',
-          'healthier_habits'
+          'healthier_habits', 'gain_muscle'
         ])
         && (data.targetWeightKg == null
           || (data.targetWeightKg is number
@@ -412,7 +436,7 @@ service cloud.firestore {
     }
 
     match /admin_roles/{uid} {
-      allow get: if request.auth != null && request.auth.uid == uid;
+      allow get: if request.auth != null && (request.auth.uid == uid || admin());
       allow list, write: if false;
     }
 

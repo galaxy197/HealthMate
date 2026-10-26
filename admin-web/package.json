@@ -1,4 +1,14 @@
 {
-  "name": "healthmate-admin", "private": true, "type": "module",
-  "scripts": { "dev": "node server.mjs", "test": "node --test test/*.test.mjs", "check": "node --check dist/app.mjs && node --check dist/firebase.mjs && node --check dist/validation.mjs && node --check dist/config.js && node --check server.mjs && node --check seed-emulators.mjs" }
+  "name": "healthmate-admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "test:sdk": "node --test test/sdk.integration.mjs",
+    "check": "node --check dist/app.mjs && node --check dist/firebase.mjs && node --check dist/validation.mjs && node --check dist/list-model.mjs && node --check dist/xlsx-export.mjs && node --check dist/config.js && node --check server.mjs && node --check seed-emulators.mjs && node --check tool/inspect-production.cjs && node --check tool/prepare-release.cjs"
+  },
+  "devDependencies": {
+    "linkedom": "0.18.14"
+  }
 }

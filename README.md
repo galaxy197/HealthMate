@@ -1,5 +1,41 @@
 # HealthMate
 
+## Bộ 20 câu cá nhân hóa
+
+Người mới trả lời theo các phần ngắn và xác nhận mục tiêu trước khi lưu.
+Người cũ có thể bổ sung tại **Thêm → Cá nhân hóa · 20 câu hỏi**.
+Câu bổ sung có thể để sau; dữ liệu riêng theo UID, không gửi bộ khảo sát cho AI.
+Xem [thiết kế, nguồn và giới hạn](docs/personalization-questionnaire.md).
+
+
+## Web admin đã triển khai — 27/10/2026
+
+Danh mục, tài khoản, cấu hình và audit có tìm toàn bộ danh sách, lọc, phân trang,
+STT và xuất Excel `.xlsx`. Dashboard có bốn số liệu. Mở
+**https://healthmate-app-20261013.web.app**, chọn **Tiếp tục với Google** bằng
+`luuxuantung285600@gmail.com`. App Check web/role/Rules/Hosting đã cấu hình;
+17 kiểm tra quyền server thật qua, người dùng chọn thử giao diện sau.
+Thanh toán vẫn tắt. APK nhận cấu hình admin đã build, chưa cài điện thoại.
+[Chạy local](admin-web/README.md) · [Triển khai, kiểm thử và giới hạn](docs/admin-production.md).
+Các ghi chú “tạm gác admin” bên dưới là lịch sử, được thay bằng yêu cầu mới này.
+
+## Báo cáo năm và khoảng tùy chọn — 27/10/2026
+
+Trong **Tiến độ**, chọn **Theo năm** hoặc **Tùy chọn** để xem từ ngày–đến ngày hay
+nhập số ngày cụ thể (1–366 mỗi lượt). Có tổng hợp theo tháng và chi tiết ngày.
+Xuất CSV Android nhận sẵn khoảng đang xem và hỗ trợ đến 366 ngày. Các mốc này là
+khoảng xem/xuất, không phải thời hạn tự xóa nhật ký. Năm cũ vẫn chọn lại được.
+[Cách dùng, giới hạn và kiểm thử](docs/year-and-custom-reports.md).
+
+## Cá nhân hóa kcal mỗi ngày — 26/10/2026
+
+Thiết lập ban đầu có thêm bước đề xuất kcal và đạm/carb/béo từ hồ sơ, mức hoạt
+động và mục tiêu. Người đã dùng bấm **Hoàn thiện kế hoạch kcal** ở Hôm nay khi
+chưa có mục tiêu, hoặc **Thêm → Mục tiêu dinh dưỡng → Cá nhân hóa/Tính lại kế hoạch**.
+Phải xem lại và xác nhận trước lưu; mục tiêu cũ không tự đổi. Có nhập tay/thiết lập
+sau. Không thêm API trả phí hoặc cần thay Rules Firebase.
+[Cách tính, nguồn, giới hạn và kiểm thử](docs/personalized-nutrition.md).
+
 ## Mã nguồn và đề xuất giao diện — 26/10/2026
 
 Mã Flutter, Worker chatbot và web admin thử nghiệm được lưu chung trong repo.

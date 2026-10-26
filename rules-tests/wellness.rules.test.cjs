@@ -16,8 +16,8 @@ const meal=items=>({mealType:'breakfast',consumedAt:time(),dateKey:date(),timezo
   source:'manual',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),schemaVersion:5});
 const sleep=()=>({startedAt:Timestamp.fromMillis(Date.now()-8*3600000),endedAt:time(),
   source:'manual_entry',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),schemaVersion:1});
-before(async()=>{env=await initializeTestEnvironment({projectId:'demo-healthmate-wellness',
-  firestore:{host:'127.0.0.1',port:8080,rules:fs.readFileSync(process.env.HEALTHMATE_RULES_FILE||'../firestore.rules','utf8')}});});
+before(async()=>{const [host,port]=(process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8080').split(':');env=await initializeTestEnvironment({projectId:'demo-healthmate-wellness',
+  firestore:{host,port:Number(port),rules:fs.readFileSync(process.env.HEALTHMATE_RULES_FILE||'../firestore.rules','utf8')}});});
 beforeEach(()=>env.clearFirestore());
 after(()=>env?.cleanup());
 

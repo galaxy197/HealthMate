@@ -10,6 +10,8 @@ import '../../weekly_reflection/presentation/weekly_reflection_card.dart';
 import '../../weekly_reflection/providers/weekly_reflection_providers.dart';
 import '../../weekly_reflection/models/weekly_reflection.dart';
 import '../../reports/presentation/period_report_panel.dart';
+import '../../reports/presentation/report_range_dialog.dart';
+import '../../reports/models/period_report.dart';
 import 'progress_overview.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_routes.dart';
@@ -25,15 +27,20 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   int _tab = 0;
   int _offset = 0;
   bool _details = false;
+  String _mode = 'preset';
+  int? _year;
+  ReportRange? _customRange;
   @override
   Widget build(BuildContext context) {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final today = ref.watch(localClockProvider);
+    final weekly = _mode == 'preset' && _days == 7;
+    final selectedYear = _year ?? today.year;
     final monday = weekStart(today);
     final start = DateTime(monday.year, monday.month, monday.day + _offset * 7);
     final end = DateTime(start.year, start.month, start.day + 6);
     final theme = Theme.of(context);
-    final state = _days == 7 && !_details
+    final state = weekly && !_details
         ? ref.watch(weeklyLogsProvider(start))
         : null;
     return TrackingPage(
@@ -54,8 +61,15 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             onPressed: () => showDialog<void>(
               context: context,
               barrierDismissible: false,
-              builder: (_) =>
-                  const AccountBoundDialog(child: JournalExportDialog()),
+              builder: (_) => AccountBoundDialog(
+                child: JournalExportDialog(
+                  initialRange: _mode == 'year'
+                      ? ReportRange.year(selectedYear, today)
+                      : _mode == 'custom'
+                      ? _customRange
+                      : null,
+                ),
+              ),
             ),
             icon: const Icon(Icons.file_download_outlined),
           ),
@@ -63,7 +77,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
       ),
       children: [
         const SizedBox(height: 16),
-        if (_days == 7)
+        if (weekly)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -116,14 +130,103 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             for (final days in [7, 30, 90])
               ChoiceChip(
                 key: ValueKey('report-window-$days'),
-                selected: _days == days,
+                selected: _mode == 'preset' && _days == days,
                 label: Text(days == 7 ? 'Tuần' : '$days ngày'),
-                onSelected: (_) => setState(() => _days = days),
+                onSelected: (_) => setState(() {
+                  _mode = 'preset';
+                  _days = days;
+                }),
               ),
+            ChoiceChip(
+              key: const ValueKey('report-window-year'),
+              label: const Text('Theo năm'),
+              selected: _mode == 'year',
+              onSelected: (_) => setState(() => _mode = 'year'),
+            ),
+            ChoiceChip(
+              key: const ValueKey('report-window-custom'),
+              label: const Text('Tùy chọn'),
+              selected: _mode == 'custom',
+              onSelected: (_) async {
+                final range = await chooseReportRange(
+                  context,
+                  today: today,
+                  initial: _customRange,
+                );
+                if (!mounted || range == null) return;
+                setState(() {
+                  _mode = 'custom';
+                  _customRange = range;
+                });
+              },
+            ),
           ],
         ),
         const SizedBox(height: 16),
-        if (_days != 7)
+        if (_mode == 'year') ...[
+          Row(
+            children: [
+              IconButton(
+                key: const ValueKey('previous-report-year'),
+                tooltip: 'Năm trước',
+                onPressed: selectedYear > 1900
+                    ? () => setState(() => _year = selectedYear - 1)
+                    : null,
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  key: ValueKey('report-year-$selectedYear'),
+                  initialValue: selectedYear,
+                  decoration: const InputDecoration(labelText: 'Năm báo cáo'),
+                  items: [
+                    for (var y = today.year; y >= 1900; y--)
+                      DropdownMenuItem(value: y, child: Text('$y')),
+                  ],
+                  onChanged: (value) => setState(() => _year = value),
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('next-report-year'),
+                tooltip: 'Năm sau',
+                onPressed: selectedYear < today.year
+                    ? () => setState(() => _year = selectedYear + 1)
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+          if (selectedYear == today.year)
+            const Text('Năm hiện tại tính từ 01/01 đến hết hôm nay.'),
+          PeriodReportPanel(
+            key: ValueKey('year-report-$selectedYear'),
+            days: 366,
+            today: today,
+            selectedRange: ReportRange.year(selectedYear, today),
+          ),
+        ] else if (_mode == 'custom') ...[
+          OutlinedButton.icon(
+            key: const ValueKey('edit-custom-report'),
+            onPressed: () async {
+              final range = await chooseReportRange(
+                context,
+                today: today,
+                initial: _customRange,
+              );
+              if (mounted && range != null) {
+                setState(() => _customRange = range);
+              }
+            },
+            icon: const Icon(Icons.date_range),
+            label: const Text('Đổi khoảng ngày'),
+          ),
+          PeriodReportPanel(
+            key: ValueKey(_customRange),
+            days: _customRange!.days,
+            today: today,
+            selectedRange: _customRange,
+          ),
+        ] else if (_days != 7)
           PeriodReportPanel(days: _days, today: today)
         else if (_details)
           WeeklyReflectionCard(today: today, progressMode: true)
@@ -178,7 +281,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
           ),
         ],
         const SizedBox(height: 16),
-        if (_days == 7)
+        if (weekly)
           OutlinedButton.icon(
             key: const ValueKey('progress-details'),
             onPressed: () => setState(() => _details = !_details),

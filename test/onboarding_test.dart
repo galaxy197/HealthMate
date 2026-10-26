@@ -65,6 +65,14 @@ Future<void> reachReviewForWeightLoss(WidgetTester tester) async {
     '62.5',
   );
   await tapOnboardingButton(tester, 'onboarding-next');
+  for (var i = 0; i < 3; i++) {
+    await tapOnboardingButton(tester, 'onboarding-next');
+  }
+  expect(
+    find.byKey(const ValueKey('onboarding-nutrition-step')),
+    findsOneWidget,
+  );
+  await tapOnboardingButton(tester, 'onboarding-next');
   expect(find.byKey(const ValueKey('onboarding-review-step')), findsOneWidget);
 }
 
@@ -256,7 +264,7 @@ void main() {
     repository.pending = Completer<void>();
 
     final buttonFinder = find.byKey(const ValueKey('onboarding-complete'));
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -220));
+    await tester.ensureVisible(buttonFinder);
     await tester.pumpAndSettle();
     await tester.tap(buttonFinder);
     await tester.pump();

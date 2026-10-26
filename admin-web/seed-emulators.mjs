@@ -39,5 +39,14 @@ for(const [uid,email,name] of [[admin,'admin@healthmate.local','Quản trị ki�
 const legacy=JSON.parse(await readFile(new URL('../data/food_catalog/legacy_usda.json',import.meta.url),'utf8'));
 const foods=Array.isArray(legacy)?legacy:legacy.foods;
 for(const food of foods.slice(0,4))await set(`food_catalog/${food.id}`,{...Object.fromEntries(Object.entries(food).filter(([k,v])=>!['id','sourceDetails'].includes(k)&&typeof v!=='object')),alternateNames:food.alternateNames??[],isActive:true,updatedAt:now});
+if (process.argv.includes('--extended')) {
+  for(let i=1;i<=61;i++)await set(`food_catalog/qa-item-${String(i).padStart(3,'0')}`,{
+    name:i===57?'QA Phở bò ngoài trang đầu':`QA Món kiểm thử ${String(i).padStart(3,'0')}`,
+    alternateNames:i===57?['Noodle soup test']:[],category:i%2?'Món chính':'Trái cây',
+    servingBasis:'per_100g',unit:'g',kcalPer100g:130,proteinGPer100g:2.69,carbsGPer100g:28.17,fatGPer100g:.28,fiberGPer100g:null,
+    sourceLabel:'Dữ liệu kiểm thử, không phải món thật',sourceUrl:'https://example.com/qa',
+    isEstimated:true,isActive:i%3!==0,servingLabel:null,servingGrams:null,updatedAt:now,
+  });
+}
 await set('app_config/runtime',{chatbotEnabled:true,foodScannerEnabled:true,maintenanceMode:false,maintenanceMessage:'',updatedAt:now});
 process.stdout.write('Đã tạo dữ liệu kiểm thử trên demo-healthmate-admin tại localhost.\nEmail admin: admin@healthmate.local\nMật khẩu local: LocalHealthMate!2026\nKhông thay đổi Firebase production.\n');

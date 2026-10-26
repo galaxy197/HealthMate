@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:healthmate/features/journal/providers/journal_date_provider.dart';
 import 'package:healthmate/features/nutrition_targets/models/nutrition_target.dart';
 import 'package:healthmate/features/profile/models/body_metric.dart';
 import 'package:healthmate/features/wellness/models/energy_budget.dart';
@@ -74,6 +75,10 @@ void main() {
         1850,
       );
       expect(find.text('Mục tiêu 1.850 kcal'), findsOneWidget);
+      // Compare the same fixture day, independent of the machine's current date.
+      container
+          .read(journalDateProvider.notifier)
+          .select(DateTime(2026, 10, 26));
       container.read(appRouterProvider).go(AppRoutes.journal);
       await tester.pumpAndSettle();
       expect(find.text('0 kcal / 1850 kcal'), findsOneWidget);

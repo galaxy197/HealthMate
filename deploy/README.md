@@ -1,5 +1,12 @@
 # Bản chụp Firestore Rules MVP
 
+Cập nhật 27/10: Rules production mới cho bộ 20 câu cá nhân hóa, hash `04a81618172e2a843e71c57b21208a080aa2643c14c55efce2dd24e6ab0c0428`, đọc lại khớp source. Hosting/App Check/role admin giữ nguyên. Xem [báo cáo bộ câu hỏi](../docs/personalization-questionnaire.md). Các hash rollout admin bên dưới là lịch sử trước cập nhật này.
+
+**Cập nhật 27/10/2026:** admin đã triển khai theo yêu cầu mới. Rules đang chạy có
+admin, hash `5d02e187…`, không còn là snapshot MVP bên dưới. Giữ snapshot để đối
+chiếu lịch sử/rollback có kiểm soát. Xem [rollout](../docs/admin-production.md);
+không deploy snapshot này để thử web admin.
+
 `firestore.mvp.rules` là bản Rules đã đọc lại từ Firebase vào 26/10/2026,
 sau rollout năng lượng, tiến độ và giấc ngủ. Bản này không bật quyền admin.
 
@@ -16,5 +23,5 @@ trên server về sau. Trước mỗi rollout cần đọc lại server, kiểm 
 
 **Không dùng lệnh deploy mặc định ở gốc để đưa MVP lên production:**
 `firestore.rules` và `firebase.json` ở gốc còn hỗ trợ thử nghiệm admin trên Emulator;
-web admin đang tạm gác. Push Git không triển khai Firebase hay Cloudflare.
+snapshot này không bao gồm admin mới. Push Git không triển khai Firebase hay Cloudflare.
 Các backup, credential, log, APK và dữ liệu Emulator cục bộ không được commit.

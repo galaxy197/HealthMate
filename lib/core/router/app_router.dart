@@ -122,6 +122,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ),
               GoRoute(
+                path: AppRoutes.personalization,
+                builder: (context, state) =>
+                    const OnboardingScreen(isEditing: true),
+              ),
+              GoRoute(
                 path: AppRoutes.about,
                 builder: (context, state) => const AccountInformationScreen(
                   page: AccountInformationPage.about,

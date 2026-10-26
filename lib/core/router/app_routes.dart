@@ -7,6 +7,7 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const foodLibrary = '/food-library';
   static const wellness = '/wellness';
+  static const personalization = '/personalization';
   static const about = '/about';
   static const privacy = '/privacy';
   static const disclaimer = '/disclaimer';

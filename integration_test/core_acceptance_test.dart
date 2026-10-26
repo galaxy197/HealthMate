@@ -161,6 +161,13 @@ Future<void> onboard(WidgetTester tester, String name) async {
   await tap(tester, keyed('onboarding-goal-maintain_weight'));
   await tap(tester, keyed('onboarding-next'));
   await tap(tester, keyed('onboarding-next'));
+  for (var i = 0; i < 3; i++) {
+    await tap(
+      tester,
+      keyed('onboarding-next'),
+    ); // Activity, food, sleep questions.
+  }
+  await tap(tester, keyed('onboarding-next')); // Optional nutrition plan step.
   await tap(tester, keyed('onboarding-complete'));
   // Auth restores the protected destination (Profile after signing out there).
   // First verify that onboarding exits into the real app shell, then open Home.
