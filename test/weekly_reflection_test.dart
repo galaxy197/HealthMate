@@ -287,7 +287,7 @@ void main() {
   });
 
   testWidgets(
-    'Dashboard releases daily listeners when hidden and does not duplicate on return',
+    'Dashboard releases its listeners; profile shares daily summaries without duplicates',
     (tester) async {
       final n = FakeNutritionRepository();
       final w = FakeWaterRepository();
@@ -307,8 +307,9 @@ void main() {
       expect(a.activeDayListeners, 1);
       await tester.tap(find.byKey(const ValueKey('nav-profile')));
       await tester.pumpAndSettle();
-      expect(n.activeDayListeners, 0);
-      expect(w.activeDayListeners, 0);
+      // Profile now shows today's nutrition and water, sharing the providers.
+      expect(n.activeDayListeners, 1);
+      expect(w.activeDayListeners, 1);
       expect(a.activeDayListeners, 0);
       await tester.tap(find.byKey(const ValueKey('nav-dashboard')));
       await tester.pumpAndSettle();

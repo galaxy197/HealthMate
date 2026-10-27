@@ -1,5 +1,33 @@
 # Tiến độ HealthMate
 
+## 27/10/2026 — Sửa tích hợp admin và bản Android Figma
+
+1. **Giai đoạn/trạng thái:** hoàn tất phạm vi sửa tích hợp admin được yêu cầu
+   trong Giai đoạn 10; không mở rộng các module admin khác.
+2. **Đã hoàn thành:** script run/build dùng chung cấu hình bật admin; build
+   kiểm thử cờ trước khi đóng gói, ghi manifest không chứa token. App dừng đọc
+   cấu hình khi bị khóa/chưa xác nhận và tự nối lại khi mở khóa. Ca thay đổi
+   cấu hình lúc khóa đã tái hiện lỗi trước sửa và qua sau sửa; UI Figma giữ nguyên.
+3. **File chính:** `config/admin-runtime.json`, `tool/android_app_arguments.ps1`,
+   `tool/run_android.ps1`, `tool/build_android.ps1`,
+   `lib/core/config/admin_runtime.dart`, `test/admin_runtime_test.dart`,
+   `test/admin_runtime_integration.dart`, `tool/test_admin_integration.ps1`,
+   README và tài liệu admin/test-report. Chi tiết: [admin-runtime-integration.md](admin-runtime-integration.md).
+4. **Kiểm thử:** full Flutter **656/656**; runtime cấu hình build **7/7**;
+   emulator **77/77 Rules + 4/4 web SDK + 3/3 Flutter SDK**; web unit **20/20**;
+   analyze No issues found; format ba file 0 lệch; PS parser 4/4 và diff check qua.
+   APK build exit 0, Gradle 34,0 giây; checksum manifest khớp tệp thật.
+5. **Cần người dùng làm:** cài `build/releases/healthmate-figma-admin-debug.apk`
+   và nghiệm thu trên Android thật. Không cần cấu hình Firebase mới; dùng token
+   debug App Check hiện có. APK 236.844.262 byte; SHA256
+   `07EB53A0DE0087818C2195BF6BFE0B7AD18D1E391899B1911E25446FB1DD9837`.
+6. **Giới hạn:** chưa có thiết bị ADB, chưa thử live admin production → Android;
+   còn cảnh báo KGP plugin cũ. Chưa sửa giới hạn danh sách 5.000 mục, chi phí
+   đọc role theo UID hoặc bổ sung RBAC. Không đổi Rules/schema/backend/billing,
+   không deploy/commit/push; không thực hiện yêu cầu tắt máy đã hủy.
+7. **Tiếp theo đề xuất:** phân trang/lọc phía máy chủ cho danh sách và audit
+   admin; chưa tự thực hiện.
+
 ## 27/10/2026 — Bộ 20 câu cá nhân hóa đã hoàn tất
 
 Phạm vi mở rộng hồ sơ/onboarding (Giai đoạn 3): đúng 20 câu, chia các phần ngắn;
@@ -2699,3 +2727,38 @@ thiếu createdAt/updatedAt trước khi được bổ sung, được giữ tron
 7. **Tiếp theo đề xuất:** kết nối và nghiệm thu API đã chuẩn bị sau khi tài khoản
    sẵn sàng, vẫn trong giai đoạn 9. Không chuyển giai đoạn khác hoặc tự nâng Paid,
    deploy Firebase/admin, commit hay push. Setup cụ thể: chat-api/README.md.
+
+## 27/10/2026 — UI theo Figma / Reference v2
+
+1. **Giai đoạn:** hoàn tất phạm vi UI system/polish được người dùng yêu cầu;
+   dùng Figma và HealthMate UI Kit v2 local. Không chuyển giai đoạn nghiệp vụ.
+2. **Đã hoàn thành:** theme gradient sáng/tối, card/input/typography thống nhất;
+   bố cục Hôm nay, Nhật ký, Cá nhân, Tiến độ và hub Thói quen. Thanh dưới có
+   dấu + giữa; avatar mở hồ sơ. Tất cả lối tắt dùng luồng thật đang có; Nhật ký
+   giữ ngày lịch sử, ghi nhanh shell dùng hôm nay. Giữ CRUD/xác nhận/AI hiện có.
+3. **File chính:** core theme/widgets/router, dashboard và kcal/macro, journal
+   summary grid, personal overview, wellness hub, progress line chart;
+   assets/design, pubspec asset entry và test/reference_ui_test.dart. Chi tiết
+   và ảnh: [figma-v2-implementation.md](figma-v2-implementation.md).
+4. **Kiểm thử:** format 36 file Dart tạo/sửa 0 thay đổi; analyze No issues found;
+   full Flutter test **654/654 qua (72s)**; build APK debug thành công (Gradle
+   19,7s); git diff --check qua. Logs `build/figma-v2-*`. Xem trực quan 10 ảnh
+   font thật sáng/tối; kiểm thử có màn 320–412px và text scale tới 200%.
+5. **Cần người dùng làm:** cài `build/releases/healthmate-figma-v2-debug.apk`
+   và nghiệm thu trên Android thật. Không cần cấu hình Firebase mới cho lượt UI.
+6. **Vấn đề còn lại:** không có ADB device; chưa chứng minh cloud/camera/cảm biến
+   end-to-end. APK còn cảnh báo KGP plugin cũ với Flutter tương lai. BeVietnamPro
+   được giữ thay Arial trong kit; màu chữ/nút điều chỉnh tương phản. Không đổi
+   package/backend/rules/billing, không deploy/commit/push; giữ handoff untracked.
+7. **Tiếp theo đề xuất:** nghiệm thu UI trên Android thật; chưa tự thực hiện.
+
+
+## 27/10/2026 — Làm lại UI sau phản hồi chưa giống Figma
+
+1. **Giai đoạn/trạng thái:** hoàn tất sửa UI system/polish được yêu cầu trong phạm vi Giai đoạn 1 trên app hiện có; không chuyển giai đoạn nghiệp vụ. Báo cáo/ảnh/APK ở mục này thay kết quả UI v2 trước đó.
+2. **Đã hoàn thành:** đối chiếu trực tiếp T01 trên Figma và geometry của kit; thay đúng ngọn lửa, 64 nét vòng macro, tỷ lệ kcal/footer/lối tắt; Nhật ký ba phần/lưới bữa/nút xác nhận; Hồ sơ hàng danh tính/analytics/chỉ số; Thói quen lưới/lối tắt; Tiến độ đổi hierarchy/chiều cao biểu đồ/tổng kết; thanh dưới sát mép và thích nghi chữ lớn. Giữ dữ liệu thật và luồng xác nhận/CRUD.
+3. **File chính:** dashboard kcal/macro, core widgets/theme, journal, macro_distribution, personal_overview, wellness_hub, progress; test/helper; 12 art assets, hai script xuất/so ảnh. Chi tiết: [figma-v2-implementation.md](figma-v2-implementation.md).
+4. **Kiểm thử cuối:** format 50 file 0 thay đổi; analyze No issues found (36,3s); full **655/655 qua (78s)**; APK debug build thành công (23,1s); node syntax và whitespace qua. Logs `build/figma-v2/redo-*-accepted.log`. Có ảnh so năm màn cùng kích thước; dữ liệu populated chỉ trong test.
+5. **Cần người dùng làm:** cài `build/releases/healthmate-figma-redo-debug.apk` và nghiệm thu trên Android; không cần Firebase config mới cho lượt UI.
+6. **Vấn đề/giới hạn:** không có ADB device, chưa chứng minh live end-to-end. Font dự phòng BeVietnamPro, icon Material và màu chữ tương phản có khác thiết kế. Build còn KGP warning cũ. Không đổi backend/schema/rules/billing/package, không deploy/commit/push. Snapshot mfp lịch sử giữ nguyên, ảnh mới đặt trong `docs/ux/reference-v2/`.
+7. **Tiếp theo đề xuất:** nghiệm thu giao diện trên Android thật; chưa triển khai giai đoạn khác.

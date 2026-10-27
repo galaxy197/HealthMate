@@ -23,6 +23,7 @@ import '../providers/profile_providers.dart';
 import 'body_metric_form_dialog.dart';
 import 'profile_form_dialog.dart';
 import 'weight_chart.dart';
+import 'personal_overview.dart';
 import '../../data_export/presentation/journal_export_dialog.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -41,11 +42,32 @@ class ProfileScreen extends ConsumerWidget {
     final metricState = ref.watch(bodyMetricsProvider);
     final profile = profileState.value;
     final metrics = metricState.value ?? const <BodyMetric>[];
+    final accountAnchor = GlobalKey();
 
     return FeaturePage(
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      titleStyle: theme.textTheme.headlineSmall?.copyWith(fontSize: 25),
+      headerAction: IconButton(
+        tooltip: 'Tài khoản và cài đặt',
+        icon: const Icon(Icons.settings_outlined),
+        onPressed: () {
+          final anchor = accountAnchor.currentContext;
+          if (anchor != null) {
+            Scrollable.ensureVisible(
+              anchor,
+              duration: const Duration(milliseconds: 250),
+            );
+          }
+        },
+      ),
       title: 'Không gian cá nhân',
-      subtitle: 'Hồ sơ, tài khoản và cài đặt.',
+      subtitle: '',
       children: [
+        PersonalOverview(
+          onEdit: profile == null
+              ? null
+              : () => _editProfile(context, ref, profile),
+        ),
         Card(
           child: Column(
             children: [
@@ -89,6 +111,7 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
         ],
         _AccountCard(
+          key: accountAnchor,
           email: user?.email,
           canChangePassword: user?.hasPassword == true,
           authAction: authAction,
@@ -398,6 +421,7 @@ class ProfileScreen extends ConsumerWidget {
 
 class _AccountCard extends StatelessWidget {
   const _AccountCard({
+    super.key,
     required this.email,
     required this.canChangePassword,
     required this.authAction,
@@ -507,7 +531,6 @@ class _ProfileCard extends StatelessWidget {
                   child: Text('Hồ sơ', style: theme.textTheme.titleLarge),
                 ),
                 IconButton(
-                  key: const ValueKey('edit-profile'),
                   onPressed: onEdit,
                   tooltip: 'Chỉnh sửa hồ sơ',
                   icon: const Icon(Icons.edit_outlined),

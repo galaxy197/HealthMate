@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import '../router/app_routes.dart';
+import '../theme/reference_palette.dart';
+import 'design_illustration.dart';
 import '../../features/journal/providers/journal_date_provider.dart';
 import '../../features/journal/providers/journal_quick_action_provider.dart';
 import '../theme/app_spacing.dart';
@@ -13,7 +15,7 @@ import '../../features/weekly_reflection/providers/weekly_reflection_providers.d
 
 import '../config/app_feature_flags.dart';
 
-enum _ExtraAction { weight, quests, chat }
+enum _ExtraAction { weight, quests, chat, steps, sleep }
 
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
@@ -25,29 +27,29 @@ class AppShell extends ConsumerWidget {
       branch: 0,
       label: 'Hôm nay',
       icon: Icons.home_outlined,
-      selected: Icons.home_rounded,
+      selected: Icons.home_outlined,
       key: ValueKey('nav-dashboard'),
     ),
     (
       branch: 1,
       label: 'Nhật ký',
       icon: Icons.menu_book_outlined,
-      selected: Icons.menu_book_rounded,
+      selected: Icons.menu_book_outlined,
       key: ValueKey('nav-journal'),
     ),
     (
       branch: 5,
       label: 'Tiến độ',
       icon: Icons.bar_chart_outlined,
-      selected: Icons.bar_chart_rounded,
+      selected: Icons.bar_chart_outlined,
       key: ValueKey('nav-progress'),
     ),
     (
-      branch: 4,
-      label: 'Thêm',
-      icon: Icons.more_horiz,
-      selected: Icons.more_horiz,
-      key: ValueKey('nav-profile'),
+      branch: 6,
+      label: 'Thói quen',
+      icon: Icons.grid_view_outlined,
+      selected: Icons.grid_view_outlined,
+      key: ValueKey('nav-wellness'),
     ),
   ];
 
@@ -67,6 +69,12 @@ class AppShell extends ConsumerWidget {
       builder: (_) => const _QuickActionSheet(),
     );
     if (action == null || !context.mounted) return;
+    if (action == _ExtraAction.steps || action == _ExtraAction.sleep) {
+      context.push(
+        '${AppRoutes.wellness}?tab=${action == _ExtraAction.steps ? 2 : 3}',
+      );
+      return;
+    }
     if (action == _ExtraAction.quests || action == _ExtraAction.chat) {
       _selectBranch(action == _ExtraAction.quests ? 2 : 3);
       return;
@@ -115,10 +123,7 @@ class AppShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final showRail = constraints.maxWidth >= AppSpacing.railBreakpoint;
-        final currentBranch = switch (navigationShell.currentIndex) {
-          2 || 3 => 4, // Goals and chat are accessed through More.
-          final branch => branch,
-        };
+        final currentBranch = navigationShell.currentIndex;
         final visibleIndex = _visibleDestinations.indexWhere(
           (destination) => destination.branch == currentBranch,
         );
@@ -205,59 +210,81 @@ class _FloatingNavigationBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      child: Material(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        elevation: 0,
-        shadowColor: scheme.shadow.withValues(alpha: 0.12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          height: 60 + MediaQuery.textScalerOf(context).scale(24),
-          child: Row(
-            children: [
-              for (final destination in destinations.take(2))
-                Expanded(
-                  child: _NavigationButton(
-                    key: destination.key,
-                    label: destination.label,
-                    icon: currentBranch == destination.branch
-                        ? destination.selected
-                        : destination.icon,
-                    selected: currentBranch == destination.branch,
-                    onTap: () => onSelect(destination.branch),
+    return Material(
+      color: scheme.surface,
+      elevation: 0,
+      shadowColor: scheme.shadow.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      clipBehavior: Clip.antiAlias,
+      child: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final style = Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w400);
+            var height = 68.0;
+            for (final label in [
+              ...destinations.map((d) => d.label),
+              'Ghi nhanh',
+            ]) {
+              final painter =
+                  TextPainter(
+                    text: TextSpan(text: label, style: style),
+                    maxLines: 2,
+                    textDirection: Directionality.of(context),
+                    textScaler: MediaQuery.textScalerOf(context),
+                  )..layout(
+                    maxWidth:
+                        (constraints.maxWidth / (destinations.length + 1) - 4)
+                            .clamp(1, double.infinity),
+                  );
+              final needed = painter.height + 45;
+              if (needed > height) height = needed;
+              painter.dispose();
+            }
+            return SizedBox(
+              height: height,
+              child: Row(
+                children: [
+                  for (final destination in destinations.take(2))
+                    Expanded(
+                      child: _NavigationButton(
+                        key: destination.key,
+                        label: destination.label,
+                        icon: currentBranch == destination.branch
+                            ? destination.selected
+                            : destination.icon,
+                        selected: currentBranch == destination.branch,
+                        onTap: () => onSelect(destination.branch),
+                      ),
+                    ),
+                  Expanded(
+                    child: _NavigationButton(
+                      key: const ValueKey('quick-add-menu'),
+                      label: 'Ghi nhanh',
+                      icon: Icons.add_rounded,
+                      selected: false,
+                      actionColor: scheme.primary,
+                      onTap: onQuickAdd,
+                    ),
                   ),
-                ),
-              Expanded(
-                child: Center(
-                  child: FloatingActionButton(
-                    key: const ValueKey('quick-add-menu'),
-                    heroTag: 'quick-add-bottom',
-                    tooltip: 'Thêm ghi nhận',
-                    onPressed: onQuickAdd,
-                    backgroundColor: scheme.primary,
-                    foregroundColor: scheme.onPrimary,
-                    elevation: 0,
-                    shape: const CircleBorder(),
-                    child: const Icon(Icons.add_rounded, size: 32),
-                  ),
-                ),
+                  for (final destination in destinations.skip(2))
+                    Expanded(
+                      child: _NavigationButton(
+                        key: destination.key,
+                        label: destination.label,
+                        icon: currentBranch == destination.branch
+                            ? destination.selected
+                            : destination.icon,
+                        selected: currentBranch == destination.branch,
+                        onTap: () => onSelect(destination.branch),
+                      ),
+                    ),
+                ],
               ),
-              for (final destination in destinations.skip(2))
-                Expanded(
-                  child: _NavigationButton(
-                    key: destination.key,
-                    label: destination.label,
-                    icon: currentBranch == destination.branch
-                        ? destination.selected
-                        : destination.icon,
-                    selected: currentBranch == destination.branch,
-                    onTap: () => onSelect(destination.branch),
-                  ),
-                ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -270,6 +297,7 @@ class _NavigationButton extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.actionColor,
     super.key,
   });
 
@@ -277,25 +305,43 @@ class _NavigationButton extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final Color? actionColor;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
+    final color =
+        actionColor ??
+        (selected
+            ? theme.colorScheme.onSurface
+            : theme.colorScheme.onSurfaceVariant);
     return Semantics(
       selected: selected,
       button: true,
       label: label,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: selected
+                ? LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      ReferencePalette.blue.withValues(alpha: .12),
+                      Colors.transparent,
+                    ],
+                  )
+                : null,
+            border: selected
+                ? Border(top: BorderSide(color: color, width: 2))
+                : null,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color),
+              Icon(icon, color: color, size: 24, applyTextScaling: false),
               const SizedBox(height: 3),
               Text(
                 label,
@@ -303,7 +349,7 @@ class _NavigationButton extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: color,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ],
@@ -374,6 +420,18 @@ class _QuickActionSheet extends ConsumerWidget {
             label: 'Thêm cân nặng',
             onTap: () => Navigator.pop(context, _ExtraAction.weight),
           ),
+          _SheetAction(
+            key: const ValueKey('quick-action-steps'),
+            icon: Icons.directions_walk,
+            label: 'Bước chân',
+            onTap: () => Navigator.pop(context, _ExtraAction.steps),
+          ),
+          _SheetAction(
+            key: const ValueKey('quick-action-sleep'),
+            icon: Icons.bedtime_outlined,
+            label: 'Giấc ngủ',
+            onTap: () => Navigator.pop(context, _ExtraAction.sleep),
+          ),
           const Divider(),
           _SheetAction(
             key: const ValueKey('quick-action-quests'),
@@ -410,7 +468,16 @@ class _SheetAction extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     onTap: onTap,
     contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-    leading: CircleAvatar(child: Icon(icon)),
+    leading: DesignIllustration(switch (label) {
+      'Thêm bữa ăn' => 'food',
+      'Thêm nước' => 'water',
+      'Thêm vận động' => 'activity',
+      'Thêm cân nặng' => 'weight',
+      'Bước chân' => 'steps',
+      'Giấc ngủ' => 'moon',
+      'Mục tiêu và nhiệm vụ' => 'flag',
+      _ => 'chat',
+    }),
     title: Text(label),
     trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
     shape: RoundedRectangleBorder(

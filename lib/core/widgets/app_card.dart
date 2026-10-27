@@ -24,7 +24,7 @@ class AppCard extends StatelessWidget {
       color: color ?? scheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(
         borderRadius: borderRadius,
-        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.7)),
+        side: BorderSide.none,
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

@@ -85,7 +85,9 @@ void main() {
       addTearDown(metrics.close);
       container.read(profileBootstrapProvider.future);
       expect(profile.ensureCalls, 1);
-      auth.emitUser(const AuthUser(emailVerified: true, uid: 'B', email: 'b@example.com'));
+      auth.emitUser(
+        const AuthUser(emailVerified: true, uid: 'B', email: 'b@example.com'),
+      );
       await changed.future.timeout(const Duration(seconds: 2));
       container.read(profileBootstrapProvider.future);
       expect(profile.ensureCalls, 2);
@@ -220,6 +222,10 @@ void main() {
       await store.put('B', saved('b').copyForTestNow());
       container.read(appRouterProvider).go(AppRoutes.journal);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('open-meal-drafts')),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('open-meal-drafts')));
       await tester.pumpAndSettle();
       expect(find.text('Bản nháp chưa xác nhận'), findsOneWidget);
@@ -259,6 +265,10 @@ void main() {
       final store = container.read(mealDraftStoreProvider);
       await store.put(uid, saved('safe-retry').copyForTestNow());
       container.read(appRouterProvider).go(AppRoutes.journal);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('open-meal-drafts')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('open-meal-drafts')));
       await tester.pumpAndSettle();

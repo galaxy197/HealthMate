@@ -52,6 +52,8 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.byKey(const ValueKey('change-password')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('change-password')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -87,6 +89,8 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.byKey(const ValueKey('change-password')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('change-password')));
     await tester.pumpAndSettle();
     await tester.enterText(

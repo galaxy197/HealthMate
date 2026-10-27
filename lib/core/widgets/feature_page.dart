@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_spacing.dart';
+import 'profile_avatar.dart';
 
 class FeaturePage extends StatelessWidget {
   const FeaturePage({
@@ -8,6 +9,11 @@ class FeaturePage extends StatelessWidget {
     required this.subtitle,
     required this.children,
     this.compactHeader = false,
+    this.showProfileAvatar = false,
+    this.headerAction,
+    this.contentPadding,
+    this.titleStyle,
+    this.headerGap,
     super.key,
   });
 
@@ -15,6 +21,11 @@ class FeaturePage extends StatelessWidget {
   final String subtitle;
   final List<Widget> children;
   final bool compactHeader;
+  final bool showProfileAvatar;
+  final Widget? headerAction;
+  final EdgeInsetsGeometry? contentPadding;
+  final TextStyle? titleStyle;
+  final double? headerGap;
 
   @override
   Widget build(BuildContext context) {
@@ -28,37 +39,32 @@ class FeaturePage extends StatelessWidget {
                 maxWidth: AppSpacing.contentWidth,
               ),
               child: Padding(
-                padding: EdgeInsets.all(
-                  compactHeader ? AppSpacing.md : AppSpacing.lg,
-                ),
+                padding:
+                    contentPadding ??
+                    EdgeInsets.all(
+                      compactHeader ? AppSpacing.md : AppSpacing.lg,
+                    ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!compactHeader)
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.spa_rounded,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Flexible(
+                    Row(
+                      children: [
+                        if (showProfileAvatar) ...[
+                          const ProfileAvatar(),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(
+                          child: Semantics(
+                            header: true,
                             child: Text(
-                              'HealthMate',
-                              style: theme.textTheme.titleMedium,
+                              title,
+                              style:
+                                  titleStyle ?? theme.textTheme.headlineSmall,
                             ),
                           ),
-                        ],
-                      ),
-                    if (!compactHeader) const SizedBox(height: AppSpacing.xl),
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        title,
-                        style: compactHeader
-                            ? theme.textTheme.headlineSmall
-                            : theme.textTheme.headlineLarge,
-                      ),
+                        ),
+                        ?headerAction,
+                      ],
                     ),
                     if (subtitle.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.sm),
@@ -70,7 +76,9 @@ class FeaturePage extends StatelessWidget {
                       ),
                     ],
                     SizedBox(
-                      height: compactHeader ? AppSpacing.sm : AppSpacing.lg,
+                      height:
+                          headerGap ??
+                          (compactHeader ? AppSpacing.sm : AppSpacing.lg),
                     ),
                     ...children,
                     const SizedBox(height: AppSpacing.xl),

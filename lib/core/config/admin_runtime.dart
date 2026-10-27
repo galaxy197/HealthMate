@@ -146,6 +146,21 @@ final adminAppConfigProvider = StreamProvider<AdminAppConfig>((ref) {
       ref.watch(authSessionProvider).value?.emailVerified != true) {
     return Stream.value(const AdminAppConfig());
   }
+  // Firestore terminates app_config listeners when a suspended account loses
+  // read access. Follow account status so reopening creates a fresh listener.
+  final access = ref.watch(appAccountAccessProvider);
+  if (access.isLoading ||
+      access.hasError ||
+      access.value?.verified != true ||
+      access.value!.suspended) {
+    return Stream.value(
+      const AdminAppConfig(
+        verified: false,
+        chatbotEnabled: false,
+        foodScannerEnabled: false,
+      ),
+    );
+  }
   return ref.watch(adminRuntimeRepositoryProvider).watchConfig();
 }, retry: (_, _) => null);
 final adminDirectorySyncProvider = FutureProvider<void>((ref) async {

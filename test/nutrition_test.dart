@@ -1,3 +1,4 @@
+import 'package:healthmate/features/journal/presentation/journal_nutrition_overview.dart';
 import 'package:flutter/material.dart';
 import 'package:healthmate/core/config/app_feature_flags.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -178,30 +179,53 @@ void main() {
     container.read(appRouterProvider).go(AppRoutes.journal);
     await tester.pumpAndSettle();
 
-    expect(find.text('300 kcal / — kcal'), findsOneWidget);
+    expect(journalTotals('300 kcal / — kcal'), findsOneWidget);
+    await openJournalNutritionDetails(tester);
     for (final macro in ['30 / — g', '40 / — g', '10 / — g']) {
       expect(find.text(macro), findsOneWidget);
     }
+    Navigator.of(
+      tester.element(find.byType(JournalNutritionOverview).last),
+    ).pop();
+    await tester.pumpAndSettle();
     expect(find.text('250 ml'), findsWidgets);
     expect(find.text('30 phút'), findsWidgets);
     expect(find.textContaining('Món yesterday'), findsNothing);
 
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('journal-previous-day')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('journal-previous-day')));
     await tester.pumpAndSettle();
 
-    expect(find.text('50 kcal / — kcal'), findsOneWidget);
+    expect(journalTotals('50 kcal / — kcal'), findsOneWidget);
+    await openJournalNutritionDetails(tester);
     for (final macro in ['5 / — g', '7 / — g', '2 / — g']) {
       expect(find.text(macro), findsOneWidget);
     }
+    Navigator.of(
+      tester.element(find.byType(JournalNutritionOverview).last),
+    ).pop();
+    await tester.pumpAndSettle();
     expect(find.text('900 ml'), findsWidgets);
     expect(find.text('90 phút'), findsWidgets);
     expect(find.textContaining('Món today-a'), findsNothing);
 
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('journal-previous-day')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('journal-previous-day')));
     await tester.pumpAndSettle();
 
-    expect(find.text('0 kcal / — kcal'), findsOneWidget);
+    expect(journalTotals('0 kcal / — kcal'), findsOneWidget);
+    await openJournalNutritionDetails(tester);
     expect(find.text('0 / — g'), findsNWidgets(3));
+    Navigator.of(
+      tester.element(find.byType(JournalNutritionOverview).last),
+    ).pop();
+    await tester.pumpAndSettle();
     expect(
       find.textContaining('Chưa có bữa ăn. Chọn Thêm để bắt đầu.'),
       findsOneWidget,
@@ -244,7 +268,8 @@ void main() {
 
     expect(repository.watchedDateKeys, contains(localDateKey(today)));
     expect(repository.watchedDateKeys, contains(localDateKey(yesterday)));
-    expect(find.textContaining('Món yesterday-only'), findsOneWidget);
+    // The summary card and the editable journal row show the same meal.
+    expect(find.textContaining('Món yesterday-only'), findsNWidgets(2));
     expect(find.textContaining('Món today-only'), findsNothing);
   });
 

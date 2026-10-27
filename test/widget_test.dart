@@ -16,7 +16,7 @@ void main() {
       dashboardNow: DateTime(2026, 10, 13, 9),
     );
     expect(find.byKey(const ValueKey('dashboard-screen')), findsOneWidget);
-    expect(find.text('Chào buổi sáng, HealthMate Tester'), findsOneWidget);
+    expect(find.text('Chào buổi sáng, Tester'), findsOneWidget);
     expect(find.byKey(const ValueKey('dashboard-empty')), findsOneWidget);
     expect(find.textContaining('sẽ có trong các bản tiếp theo'), findsNothing);
     expect(
@@ -92,6 +92,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('journal-screen')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('nav-profile')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('sign-out')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sign-out')));
     await tester.pumpAndSettle();

@@ -1,5 +1,14 @@
 # HealthMate
 
+## Android nhận điều khiển admin — 27/10/2026
+
+Chạy `powershell -ExecutionPolicy Bypass -File tool/run_android.ps1 -DeviceId emulator-5554`
+hoặc đóng gói bằng `powershell -ExecutionPolicy Bypass -File tool/build_android.ps1`.
+Hai lệnh dùng chung `config/admin-runtime.json`, cấu hình chatbot và App Check debug
+cục bộ; APK nằm ở `build/releases/healthmate-figma-admin-debug.apk`.
+Script build kiểm thử cờ admin trước khi đóng gói và ghi SHA256 bên cạnh APK.
+[Quy trình kiểm tra tích hợp](docs/admin-runtime-integration.md).
+
 ## Bộ 20 câu cá nhân hóa
 
 Người mới trả lời theo các phần ngắn và xác nhận mục tiêu trước khi lưu.
@@ -94,10 +103,10 @@ Rules mới chưa deploy. Facebook đã bỏ theo yêu cầu, web admin tạm g�
 
 Mã nguồn web nằm trong `admin-web`, có thể mở cùng dự án trong VS Code.
 HTML/CSS/JavaScript + Firebase Web SDK: danh mục, khóa/mở truy cập tài khoản,
-cấu hình app và nhật ký quản trị. Bản local dùng Firebase Emulator, chưa kết nối
-hoặc triển khai Firebase production. [Hướng dẫn chạy và thiết lập](admin-web/README.md).
-Mobile chỉ nhận cấu hình/quyền từ xa sau khi build với
-`HEALTHMATE_ENABLE_ADMIN_CONTROLS=true` và Rules đã được chuẩn bị.
+cấu hình app và nhật ký quản trị. Admin đã triển khai; bản local dùng Firebase
+Emulator. [Hướng dẫn chạy và thiết lập](admin-web/README.md).
+Mobile nhận cấu hình/quyền từ xa khi dùng script chạy/build ở đầu tài liệu;
+`config/admin-runtime.json` bật `HEALTHMATE_ENABLE_ADMIN_CONTROLS=true`.
 
 ## Màn hình thêm bữa ăn hợp nhất — 23/10/2026
 

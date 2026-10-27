@@ -20,16 +20,18 @@ import '../providers/sleep_insight_providers.dart';
 import 'energy_panel.dart';
 import 'sleep_insights.dart';
 import 'weight_progress_panel.dart';
+import 'wellness_hub.dart';
+import '../../../core/theme/reference_palette.dart';
 
 class WellnessScreen extends StatefulWidget {
-  const WellnessScreen({super.key, this.initialTab = 0});
+  const WellnessScreen({super.key, this.initialTab = -1});
   final int initialTab;
   @override
   State<WellnessScreen> createState() => _WellnessScreenState();
 }
 
 class _WellnessScreenState extends State<WellnessScreen> {
-  late int _tab = widget.initialTab.clamp(0, 5);
+  late int _tab = widget.initialTab.clamp(-1, 5);
   final _tabScroll = ScrollController();
   @override
   void initState() {
@@ -48,53 +50,86 @@ class _WellnessScreenState extends State<WellnessScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Thói quen & kế hoạch'),
-      leading: BackButton(onPressed: () => context.pop()),
-    ),
-    body: Column(
-      children: [
-        SingleChildScrollView(
-          controller: _tabScroll,
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              for (final e in [
-                'Nhắc bữa',
-                'Thực đơn',
-                'Bước chân',
-                'Giấc ngủ',
-                'Dưỡng chất',
-                'Tiến độ',
-              ].indexed)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    key: ValueKey('wellness-tab-${e.$1}'),
-                    label: Text(e.$2),
-                    selected: _tab == e.$1,
-                    onSelected: (_) => setState(() => _tab = e.$1),
+  void didUpdateWidget(covariant WellnessScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTab != widget.initialTab) {
+      _tab = widget.initialTab.clamp(-1, 5);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: _tab == -1 || context.canPop(),
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && _tab >= 0) setState(() => _tab = -1);
+    },
+    child: Scaffold(
+      body: _tab == -1
+          ? WellnessHub(onOpen: (tab) => setState(() => _tab = tab))
+          : AppCanvas(
+              child: Column(
+                children: [
+                  AppBar(
+                    title: const Text('Thói quen & kế hoạch'),
+                    leading: BackButton(
+                      onPressed: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          setState(() => _tab = -1);
+                        }
+                      },
+                    ),
+                    actions: [
+                      IconButton(
+                        tooltip: 'Tất cả thói quen',
+                        onPressed: () => setState(() => _tab = -1),
+                        icon: const Icon(Icons.grid_view_rounded),
+                      ),
+                    ],
                   ),
-                ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: KeyedSubtree(
-            key: ValueKey(_tab),
-            child: switch (_tab) {
-              0 => const ReminderPanel(),
-              1 => const MealPlannerPanel(),
-              2 => const StepPanel(),
-              3 => const SleepPanel(),
-              4 => const NutrientPanel(),
-              _ => const WeightProgressPanel(),
-            },
-          ),
-        ),
-      ],
+                  SingleChildScrollView(
+                    controller: _tabScroll,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        for (final e in [
+                          'Nhắc bữa',
+                          'Thực đơn',
+                          'Bước chân',
+                          'Giấc ngủ',
+                          'Dưỡng chất',
+                          'Cân nặng & ngân sách',
+                        ].indexed)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              key: ValueKey('wellness-tab-${e.$1}'),
+                              label: Text(e.$2),
+                              selected: _tab == e.$1,
+                              onSelected: (_) => setState(() => _tab = e.$1),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: KeyedSubtree(
+                      key: ValueKey(_tab),
+                      child: switch (_tab) {
+                        0 => const ReminderPanel(),
+                        1 => const MealPlannerPanel(),
+                        2 => const StepPanel(),
+                        3 => const SleepPanel(),
+                        4 => const NutrientPanel(),
+                        _ => const WeightProgressPanel(),
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
     ),
   );
 }

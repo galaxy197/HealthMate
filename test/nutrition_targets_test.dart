@@ -437,7 +437,11 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('save-target')));
       await tester.pump();
       auth.emitUser(
-        const AuthUser(emailVerified: true, uid: 'another-user', email: 'other@example.com'),
+        const AuthUser(
+          emailVerified: true,
+          uid: 'another-user',
+          email: 'other@example.com',
+        ),
       );
       profiles.emitProfile(profileForUid('another-user'));
       await tester.pumpAndSettle();
@@ -527,6 +531,7 @@ void main() {
           .read(journalDateProvider.notifier)
           .select(DateTime(2026, 10, 17));
       await tester.pumpAndSettle();
+      await openJournalNutritionDetails(tester);
       expect(find.text('Còn 600 kcal'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

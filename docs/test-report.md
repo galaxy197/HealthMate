@@ -1,5 +1,25 @@
 # Giai đoạn 10 — Báo cáo kiểm thử và rà soát MVP
 
+## 27/10/2026 — Tích hợp admin với Android
+
+Đã sửa quy trình run/build để dùng chung `config/admin-runtime.json`, và sửa
+listener cấu hình tự kết nối lại sau khi tài khoản được mở khóa. Ca hồi quy
+thay đổi cấu hình trong lúc khóa đã thất bại trước sửa, qua sau sửa. Không nới
+Rules hoặc bỏ App Check để vượt kiểm thử.
+
+- Full Flutter: **656/656**, `build/admin-flutter-tests-accepted.log`.
+- Runtime theo cấu hình build thật: **7/7**, chạy trước bước build APK.
+- Emulator: **77/77 Rules**, **4/4 web SDK**, **3/3 Flutter SDK**;
+  `build/admin-integration-accepted.log`.
+- Web DOM/validation/list/XLSX: **20/20**, `build/admin-unit-accepted.log`.
+- Analyze: **No issues found**, `build/admin-analyze-accepted.log`.
+- Format ba file Dart 0 lệch; PowerShell parser 4/4 qua; diff whitespace qua.
+- APK debug build **exit 0**, Gradle 34,0 giây; manifest SHA256/kích thước
+  đối chiếu đúng. Log `build/admin-android-build-accepted.log`.
+
+Chỉ dùng fixture demo local. Chưa có ADB device để nghiệm thu Android thật với
+admin production. [Chi tiết và lệnh chạy lại](admin-runtime-integration.md).
+
 ## 27/10/2026 — Bộ 20 câu cá nhân hóa đã hoàn tất
 
 Phạm vi mở rộng hồ sơ/onboarding (Giai đoạn 3): đúng 20 câu, chia các phần ngắn;

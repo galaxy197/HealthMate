@@ -121,6 +121,7 @@ class QuestScreen extends ConsumerWidget {
     }
 
     return FeaturePage(
+      showProfileAvatar: true,
       title: 'Nhịp khỏe mỗi ngày',
       subtitle:
           '${DateFormat('dd/MM/yyyy').format(today)} · Ngày theo múi giờ thiết bị (${DateTime.now().timeZoneName}).',

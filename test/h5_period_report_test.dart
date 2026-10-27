@@ -76,7 +76,9 @@ void main() {
       final sub = c.listen(provider, (_, _) {});
       addTearDown(sub.close);
       expect(c.read(provider).isLoading, isTrue);
-      auth.emitUser(const AuthUser(emailVerified: true, uid: 'b', email: 'b@example.com'));
+      auth.emitUser(
+        const AuthUser(emailVerified: true, uid: 'b', email: 'b@example.com'),
+      );
       await pumpEventQueue();
       repo.pending.complete([meal('private-A', range.start)]);
       await pumpEventQueue();
@@ -184,6 +186,7 @@ void main() {
       c.read(appRouterProvider).go(AppRoutes.progress);
       await t.pumpAndSettle();
       final before = nutrition.rangeCalls;
+      final reviewsBefore = reviews.loadCalls;
       await t.tap(find.byKey(const ValueKey('report-window-30')));
       await t.pumpAndSettle();
       expect(find.text('500 kcal đã ghi'), findsOneWidget);
@@ -194,7 +197,7 @@ void main() {
       await t.pumpAndSettle();
       expect(nutrition.rangeCalls, before + 2);
       expect(targets.rangeCalls, greaterThanOrEqualTo(2));
-      expect(reviews.loadCalls, 2);
+      expect(reviews.loadCalls, reviewsBefore + 2);
       expect(t.takeException(), isNull);
     },
   );

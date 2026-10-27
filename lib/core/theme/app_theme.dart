@@ -1,356 +1,218 @@
 import 'package:flutter/material.dart';
-
 import 'app_colors.dart';
 import 'app_spacing.dart';
 import 'design_tokens.dart';
+import 'reference_palette.dart';
 
-/// Modern minimalist theme for HealthMate
-/// Key features:
-/// - Deep navy + electric cyan color scheme
-/// - Inter typography (fallback BeVietnamPro)
-/// - Generous whitespace
-/// - Smooth animations
-/// - Subtle shadows & glass effects
+/// Reference v2 UI with the bundled, distributable Vietnamese font.
 abstract final class AppTheme {
   static final light = _build(Brightness.light);
   static final dark = _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
     final isLight = brightness == Brightness.light;
-
-    // Build color scheme from modern palette
-    final seededScheme = ColorScheme.fromSeed(
-      seedColor: isLight ? AppColors.lightPrimary : AppColors.darkPrimary,
-      brightness: brightness,
-    );
-
-    final scheme = seededScheme.copyWith(
-      primary: isLight ? AppColors.lightPrimary : AppColors.darkPrimary,
-      onPrimary: isLight ? AppColors.lightOnPrimary : AppColors.darkOnPrimary,
-      surface: isLight ? AppColors.lightSurface : AppColors.darkSurface,
-      onSurface: isLight ? AppColors.lightText : AppColors.darkText,
-      onSurfaceVariant: isLight
-          ? AppColors.lightTextMuted
-          : AppColors.darkTextMuted,
-      outline: isLight ? AppColors.lightOutline : AppColors.darkOutline,
-      outlineVariant: isLight ? AppColors.lightOutline : AppColors.darkOutline,
-      surfaceContainerLowest: isLight
-          ? AppColors.lightSurface
-          : AppColors.darkSurface,
-      surfaceContainerLow: isLight
-          ? AppColors.lightSurfaceMuted
-          : AppColors.darkSurfaceElevated,
-      surfaceContainer: isLight
-          ? AppColors.lightSurfaceMuted
-          : AppColors.darkSurfaceElevated,
-      // Secondary accent - warm orange
-      secondary: DesignTokens.orange500,
-      onSecondary: DesignTokens.navy900,
-      // Semantic colors
-      error: DesignTokens.error,
-      errorContainer: isLight ? const Color(0xFFFEE2E2) : const Color(0xFF7F1D1D),
-    );
-
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: ReferencePalette.blue,
+          brightness: brightness,
+        ).copyWith(
+          // Deeper button/link blue keeps small text readable on white.
+          primary: isLight ? const Color(0xFF2463D4) : const Color(0xFFA9C7FF),
+          onPrimary: isLight ? Colors.white : const Color(0xFF10264D),
+          surface: isLight ? const Color(0xFFFDFCFD) : const Color(0xFF2D3445),
+          onSurface: isLight ? ReferencePalette.ink : const Color(0xFFF5F6FA),
+          onSurfaceVariant: isLight
+              ? ReferencePalette.muted
+              : const Color(0xFFB8C1D3),
+          outline: isLight ? const Color(0xFF80848F) : const Color(0xFF8792AA),
+          outlineVariant: isLight
+              ? const Color(0xFFDEDFE3)
+              : const Color(0xFF465169),
+          surfaceContainerLowest: isLight
+              ? const Color(0xD9FFFFFF)
+              : const Color(0xE62D3445),
+          surfaceContainerLow: isLight
+              ? const Color(0xBFFFFFFF)
+              : const Color(0xFF343D50),
+          surfaceContainer: isLight
+              ? const Color(0xD9FFFFFF)
+              : const Color(0xFF343D50),
+          surfaceContainerHighest: isLight
+              ? const Color(0xFFE2E5EC)
+              : const Color(0xFF465169),
+          error: isLight ? const Color(0xFFBA2432) : const Color(0xFFFFAEB7),
+        );
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
-      // Typography: Inter with fallback BeVietnamPro
       fontFamily: DesignTokens.fontFamily,
-      fontFamilyFallback: const [DesignTokens.fontFamilyFallback],
-      scaffoldBackgroundColor: isLight
-          ? AppColors.lightCanvas
-          : AppColors.darkCanvas,
+      scaffoldBackgroundColor: Colors.transparent,
       extensions: [isLight ? AppMetricColors.light : AppMetricColors.dark],
     );
-
-    // Build text theme with modern typography
-    final textTheme = base.textTheme.apply(
+    final text = base.textTheme.apply(
       bodyColor: scheme.onSurface,
       displayColor: scheme.onSurface,
     );
-
-    // Rounded card shape with softer radius
-    final cardShape = RoundedRectangleBorder(
+    final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
     );
-
+    final button = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+    );
     return base.copyWith(
-      // ========================================================================
-      // TYPOGRAPHY - Modern, readable, tight headings
-      // ========================================================================
-      textTheme: textTheme.copyWith(
-        // Display - Large headings
-        displayLarge: textTheme.displayLarge?.copyWith(
-          fontWeight: DesignTokens.bold,
-          height: DesignTokens.headingLineHeight,
-          letterSpacing: DesignTokens.headingLetterSpacing,
+      textTheme: text.copyWith(
+        displayLarge: text.displayLarge?.copyWith(
+          fontSize: 44,
+          fontWeight: FontWeight.w400,
         ),
-        displayMedium: textTheme.displayMedium?.copyWith(
-          fontWeight: DesignTokens.bold,
-          height: DesignTokens.headingLineHeight,
-          letterSpacing: DesignTokens.headingLetterSpacing,
+        displayMedium: text.displayMedium?.copyWith(
+          fontSize: 38,
+          fontWeight: FontWeight.w400,
         ),
-        displaySmall: textTheme.displaySmall?.copyWith(
-          fontWeight: DesignTokens.bold,
-          height: DesignTokens.headingLineHeight,
+        displaySmall: text.displaySmall?.copyWith(
+          fontSize: 30,
+          fontWeight: FontWeight.w400,
         ),
-
-        // Headlines
-        headlineLarge: textTheme.headlineLarge?.copyWith(
-          fontWeight: DesignTokens.bold,
-          height: DesignTokens.headingLineHeight,
-          letterSpacing: DesignTokens.headingLetterSpacing,
+        headlineLarge: text.headlineLarge?.copyWith(
+          fontSize: 26,
+          fontWeight: FontWeight.w400,
+          height: 1.3,
         ),
-        headlineMedium: textTheme.headlineMedium?.copyWith(
-          fontWeight: DesignTokens.bold,
-          height: DesignTokens.compactLineHeight,
+        headlineMedium: text.headlineMedium?.copyWith(
+          fontSize: 24,
+          fontWeight: FontWeight.w400,
+          height: 1.3,
         ),
-        headlineSmall: textTheme.headlineSmall?.copyWith(
-          fontWeight: DesignTokens.bold,
-          height: DesignTokens.compactLineHeight,
+        headlineSmall: text.headlineSmall?.copyWith(
+          fontSize: 22,
+          fontWeight: FontWeight.w400,
+          height: 1.35,
         ),
-
-        // Titles
-        titleLarge: textTheme.titleLarge?.copyWith(
-          fontWeight: DesignTokens.bold,
+        titleLarge: text.titleLarge?.copyWith(
+          fontSize: 20,
+          fontWeight: FontWeight.w400,
         ),
-        titleMedium: textTheme.titleMedium?.copyWith(
-          fontWeight: DesignTokens.semibold,
+        titleMedium: text.titleMedium?.copyWith(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
         ),
-        titleSmall: textTheme.titleSmall?.copyWith(
-          fontWeight: DesignTokens.semibold,
+        titleSmall: text.titleSmall?.copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
         ),
-
-        // Body - Generous line height for readability
-        bodyLarge: textTheme.bodyLarge?.copyWith(
-          height: DesignTokens.bodyLineHeight,
-        ),
-        bodyMedium: textTheme.bodyMedium?.copyWith(
-          height: DesignTokens.bodyLineHeight,
-        ),
-        bodySmall: textTheme.bodySmall?.copyWith(
-          height: DesignTokens.bodyLineHeight,
-        ),
-
-        // Labels
-        labelLarge: textTheme.labelLarge?.copyWith(
-          fontWeight: DesignTokens.semibold,
-        ),
-        labelMedium: textTheme.labelMedium?.copyWith(
-          fontWeight: DesignTokens.medium,
-        ),
+        bodyLarge: text.bodyLarge?.copyWith(fontSize: 16, height: 1.5),
+        bodyMedium: text.bodyMedium?.copyWith(fontSize: 14, height: 1.5),
+        bodySmall: text.bodySmall?.copyWith(fontSize: 12, height: 1.5),
       ),
-
-      // ========================================================================
-      // APP BAR - Clean, minimal, no elevation
-      // ========================================================================
       appBarTheme: AppBarTheme(
-        backgroundColor: isLight ? AppColors.lightCanvas : AppColors.darkCanvas,
+        backgroundColor: Colors.transparent,
         foregroundColor: scheme.onSurface,
-        centerTitle: false,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: textTheme.titleLarge?.copyWith(
-          fontWeight: DesignTokens.bold,
+        centerTitle: false,
+        titleTextStyle: text.titleLarge?.copyWith(
+          fontSize: 22,
+          fontWeight: FontWeight.w400,
           color: scheme.onSurface,
         ),
       ),
-
-      // ========================================================================
-      // CARDS - Floating with subtle shadow
-      // ========================================================================
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
         color: scheme.surfaceContainerLowest,
-        shadowColor: isLight ? Colors.black12 : Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        shape: cardShape.copyWith(
-          side: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: 0.3),
-            width: 1,
-          ),
-        ),
+        shape: shape,
       ),
-
-      // ========================================================================
-      // BUTTONS - Modern, rounded, proper sizing
-      // ========================================================================
+      dialogTheme: DialogThemeData(
+        backgroundColor: scheme.surface,
+        shape: shape,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surface,
+        modalBackgroundColor: scheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        showDragHandle: true,
+      ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, DesignTokens.buttonHeightMd),
-          padding: EdgeInsets.symmetric(
-            horizontal: DesignTokens.space24,
-            vertical: DesignTokens.space12,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(DesignTokens.buttonRadius),
-          ),
+          minimumSize: const Size(48, 52),
+          shape: button,
           elevation: 0,
-          textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: DesignTokens.semibold,
-            letterSpacing: 0.5,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w400),
         ),
       ),
-
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, DesignTokens.buttonHeightMd),
-          padding: EdgeInsets.symmetric(
-            horizontal: DesignTokens.space24,
-            vertical: DesignTokens.space12,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(DesignTokens.buttonRadius),
-          ),
-          side: BorderSide(color: scheme.outline),
-          textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: DesignTokens.semibold,
-            letterSpacing: 0.5,
-          ),
+          minimumSize: const Size(48, 52),
+          shape: button,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          side: BorderSide(color: scheme.outlineVariant),
         ),
       ),
-
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          minimumSize: const Size(48, DesignTokens.buttonHeightSm),
-          padding: EdgeInsets.symmetric(
-            horizontal: DesignTokens.space16,
-            vertical: DesignTokens.space8,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(DesignTokens.buttonRadius),
-          ),
-          textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: DesignTokens.semibold,
-          ),
+          minimumSize: const Size(48, 48),
+          shape: button,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
       ),
-
-      // ========================================================================
-      // NAVIGATION - Clean, modern indicators
-      // ========================================================================
-      navigationBarTheme: NavigationBarThemeData(
-        elevation: 0,
-        backgroundColor: scheme.surfaceContainerLowest,
-        indicatorColor: scheme.primaryContainer,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.radiusMd),
-        ),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          return textTheme.labelSmall?.copyWith(
-            color: states.contains(WidgetState.selected)
-                ? scheme.onSurface
-                : scheme.onSurfaceVariant,
-            fontWeight: states.contains(WidgetState.selected)
-                ? DesignTokens.bold
-                : DesignTokens.medium,
-          );
-        }),
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          return IconThemeData(
-            color: states.contains(WidgetState.selected)
-                ? scheme.primary
-                : scheme.onSurfaceVariant,
-          );
-        }),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
       ),
-
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: scheme.surfaceContainerLowest,
-        indicatorColor: scheme.primaryContainer,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.radiusMd),
-        ),
-        selectedIconTheme: IconThemeData(color: scheme.primary),
-        unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
-        selectedLabelTextStyle: textTheme.labelSmall?.copyWith(
-          fontWeight: DesignTokens.bold,
-          color: scheme.onSurface,
-        ),
-        unselectedLabelTextStyle: textTheme.labelSmall?.copyWith(
-          fontWeight: DesignTokens.medium,
-          color: scheme.onSurfaceVariant,
-        ),
-      ),
-
-      // ========================================================================
-      // INPUTS - Clean, spacious, modern
-      // ========================================================================
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surfaceContainerLow,
         errorMaxLines: 4,
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: DesignTokens.space16,
-          vertical: DesignTokens.space16,
-        ),
+        contentPadding: const EdgeInsets.all(16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.inputRadius),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.inputRadius),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: scheme.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.inputRadius),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: scheme.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.inputRadius),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: scheme.error),
         ),
       ),
-
-      // ========================================================================
-      // DIVIDERS - Subtle
-      // ========================================================================
-      dividerTheme: DividerThemeData(
-        color: scheme.outlineVariant.withValues(alpha: 0.5),
-        space: 1,
-        thickness: 1,
-      ),
-
-      // ========================================================================
-      // TOOLTIPS
-      // ========================================================================
-      tooltipTheme: TooltipThemeData(
-        preferBelow: false,
-        decoration: BoxDecoration(
-          color: scheme.inverseSurface,
-          borderRadius: BorderRadius.circular(DesignTokens.radiusSm),
-        ),
-        textStyle: textTheme.bodySmall?.copyWith(
-          color: scheme.onInverseSurface,
-        ),
-      ),
-
-      // ========================================================================
-      // CHIPS - Modern pill shape
-      // ========================================================================
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surfaceContainerLow,
-        selectedColor: scheme.primaryContainer,
-        side: BorderSide(color: scheme.outlineVariant),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.chipRadius),
-        ),
-        labelStyle: textTheme.labelMedium,
+        selectedColor: isLight ? Colors.white : scheme.primaryContainer,
+        side: BorderSide.none,
+        shape: const StadiumBorder(),
+        labelStyle: text.labelMedium?.copyWith(color: scheme.onSurface),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       ),
-
-      // ========================================================================
-      // FLOATING ACTION BUTTON
-      // ========================================================================
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        elevation: 2,
-        highlightElevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(DesignTokens.radiusMd),
+      dividerTheme: DividerThemeData(
+        color: scheme.outlineVariant,
+        thickness: .7,
+        space: 1,
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: scheme.surfaceContainerLowest,
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: isLight ? ReferencePalette.blue : scheme.primary,
+        linearTrackColor: scheme.surfaceContainerHighest,
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: BorderRadius.circular(12),
         ),
+        textStyle: text.bodySmall?.copyWith(color: scheme.onInverseSurface),
       ),
     );
   }
 }
-

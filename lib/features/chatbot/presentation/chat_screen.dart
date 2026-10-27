@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/utils/local_date_key.dart';
+import '../../../core/widgets/profile_avatar.dart';
 import '../../../core/config/app_feature_flags.dart';
 import '../../../shared/providers/local_clock_provider.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -205,6 +206,8 @@ class _ChatBodyState extends ConsumerState<_ChatBody> {
           const SizedBox(height: 8),
           Row(
             children: [
+              const ProfileAvatar(),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Trò chuyện',

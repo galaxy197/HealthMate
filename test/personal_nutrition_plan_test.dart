@@ -382,7 +382,7 @@ void main() {
       );
       container.read(appRouterProvider).go(AppRoutes.journal);
       await tester.pumpAndSettle();
-      expect(find.text('0 kcal / 2310 kcal'), findsOneWidget);
+      expect(journalTotals('0 kcal / 2310 kcal'), findsOneWidget);
       final context = PersonalChatContext(
         nutrition: FakeNutritionRepository(),
         water: FakeWaterRepository(),

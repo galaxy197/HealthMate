@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/reference_palette.dart';
 import 'features/profile/providers/profile_providers.dart';
 import 'shared/providers/theme_mode_provider.dart';
 import 'core/config/admin_runtime.dart';
@@ -29,8 +30,9 @@ class HealthMateApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(appRouterProvider),
-      builder: (context, child) =>
-          AdminAccessGate(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => AppCanvas(
+        child: AdminAccessGate(child: child ?? const SizedBox.shrink()),
+      ),
     );
   }
 }

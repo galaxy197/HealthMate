@@ -11,6 +11,7 @@ import '../../nutrition_targets/models/nutrition_target.dart';
 import '../../nutrition_targets/providers/nutrition_target_providers.dart';
 import '../../nutrition_targets/presentation/nutrition_target_form.dart';
 import '../../wellness/providers/energy_providers.dart';
+import '../../nutrition/presentation/macro_distribution.dart';
 
 /// The diary and its applicable target share one overview, with independent
 /// loading/errors. Never turn stale AsyncValue data into a confirmed total.
@@ -18,10 +19,12 @@ class JournalNutritionOverview extends ConsumerWidget {
   const JournalNutritionOverview({
     required this.day,
     required this.meals,
+    this.compact = false,
     super.key,
   });
   final DateTime day;
   final AsyncValue<List<MealLog>> meals;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,6 +68,124 @@ class JournalNutritionOverview extends ConsumerWidget {
         target?.fatGTarget,
       ),
     ];
+    if (compact) {
+      return Card(
+        key: const ValueKey('daily-summary'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: totals == null
+                                ? '—'
+                                : NumberFormat(
+                                    '#,##0.#',
+                                    'vi',
+                                  ).format(totals.kcal),
+                            style: const TextStyle(fontSize: 31),
+                          ),
+                          TextSpan(
+                            text:
+                                '  / ${budget == null ? '—' : NumberFormat('#,##0.#', 'vi').format(budget.kcalTarget)} kcal đã ghi',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                      semanticsLabel:
+                          '${amount(totals?.kcal)} kcal / ${goal(budget?.kcalTarget)} kcal',
+                      key: const ValueKey('nutrition-daily-totals'),
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const ValueKey('journal-nutrition-details'),
+                    tooltip: 'Chi tiết dinh dưỡng',
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(36, 36),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      builder: (_) => AccountBoundDialog(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              JournalNutritionOverview(day: day, meals: meals),
+                              if (target != null)
+                                Text(
+                                  'Mục tiêu áp dụng từ ${target.effectiveFromDateKey} · Bạn tự thiết lập',
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.more_horiz),
+                  ),
+                ],
+              ),
+              if (meals.isLoading)
+                const Text('Đang tải nhật ký; chưa tính còn/vượt.'),
+              if (meals.hasError)
+                const Text('Chưa tải được nhật ký; chưa tính còn/vượt.'),
+              if (targetState.isLoading) const Text('Đang tải mục tiêu…'),
+              if (targetState.hasError)
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Chưa tải được mục tiêu. Tổng đã ghi vẫn được giữ.',
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('retry-journal-target'),
+                      tooltip: 'Thử tải lại mục tiêu',
+                      onPressed: () =>
+                          ref.invalidate(nutritionTargetProvider(key)),
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                ),
+              if (budgetState.hasError && target != null)
+                TextButton(
+                  onPressed: () => retryEnergyBudget(ref, key),
+                  child: const Text('Chưa tải đủ ngân sách · Thử lại'),
+                ),
+              if (budget?.hasUnappliedAdjustment == true)
+                Text(budget!.explanation),
+              if (budget != null && budget.adjustmentKcal > 0)
+                Text(
+                  'Gốc ${amount(target?.kcalTarget)} + bước đã xác nhận ${amount(budget.adjustmentKcal)} kcal · ước tính',
+                ),
+              if (targetReady && target == null)
+                TextButton(
+                  key: ValueKey('edit-nutrition-target-$key'),
+                  onPressed: () => openNutritionTargetForm(context, ref, null),
+                  child: const Text('Chưa đặt mục tiêu'),
+                ),
+              const SizedBox(height: 8),
+              MacroDistribution(totals: totals),
+            ],
+          ),
+        ),
+      );
+    }
     return Card(
       key: const ValueKey('daily-summary'),
       child: Padding(

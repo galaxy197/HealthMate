@@ -17,6 +17,7 @@ class RuntimeFake implements AdminRuntimeRepository {
   final accesses = StreamController<AppAccountAccess>.broadcast();
   final configs = StreamController<AdminAppConfig>.broadcast();
   final synced = <Map<String, String>>[];
+  int configSubscriptions = 0;
   @override
   Stream<AppAccountAccess> watchAccess(String uid) => Stream.multi((c) {
     c.add(access);
@@ -24,11 +25,15 @@ class RuntimeFake implements AdminRuntimeRepository {
     c.onCancel = s.cancel;
   });
   @override
-  Stream<AdminAppConfig> watchConfig() => Stream.multi((c) {
-    c.add(config);
-    final s = configs.stream.listen(c.add, onError: c.addError);
-    c.onCancel = s.cancel;
-  });
+  Stream<AdminAppConfig> watchConfig() {
+    configSubscriptions++;
+    return Stream.multi((c) {
+      c.add(config);
+      final s = configs.stream.listen(c.add, onError: c.addError);
+      c.onCancel = s.cancel;
+    });
+  }
+
   @override
   Future<void> syncDirectory({
     required String uid,
@@ -65,6 +70,38 @@ ProviderContainer setup(RuntimeFake fake, {bool enabled = true}) {
 }
 
 void main() {
+  if (const bool.fromEnvironment('HEALTHMATE_VERIFY_ADMIN_BUILD')) {
+    test(
+      'Android build configuration enables the real runtime providers',
+      () async {
+        expect(adminRuntimeEnabled, isTrue);
+        final fake = RuntimeFake()
+          ..config = const AdminAppConfig(
+            maintenanceMode: true,
+            maintenanceMessage: 'Build verification',
+          );
+        final container = ProviderContainer(
+          overrides: [
+            adminRuntimeRepositoryProvider.overrideWithValue(fake),
+            authSessionProvider.overrideWith(
+              (ref) => Stream.value(FakeAuthRepository.testUser),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        addTearDown(fake.dispose);
+        container.listen(authSessionProvider, (_, _) {});
+        container.listen(appAccountAccessProvider, (_, _) {});
+        container.listen(adminAppConfigProvider, (_, _) {});
+        await container.read(authSessionProvider.future);
+        await container.read(appAccountAccessProvider.future);
+        expect(container.read(adminControlsEnabledProvider), isTrue);
+        final config = await container.read(adminAppConfigProvider.future);
+        expect(config.maintenanceMode, isTrue);
+        expect(config.maintenanceMessage, 'Build verification');
+      },
+    );
+  }
   test(
     'runtime parsers reject malformed status and configuration, preserve unverified cache state',
     () {
@@ -88,7 +125,7 @@ void main() {
     },
   );
   test(
-    'default build never constructs Firebase runtime and keeps local feature flags',
+    'explicitly disabled runtime never connects and keeps local feature flags',
     () async {
       final c = ProviderContainer(
         overrides: [
@@ -142,7 +179,7 @@ void main() {
         await container.read(adminAppConfigProvider.future);
         expect(
           container.read(appFeatureFlagsProvider).foodScannerEnabled,
-          state == 'active' || state == 'suspended',
+          state == 'active',
         );
         expect(
           container.read(aiAccessProvider).allowed,
@@ -193,6 +230,43 @@ void main() {
         c.dispose();
         await fake.dispose();
       }
+    },
+  );
+  test(
+    'reopening reconnects config after a terminal permission error',
+    () async {
+      final fake = RuntimeFake(), container = setup(fake);
+      addTearDown(container.dispose);
+      addTearDown(fake.dispose);
+      await container.read(authSessionProvider.future);
+      await container.read(appAccountAccessProvider.future);
+      await container.read(adminAppConfigProvider.future);
+      final subscriptions = fake.configSubscriptions;
+      fake.configs.addError(StateError('permission-denied'));
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(adminAppConfigProvider).hasError, isTrue);
+      fake.accesses.add(const AppAccountAccess(suspended: true));
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        (await container.read(adminAppConfigProvider.future)).verified,
+        isFalse,
+      );
+      expect(fake.configSubscriptions, subscriptions);
+      expect(
+        container.read(appFeatureFlagsProvider).foodScannerEnabled,
+        isFalse,
+      );
+      fake.accesses.add(const AppAccountAccess());
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        (await container.read(adminAppConfigProvider.future)).verified,
+        isTrue,
+      );
+      expect(fake.configSubscriptions, subscriptions + 1);
+      expect(
+        container.read(appFeatureFlagsProvider).foodScannerEnabled,
+        isTrue,
+      );
     },
   );
   testWidgets(

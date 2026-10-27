@@ -1,5 +1,8 @@
 import '../../nutrition_targets/presentation/nutrition_target_card.dart';
 import '../../../core/widgets/tracking_page.dart';
+import '../../../core/widgets/reference_shortcuts.dart';
+import '../../../core/config/app_feature_flags.dart';
+import '../../journal/providers/journal_quick_action_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -48,6 +51,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void _viewJournal(DateTime day) {
     ref.read(journalDateProvider.notifier).select(day);
     context.go(AppRoutes.journal);
+  }
+
+  void _quickEntry(DateTime day, JournalQuickAction action) {
+    _viewJournal(day);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(journalQuickActionProvider.notifier).request(action);
+      }
+    });
   }
 
   Future<void> _enterMeal(DateTime day, MealType type, {MealLog? copy}) async {
@@ -186,66 +198,163 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         : const <MealLog>[];
     return TrackingPage(
       key: const ValueKey('dashboard-screen'),
-      header: Row(
+      headerHeight: 92,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Expanded(
-            child: InkWell(
-              key: const ValueKey('today-date-picker'),
-              borderRadius: BorderRadius.circular(12),
-              onTap: () async {
-                final selected = await showDatePicker(
-                  context: context,
-                  initialDate: day,
-                  firstDate: DateTime(2020),
-                  lastDate: today,
-                  helpText: 'Chọn ngày theo dõi',
-                );
-                if (selected != null && mounted) {
-                  setState(() => _selected = localDateOnly(selected));
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      day == today
-                          ? 'Hôm nay'
-                          : DateFormat('dd/MM').format(day),
-                      style: theme.textTheme.headlineLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
-                ),
-              ),
+          Text(
+            '${_greeting(now.hour)}, ${name == null || name.isEmpty ? 'bạn' : name.split(' ').last}',
+            maxLines: 2,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: 24,
+              fontWeight: FontWeight.w400,
             ),
           ),
-          IconButton(
-            key: const ValueKey('open-today-journal'),
-            tooltip: 'Mở nhật ký',
-            onPressed: () => _viewJournal(day),
-            icon: const Icon(Icons.menu_book_outlined),
+          InkWell(
+            key: const ValueKey('today-date-picker'),
+            onTap: () async {
+              final selected = await showDatePicker(
+                context: context,
+                initialDate: day,
+                firstDate: DateTime(2020),
+                lastDate: today,
+                helpText: 'Chọn ngày theo dõi',
+              );
+              if (selected != null && mounted) {
+                setState(() => _selected = localDateOnly(selected));
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      _formatToday(day),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  const Icon(Icons.expand_more, size: 18),
+                ],
+              ),
+            ),
           ),
         ],
       ),
       children: [
-        Text(
-          '${_greeting(now.hour)}, ${name == null || name.isEmpty ? 'bạn' : name}',
-          style: theme.textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 4),
-        Tooltip(
-          message:
-              'Giờ thiết bị · UTC${now.timeZoneOffset.isNegative ? '-' : '+'}${now.timeZoneOffset.inHours.abs().toString().padLeft(2, '0')}:${(now.timeZoneOffset.inMinutes.abs() % 60).toString().padLeft(2, '0')}',
-          child: Text(
-            _formatToday(day),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+        if (hasError) ...[
+          _LoadErrorCard(onRetry: () => _retry(day)),
+          const SizedBox(height: 12),
+        ],
+        MfpCaloriesCard(
+          key: const ValueKey('dashboard-today-card'),
+          editKey: const ValueKey('today-target-edit'),
+          onPersonalize:
+              targetReady && targetState.value == null && day == today
+              ? () => openPersonalNutritionPlanner(context)
+              : null,
+          targetStatus: targetState.isLoading || budgetState.isLoading
+              ? 'Đang tải mục tiêu dinh dưỡng…'
+              : targetState.hasError || budgetState.hasError
+              ? 'Chưa tải được mục tiêu.'
+              : null,
+          consumed: totals?.kcal,
+          macros: MfpMacrosCard(
+            totals: totals,
+            target: targetReady ? targetState.value : null,
+            embedded: true,
           ),
+          target: budget?.kcalTarget,
+          budgetNote: budget != null && budget.adjustmentKcal > 0
+              ? 'Gốc ${budget.baseTarget.kcalTarget.round()} + bước đã xác nhận ${budget.adjustmentKcal.round()} kcal (ước tính)'
+              : budget?.hasUnappliedAdjustment == true
+              ? budget!.explanation
+              : null,
+          onEditTarget: targetReady
+              ? () => openNutritionTargetForm(
+                  context,
+                  ref,
+                  key == localDateKey(today) ? targetState.value : null,
+                )
+              : null,
+        ),
+        if (targetState.hasError)
+          TextButton(
+            onPressed: () => ref.invalidate(nutritionTargetProvider(key)),
+            child: const Text('Chưa tải được mục tiêu · Thử lại'),
+          ),
+        if (budgetState.hasError && !targetState.hasError)
+          TextButton(
+            onPressed: () => retryEnergyBudget(ref, key),
+            child: const Text('Chưa tải đủ ngân sách · Thử lại'),
+          ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Ghi nhận mỗi ngày',
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
+            TextButton(
+              onPressed: () => _viewJournal(day),
+              child: const Text('Xem thêm', style: TextStyle(fontSize: 11)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ReferenceShortcuts(
+          entries: [
+            (
+              label: 'Bữa ăn',
+              art: 'food',
+              key: const ValueKey('today-shortcut-food'),
+              onTap: () => _quickEntry(day, JournalQuickAction.addMeal),
+            ),
+            if (ref.watch(appFeatureFlagsProvider).foodScannerEnabled)
+              (
+                label: 'Quét món',
+                art: 'scan',
+                key: const ValueKey('today-shortcut-scan'),
+                onTap: () => _quickEntry(day, JournalQuickAction.scanFood),
+              ),
+            (
+              label: 'Nước',
+              art: 'water',
+              key: const ValueKey('today-shortcut-water'),
+              onTap: () => _quickEntry(day, JournalQuickAction.addWater),
+            ),
+            (
+              label: 'Bước chân',
+              art: 'steps',
+              key: const ValueKey('today-shortcut-steps'),
+              onTap: () => context.push('${AppRoutes.wellness}?tab=2'),
+            ),
+            (
+              label: 'Giấc ngủ',
+              art: 'moon',
+              key: const ValueKey('today-shortcut-moon'),
+              onTap: () => context.push('${AppRoutes.wellness}?tab=3'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              day == today ? 'Hôm nay' : DateFormat('dd/MM').format(day),
+              style: theme.textTheme.bodySmall,
+            ),
+            IconButton(
+              key: const ValueKey('open-today-journal'),
+              tooltip: 'Mở nhật ký',
+              onPressed: () => _viewJournal(day),
+              icon: const Icon(Icons.menu_book_outlined),
+            ),
+          ],
         ),
         const SizedBox(height: 20),
         Row(
@@ -310,49 +419,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 18),
-        if (hasError) ...[
-          _LoadErrorCard(onRetry: () => _retry(day)),
-          const SizedBox(height: 12),
-        ],
-        MfpCaloriesCard(
-          key: const ValueKey('dashboard-today-card'),
-          editKey: const ValueKey('today-target-edit'),
-          onPersonalize:
-              targetReady && targetState.value == null && day == today
-              ? () => openPersonalNutritionPlanner(context)
-              : null,
-          targetStatus: targetState.isLoading || budgetState.isLoading
-              ? 'Đang tải mục tiêu dinh dưỡng…'
-              : targetState.hasError || budgetState.hasError
-              ? 'Chưa tải được mục tiêu.'
-              : null,
-          consumed: totals?.kcal,
-          target: budget?.kcalTarget,
-          budgetNote: budget != null && budget.adjustmentKcal > 0
-              ? 'Gốc ${budget.baseTarget.kcalTarget.round()} + bước đã xác nhận ${budget.adjustmentKcal.round()} kcal (ước tính)'
-              : budget?.hasUnappliedAdjustment == true
-              ? budget!.explanation
-              : null,
-          onEditTarget: targetReady
-              ? () => openNutritionTargetForm(
-                  context,
-                  ref,
-                  key == localDateKey(today) ? targetState.value : null,
-                )
-              : null,
-        ),
-        if (targetState.hasError)
-          TextButton(
-            onPressed: () => ref.invalidate(nutritionTargetProvider(key)),
-            child: const Text('Chưa tải được mục tiêu · Thử lại'),
-          ),
-        if (budgetState.hasError && !targetState.hasError)
-          TextButton(
-            onPressed: () => retryEnergyBudget(ref, key),
-            child: const Text('Chưa tải đủ ngân sách · Thử lại'),
-          ),
-        const SizedBox(height: 12),
-        MfpMacrosCard(totals: totals),
         if (resolved && !hasData) ...[
           const SizedBox(height: 16),
           EmptyState(

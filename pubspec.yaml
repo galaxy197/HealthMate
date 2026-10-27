@@ -82,6 +82,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/design/
     - assets/branding/google_g.png
     - assets/nutrition/vietnamese-foods.json
 

@@ -21,7 +21,7 @@ void main() {
   ) async {
     await pumpApp(tester, dashboardNow: now);
 
-    expect(find.text('Chào buổi sáng, HealthMate Tester'), findsOneWidget);
+    expect(find.text('Chào buổi sáng, Tester'), findsOneWidget);
     expect(find.text('Thứ Ba, 13 tháng 10'), findsOneWidget);
     expect(find.byKey(const ValueKey('dashboard-empty')), findsOneWidget);
     expect(find.byKey(const ValueKey('dashboard-today-card')), findsOneWidget);
@@ -80,7 +80,13 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey('dashboard-today-card')), findsOneWidget);
-    expect(find.text('130 kcal đã ghi'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('dashboard-today-card')),
+        matching: find.text('130'),
+      ),
+      findsOneWidget,
+    );
     expect(_tile(tester, 'dashboard-water').value, '750');
     expect(_tile(tester, 'dashboard-activity').value, '35');
     expect(_tile(tester, 'dashboard-meals').value, '1');
@@ -135,7 +141,13 @@ void main() {
           find.byKey(const ValueKey('quick-action-weight')),
           findsOneWidget,
         );
-        expect(find.text('Quét món'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('quick-action-scan')),
+            matching: find.text('Quét món'),
+          ),
+          findsOneWidget,
+        );
         expect(find.textContaining('Gemini'), findsNothing);
         expect(tester.takeException(), isNull);
       },

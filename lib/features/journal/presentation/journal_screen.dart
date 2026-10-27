@@ -24,6 +24,7 @@ import '../providers/journal_date_provider.dart';
 import '../providers/journal_quick_action_provider.dart';
 import 'journal_date_selector.dart';
 import 'journal_nutrition_overview.dart';
+import 'meal_summary_grid.dart';
 import '../../reports/presentation/day_review_controls.dart';
 
 class JournalScreen extends ConsumerWidget {
@@ -290,8 +291,11 @@ class JournalScreen extends ConsumerWidget {
     });
 
     return FeaturePage(
+      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      headerGap: 19,
+      showProfileAvatar: true,
       key: const ValueKey('journal-screen'),
-      title: 'Nhật ký',
+      title: 'Nhật ký hôm nay',
       subtitle: '',
       compactHeader: true,
       children: [
@@ -313,7 +317,33 @@ class JournalScreen extends ConsumerWidget {
               'Đang chờ máy chủ xác nhận thay đổi. Nếu mất mạng, thao tác có thể được đồng bộ khi kết nối lại; đừng gửi lặp.',
             ),
           ),
-        JournalNutritionOverview(day: selectedDate, meals: mealsState),
+        JournalNutritionOverview(
+          day: selectedDate,
+          meals: mealsState,
+          compact: true,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        MealSummaryGrid(
+          meals: mealsState,
+          onOpen:
+              action.isLoading ||
+                  catalogState.isLoading ||
+                  catalogState.hasError
+              ? null
+              : (type) => openJournalMealForm(
+                  context,
+                  ref,
+                  catalog,
+                  initialType: type,
+                  initialConsumedAt: _timeOnSelectedDate(selectedDate),
+                ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        FilledButton(
+          key: const ValueKey('open-day-review'),
+          onPressed: () => openDayReview(context, selectedDate),
+          child: const Text('Xác nhận đã ghi đủ các bữa đã ăn'),
+        ),
         const SizedBox(height: AppSpacing.md),
         MealLogSection(
           onOpenDrafts: () => openJournalMealForm(
@@ -399,12 +429,6 @@ class JournalScreen extends ConsumerWidget {
           onDismissError: ref
               .read(activityControllerProvider.notifier)
               .clearError,
-        ),
-        OutlinedButton.icon(
-          key: const ValueKey('open-day-review'),
-          onPressed: () => openDayReview(context, selectedDate),
-          icon: const Icon(Icons.fact_check_outlined),
-          label: const Text('Xác nhận đủ bữa'),
         ),
       ],
     );

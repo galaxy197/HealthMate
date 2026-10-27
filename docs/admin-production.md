@@ -92,8 +92,12 @@ có cấu hình App Check debug riêng, không phải bản store để phân ph
 App cũ vẫn dùng MVP nhưng chưa tự nhận cấu hình/đồng bộ directory. Cài bản bật
 `HEALTHMATE_ENABLE_ADMIN_CONTROLS=true` để khóa/bảo trì/tắt tính năng thể hiện
 đầy đủ trong UI; tài khoản xuất hiện khi đăng nhập/tải hồ sơ. Directory không
-phải toàn bộ Auth. Source cờ vẫn mặc định false, build dùng thật tiếp theo cần
-truyền define true; không âm thầm thay mặc định các test/build khác.
+phải toàn bộ Auth. Source cờ vẫn mặc định false. Từ bản sửa tích hợp 27/10, dùng
+`tool/run_android.ps1` / `tool/build_android.ps1`: cả hai nạp
+`config/admin-runtime.json` với define true. Build thô không nạp cấu hình này
+vẫn là bản không nhận điều khiển admin.
+
+APK và kết quả mới hơn: [kiểm thử tích hợp admin](admin-runtime-integration.md).
 
 ## Người dùng thử sau
 

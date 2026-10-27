@@ -441,7 +441,13 @@ void main() {
         .read(favoriteFoodControllerProvider.notifier)
         .setFavorite('rice-cooked', true);
     await tester.pump();
-    auth.emitUser(const AuthUser(emailVerified: true, uid: 'bob', email: 'bob@example.test'));
+    auth.emitUser(
+      const AuthUser(
+        emailVerified: true,
+        uid: 'bob',
+        email: 'bob@example.test',
+      ),
+    );
     await tester.pumpAndSettle();
     favorites.pending!.complete();
     await tester.pumpAndSettle();
@@ -678,7 +684,7 @@ void main() {
       expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('nutrition-daily-totals')))
-            .data,
+            .semanticsLabel,
         startsWith('195 kcal'),
       );
       await repository.deleteMeal(uid: 'test-uid', mealId: 'one');
@@ -687,7 +693,7 @@ void main() {
       expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('nutrition-daily-totals')))
-            .data,
+            .semanticsLabel,
         startsWith('130 kcal'),
       );
     },

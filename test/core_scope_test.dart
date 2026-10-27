@@ -113,7 +113,11 @@ void main() {
               'nav-profile',
               'nav-dashboard',
             ]) {
-              await tester.tap(find.byKey(ValueKey(tab)));
+              if (tab == 'nav-profile') {
+                await openProfileFromShell(tester);
+              } else {
+                await tester.tap(find.byKey(ValueKey(tab)));
+              }
               await tester.pumpAndSettle();
               expect(find.byKey(const ValueKey('open-chat')), findsNothing);
               expect(find.byKey(const ValueKey('scan-food')), findsNothing);
@@ -194,7 +198,7 @@ void main() {
         );
         _expectAiUnused(container, history);
       }
-      await tester.tap(find.byKey(const ValueKey('nav-profile')));
+      await openProfileFromShell(tester);
       await tester.pumpAndSettle();
       final quest = find.byKey(const ValueKey('open-goals-quests'));
       await tester.ensureVisible(quest);
@@ -202,7 +206,7 @@ void main() {
       await tester.tap(quest);
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, AppRoutes.quest);
-      await tester.tap(find.byKey(const ValueKey('nav-profile')));
+      await openProfileFromShell(tester);
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, AppRoutes.profile);
       _expectAiUnused(container, history);
@@ -231,7 +235,7 @@ void main() {
     final history = FakeChatRepository();
     final container = await pumpApp(tester, chatRepository: history);
     final router = container.read(appRouterProvider);
-    await tester.tap(find.byKey(const ValueKey('nav-profile')));
+    await openProfileFromShell(tester);
     await tester.pumpAndSettle();
     router.push<void>(AppRoutes.chat);
     await tester.pumpAndSettle();
@@ -328,7 +332,7 @@ void main() {
             .path,
         AppRoutes.dashboard,
       );
-      await tester.tap(find.byKey(const ValueKey('nav-profile')));
+      await openProfileFromShell(tester);
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('open-chat')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('quick-add-menu')));

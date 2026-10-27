@@ -71,9 +71,9 @@ abstract final class DesignTokens {
   static const weightDark = Color(0xFF7C3AED);
 
   /// Macro colors (MyFitnessPal style)
-  static const carbsColor = cyan500; // Cyan for carbs
-  static const fatColor = purple500; // Purple for fat
-  static const proteinColor = orange500; // Orange for protein
+  static const carbsColor = Color(0xFF67CAD3);
+  static const fatColor = Color(0xFFFFCB48);
+  static const proteinColor = Color(0xFF76C87A);
 
   /// Semantic colors
   static const success = Color(0xFF10B981);

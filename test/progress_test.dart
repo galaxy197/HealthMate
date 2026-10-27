@@ -200,7 +200,7 @@ void main() {
       await tester.pump();
       expect(n.rangeCalls, 1);
       sub.close();
-      await tester.tap(find.byKey(const ValueKey('nav-profile')));
+      await openProfileFromShell(tester);
       await tester.pumpAndSettle();
       expect(find.text('Không gian cá nhân'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('nav-dashboard')));
@@ -323,7 +323,7 @@ void main() {
       expect(find.text('14/12/2026 – 20/12/2026'), findsOneWidget);
       expect(find.text('600 kcal đã ghi'), findsNothing);
       expect(n.rangeCalls, 3);
-      await tester.tap(find.byKey(const ValueKey('nav-profile')));
+      await openProfileFromShell(tester);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('nav-progress')));
       await tester.pumpAndSettle();
@@ -371,7 +371,13 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.pump();
-    auth.emitUser(const AuthUser(emailVerified: true, uid: 'user-b', email: 'b@example.com'));
+    auth.emitUser(
+      const AuthUser(
+        emailVerified: true,
+        uid: 'user-b',
+        email: 'b@example.com',
+      ),
+    );
     profile.emitProfile(profileForUid('user-b'));
     await tester.pump();
     gate.complete();
@@ -564,7 +570,7 @@ void main() {
           final weight = find.byType(WeightChart);
           await Scrollable.ensureVisible(tester.element(weight), alignment: .2);
           await tester.pumpAndSettle();
-          await tester.tap(find.byKey(const ValueKey('nav-profile')));
+          await openProfileFromShell(tester);
           await tester.pumpAndSettle();
           expect(find.text('Không gian cá nhân'), findsOneWidget);
           await tester.tap(find.byKey(const ValueKey('nav-progress')));

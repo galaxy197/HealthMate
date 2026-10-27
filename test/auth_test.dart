@@ -337,11 +337,15 @@ void main() {
     final container = await pumpApp(tester, repository: auth);
     container.read(appRouterProvider).go(AppRoutes.profile);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('sign-out')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sign-out')));
     await tester.pumpAndSettle();
     expect(find.text('member@example.com'), findsWidgets);
     expect(find.text(auth.failure!.message), findsOneWidget);
     auth.failure = null;
+    await tester.ensureVisible(find.byKey(const ValueKey('sign-out')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sign-out')));
     await tester.pumpAndSettle();
     expect(find.text('Chào mừng bạn trở lại'), findsOneWidget);

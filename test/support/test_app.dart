@@ -9,6 +9,7 @@ import 'fake_day_review_repository.dart';
 import 'package:healthmate/app.dart';
 import 'package:healthmate/features/wellness/data/wellness_device.dart';
 import 'package:healthmate/features/wellness/providers/wellness_providers.dart';
+import 'package:healthmate/features/wellness/models/wellness_models.dart';
 import 'package:healthmate/features/food_library/providers/favorite_food_providers.dart';
 import 'fake_favorite_food_repository.dart';
 import 'fake_food_library_repository.dart';
@@ -53,6 +54,32 @@ import 'package:healthmate/features/food_scanner/models/barcode_product_models.d
 import 'package:healthmate/features/food_scanner/data/food_camera_service.dart';
 import 'package:healthmate/core/data/private_local_data.dart';
 import 'package:healthmate/features/meal_drafts/data/meal_draft_store.dart';
+
+/// Reports follow Figma's title/export header; the Home avatar opens Profile.
+Future<void> openProfileFromShell(WidgetTester tester) async {
+  if (find.byKey(const ValueKey('nav-profile')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const ValueKey('nav-dashboard')));
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(find.byKey(const ValueKey('nav-profile')));
+  await tester.tap(find.byKey(const ValueKey('nav-profile')));
+  await tester.pumpAndSettle();
+}
+
+Finder journalTotals(String text) => find.byWidgetPredicate(
+  (w) =>
+      w is Text &&
+      w.key == const ValueKey('nutrition-daily-totals') &&
+      (w.semanticsLabel ?? w.data) == text,
+);
+
+Future<void> openJournalNutritionDetails(WidgetTester tester) async {
+  await tester.ensureVisible(
+    find.byKey(const ValueKey('journal-nutrition-details')),
+  );
+  await tester.tap(find.byKey(const ValueKey('journal-nutrition-details')));
+  await tester.pumpAndSettle();
+}
 
 Future<void> openDashboardDetails(
   WidgetTester tester, {
@@ -119,6 +146,8 @@ Future<ProviderContainer> pumpApp(
   PrivateLocalData? privateLocalData,
   DateTime Function()? authNow,
   EnergyRepository? energyRepository,
+  List<StepDay> stepDays = const [],
+  List<SleepLog> sleepLogs = const [],
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -143,6 +172,9 @@ Future<ProviderContainer> pumpApp(
   final library = libraryRepository ?? FakeFoodLibraryRepository();
   final container = ProviderContainer(
     overrides: [
+      stepHistoryProvider.overrideWith((ref) => Stream.value(stepDays)),
+      sleepHistoryProvider.overrideWith((ref) => Stream.value(sleepLogs)),
+      sleepStartProvider.overrideWith((ref) => Stream.value(null)),
       energyRepositoryProvider.overrideWithValue(
         energyRepository ?? FakeEnergyRepository(),
       ),

@@ -39,7 +39,7 @@ void main() {
             'nav-journal',
             'quick-add-menu',
             'nav-progress',
-            'nav-profile',
+            'nav-wellness',
           ];
           final rects = [
             for (final key in keys) tester.getRect(find.byKey(ValueKey(key))),
@@ -59,7 +59,11 @@ void main() {
             ('nav-profile', AppRoutes.profile),
             ('nav-dashboard', AppRoutes.dashboard),
           ]) {
-            await tester.tap(find.byKey(ValueKey(entry.$1)));
+            if (entry.$1 == 'nav-profile') {
+              await openProfileFromShell(tester);
+            } else {
+              await tester.tap(find.byKey(ValueKey(entry.$1)));
+            }
             await tester.pumpAndSettle();
             expect(
               container
@@ -134,7 +138,7 @@ void main() {
               find.byKey(ValueKey('quick-action-${destination.$1}')),
             );
           } else {
-            await tester.tap(find.byKey(const ValueKey('nav-profile')));
+            await openProfileFromShell(tester);
             await tester.pumpAndSettle();
             await tapVisible(tester, find.byKey(ValueKey(destination.$2)));
           }

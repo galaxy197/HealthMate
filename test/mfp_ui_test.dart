@@ -45,7 +45,7 @@ Future<void> capture(WidgetTester tester, GlobalKey key, String name) async {
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
     final image = await boundary.toImage(pixelRatio: 1.5);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    final file = File('docs/ux/mfp/$name.png');
+    final file = File('build/figma-v2/mfp/$name.png');
     await file.parent.create(recursive: true);
     await file.writeAsBytes(bytes!.buffer.asUint8List());
     image.dispose();
@@ -213,6 +213,11 @@ void main() {
       tester.widget<MfpCaloriesCard>(find.byType(MfpCaloriesCard)).consumed,
       260,
     );
+    await Scrollable.ensureVisible(
+      tester.element(find.byKey(const ValueKey('today-day-2026-10-19'))),
+      alignment: .5,
+    );
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('today-day-2026-10-19')));
     await tester.pump();
     await tester.pump();
@@ -220,6 +225,11 @@ void main() {
       tester.widget<MfpCaloriesCard>(find.byType(MfpCaloriesCard)).consumed,
       isNull,
     );
+    await Scrollable.ensureVisible(
+      tester.element(find.byKey(const ValueKey('today-day-2026-10-20'))),
+      alignment: .5,
+    );
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('today-day-2026-10-20')));
     await tester.pumpAndSettle();
     repo.pending.complete([meal('late', 19, 300)]);

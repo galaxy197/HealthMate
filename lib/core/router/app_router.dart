@@ -115,13 +115,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const FoodLibraryScreen(),
               ),
               GoRoute(
-                path: AppRoutes.wellness,
-                builder: (context, state) => WellnessScreen(
-                  initialTab:
-                      int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0,
-                ),
-              ),
-              GoRoute(
                 path: AppRoutes.personalization,
                 builder: (context, state) =>
                     const OnboardingScreen(isEditing: true),
@@ -152,6 +145,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.progress,
                 builder: (context, state) => const ProgressScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.wellness,
+                builder: (context, state) => WellnessScreen(
+                  initialTab:
+                      int.tryParse(state.uri.queryParameters['tab'] ?? '') ??
+                      -1,
+                ),
               ),
             ],
           ),

@@ -73,7 +73,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('save-profile')));
     await tester.pumpAndSettle();
     expect(repository.updateProfileCalls, 1);
-    expect(find.text('Nguyễn An'), findsOneWidget);
+    expect(container.read(userProfileProvider).value?.displayName, 'Nguyễn An');
+    expect(find.text('Nguyễn An'), findsNWidgets(2));
     expect(find.text('Chiều cao: 175.5 cm'), findsOneWidget);
     expect(find.text('Mục tiêu: Giảm cân'), findsOneWidget);
     expect(find.text('Cân nặng mục tiêu: 65.0 kg'), findsOneWidget);

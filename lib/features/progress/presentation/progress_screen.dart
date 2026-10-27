@@ -1,4 +1,5 @@
 import '../../../core/widgets/tracking_page.dart';
+import '../../../core/widgets/reference_segments.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +13,8 @@ import '../../weekly_reflection/models/weekly_reflection.dart';
 import '../../reports/presentation/period_report_panel.dart';
 import '../../reports/presentation/report_range_dialog.dart';
 import '../../reports/models/period_report.dart';
+import '../../reports/providers/report_providers.dart';
+import '../../../core/utils/local_date_key.dart';
 import 'progress_overview.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/router/app_routes.dart';
@@ -43,15 +46,69 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final state = weekly && !_details
         ? ref.watch(weeklyLogsProvider(start))
         : null;
+    final reviews = weekly && !_details
+        ? ref.watch(
+            dayReviewsProvider(
+              ReportRange(DateTime(end.year, end.month, end.day + 1), 7),
+            ),
+          )
+        : null;
+    final weeklyControls = Column(
+      children: [
+        ReferenceSegments(
+          items: [
+            for (final entry in [
+              'Tổng quan',
+              'Năng lượng',
+              'Dưỡng chất',
+              'Macro',
+            ].indexed)
+              (
+                key: ValueKey('progress-tab-${entry.$1}'),
+                label: entry.$2,
+                selected: _tab == entry.$1,
+                onTap: () => setState(() {
+                  _tab = entry.$1;
+                  _details = false;
+                }),
+              ),
+          ],
+        ),
+        Row(
+          children: [
+            IconButton(
+              key: const ValueKey('previous-week'),
+              tooltip: 'Tuần trước',
+              onPressed: () => setState(() => _offset--),
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Expanded(
+              child: Text(
+                '${DateFormat('dd/MM/yyyy').format(start)} – ${DateFormat('dd/MM/yyyy').format(end)}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+            IconButton(
+              key: const ValueKey('next-week'),
+              tooltip: 'Tuần sau',
+              onPressed: _offset < 0 ? () => setState(() => _offset++) : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
     return TrackingPage(
       key: const ValueKey('progress-screen'),
+      showProfileAvatar: false,
       header: Row(
         children: [
           Expanded(
             child: Text(
               'Tiến độ',
               style: theme.textTheme.headlineLarge?.copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w400,
               ),
             ),
           ),
@@ -76,78 +133,29 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         ],
       ),
       children: [
-        const SizedBox(height: 16),
-        if (weekly)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final entry in [
-                  'Tổng quan',
-                  'Năng lượng',
-                  'Dưỡng chất',
-                  'Macro',
-                ].indexed)
-                  InkWell(
-                    key: ValueKey('progress-tab-${entry.$1}'),
-                    onTap: () => setState(() {
-                      _tab = entry.$1;
-                      _details = false;
-                    }),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: _tab == entry.$1 && !_details
-                                ? theme.colorScheme.onSurface
-                                : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      child: Text(
-                        entry.$2,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: _tab == entry.$1
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
+        ReferenceSegments(
+          items: [
             for (final days in [7, 30, 90])
-              ChoiceChip(
+              (
                 key: ValueKey('report-window-$days'),
+                label: days == 7 ? 'Tuần' : '$days ngày',
                 selected: _mode == 'preset' && _days == days,
-                label: Text(days == 7 ? 'Tuần' : '$days ngày'),
-                onSelected: (_) => setState(() {
+                onTap: () => setState(() {
                   _mode = 'preset';
                   _days = days;
                 }),
               ),
-            ChoiceChip(
+            (
               key: const ValueKey('report-window-year'),
-              label: const Text('Theo năm'),
+              label: 'Năm',
               selected: _mode == 'year',
-              onSelected: (_) => setState(() => _mode = 'year'),
+              onTap: () => setState(() => _mode = 'year'),
             ),
-            ChoiceChip(
+            (
               key: const ValueKey('report-window-custom'),
-              label: const Text('Tùy chọn'),
+              label: 'Tùy chọn',
               selected: _mode == 'custom',
-              onSelected: (_) async {
+              onTap: () async {
                 final range = await chooseReportRange(
                   context,
                   today: today,
@@ -231,39 +239,22 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
         else if (_details)
           WeeklyReflectionCard(today: today, progressMode: true)
         else ...[
-          Row(
-            children: [
-              IconButton(
-                key: const ValueKey('previous-week'),
-                tooltip: 'Tuần trước',
-                onPressed: () => setState(() => _offset--),
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Expanded(
-                child: Text(
-                  '${DateFormat('dd/MM/yyyy').format(start)} – ${DateFormat('dd/MM/yyyy').format(end)}',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              IconButton(
-                key: const ValueKey('next-week'),
-                tooltip: 'Tuần sau',
-                onPressed: _offset < 0 ? () => setState(() => _offset++) : null,
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           state!.when(
             skipLoadingOnRefresh: false,
             skipLoadingOnReload: false,
             skipError: false,
-            loading: () => const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: CircularProgressIndicator()),
+            loading: () => Column(
+              children: [
+                weeklyControls,
+                const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ],
             ),
             error: (_, _) => Column(
               children: [
+                weeklyControls,
                 const Text(
                   'Chưa tải đủ dữ liệu tuần. Không tính tổng từ dữ liệu thiếu.',
                 ),
@@ -277,6 +268,24 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             data: (logs) => ProgressOverview(
               reflection: summarizeWeek(start, today, logs),
               tab: _tab,
+              confirmedDays:
+                  reviews == null || reviews.isLoading || reviews.hasError
+                  ? null
+                  : reviews.value
+                        ?.where(
+                          (r) => r.matches(
+                            logs.meals
+                                .where(
+                                  (m) =>
+                                      (m.dateKey ??
+                                          localDateKey(m.consumedAt)) ==
+                                      r.dateKey,
+                                )
+                                .toList(),
+                          ),
+                        )
+                        .length,
+              controls: weeklyControls,
             ),
           ),
         ],
