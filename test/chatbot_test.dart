@@ -22,6 +22,7 @@ import 'support/fake_chat_repository.dart';
 import 'support/fake_nutrition_repository.dart';
 import 'support/fake_water_repository.dart';
 import 'support/test_app.dart';
+import 'package:healthmate/features/premium/models/premium_models.dart';
 
 final today = DateTime(2026, 10, 16, 12);
 MealLog meal(String id, DateTime time, double kcal) => MealLog(
@@ -39,6 +40,51 @@ MealLog meal(String id, DateTime time, double kcal) => MealLog(
 );
 
 void main() {
+  testWidgets(
+    'demo quota counts AI requests, not local lookup or save retries',
+    (tester) async {
+      var quotaCalls = 0;
+      var deny = false;
+      final repository = FakeChatRepository();
+      final ai = FakeKnowledgeService();
+      final container = await pumpApp(
+        tester,
+        featureFlags: const AppFeatureFlags(chatbotEnabled: true),
+        chatRepository: repository,
+        knowledgeService: ai,
+        dashboardNow: today,
+        premiumQuota: (feature) async {
+          expect(feature, PremiumAiFeature.chat);
+          quotaCalls++;
+          if (deny) throw const PremiumFailure('Hết lượt AI demo');
+        },
+      );
+      container.read(appRouterProvider).go(AppRoutes.chat);
+      await tester.pumpAndSettle();
+      final controller = container.read(chatControllerProvider.notifier);
+      await controller.send(
+        'Hôm nay tôi ăn bao nhiêu kcal?',
+        today,
+        localOnly: true,
+      );
+      expect(quotaCalls, 0);
+      repository.failAfterSave = true;
+      await controller.send('', today, topic: KnowledgeTopic.readingLabels);
+      expect(quotaCalls, 1);
+      expect(ai.topics, hasLength(1));
+      repository.failAfterSave = false;
+      await controller.retry();
+      expect(quotaCalls, 1);
+      expect(ai.topics, hasLength(1));
+      deny = true;
+      await controller.send('', today, topic: KnowledgeTopic.balancedMeals);
+      expect(
+        container.read(chatControllerProvider).error,
+        contains('Hết lượt AI demo'),
+      );
+      expect(ai.topics, hasLength(1));
+    },
+  );
   test(
     'unsupported platforms reject AI before initializing Firebase',
     () async {

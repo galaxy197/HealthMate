@@ -1,5 +1,42 @@
 # Tiến độ HealthMate
 
+## 27/10/2026 — Giai đoạn tùy chọn 11: giao diện gọn và dễ đọc
+
+Đã chỉnh bố cục các màn hình dinh dưỡng hằng ngày: nền tiêu đề khi cuộn, khoảng
+cách dòng, hiển thị khẩu phần/dưỡng chất, tìm món, nhập bữa, mục tiêu và thực đơn
+chia theo ngày. Hướng dẫn phụ đóng mặc định, giữ các cảnh báo/xác nhận cần thiết.
+Không thêm thông báo, không sửa thuật toán hoặc lớp dữ liệu trong lượt UI.
+File chính và phạm vi: [báo cáo UI](ui-polish-2026-10-27.md).
+
+Format 22 file: 0 lệch; analyze 0 issues; full Flutter **685/685 qua**.
+APK thường `build/releases/healthmate-ui-polish-debug.apk` build thành công; 7/7 runtime tests qua.
+Không chạy lại luồng Android theo yêu cầu người dùng; người dùng tự nghiệm thu
+bản UI mới. Không cần cấu hình mới. Không deploy/push/tắt laptop.
+Bước tiếp theo đề xuất: người dùng kiểm tra UI trên Android; chưa tự triển khai.
+
+## 27/10/2026 — Soạn SRS và product backlog từ GitHub
+
+1. **Phạm vi/trạng thái:** hoàn tất tài liệu v0.1 theo yêu cầu; chờ người dùng/
+   giảng viên review, không triển khai chức năng mới. GitHub `main` qua API khớp
+   HEAD `14bb579b6d1549db1569ee7710b7b1733e92c5de`. Các thay đổi USDA/catalog/form
+   chưa commit ở working tree được giữ nguyên và không tính là đã phát hành.
+2. **Đã làm:** SRS có 52 FR, 12 NFR, actors, quy tắc, use cases, dữ liệu và ma
+   trận 15 mục rubric. Backlog có 13 Epic, 52 Story, 6 Task; 174 tiêu chí nghiệm
+   thu, priority, dependency và nguồn/test. Tách CODE/PARTIAL/PROPOSED; không tự
+   gán Done, sprint, assignee hoặc ước lượng. Chưa tạo board/issue Jira thật.
+3. **File chính:** `docs/requirements/HealthMate-SRS-2026-10-27.md`,
+   `docs/requirements/HealthMate-Backlog-2026-10-27.md`, README cùng thư mục.
+4. **Kiểm tra:** validator tài liệu exit 0: 116 đường dẫn nguồn/test tồn tại tại
+   commit baseline, ID/anchor/link tương đối/dependency không lỗi, không chu
+   trình. Đây là kiểm tra tài liệu, không phải 174 test ứng dụng. Không chạy lại
+   format/analyze/Flutter/Rules/web tests vì lượt này không sửa code; kết quả
+   test lịch sử trong SRS có ghi rõ nguồn và giới hạn.
+5. **Cần làm tiếp:** review bốn báo cáo áp dụng toàn app hay admin, SMS có bắt
+   buộc không, phạm vi ảnh/chi phí và hai luồng in; cung cấp/chọn Jira project
+   khi muốn đồng bộ thật. File mới là Draft, chưa phải SRS đã duyệt.
+6. **Giới hạn:** không commit/push/deploy, không đổi cấu hình/billing/dữ liệu,
+   không triển khai các mục Proposed. Bước đề xuất là review SRS/backlog.
+
 ## 27/10/2026 — Sửa tích hợp admin và bản Android Figma
 
 1. **Giai đoạn/trạng thái:** hoàn tất phạm vi sửa tích hợp admin được yêu cầu
@@ -2762,3 +2799,272 @@ thiếu createdAt/updatedAt trước khi được bổ sung, được giữ tron
 5. **Cần người dùng làm:** cài `build/releases/healthmate-figma-redo-debug.apk` và nghiệm thu trên Android; không cần Firebase config mới cho lượt UI.
 6. **Vấn đề/giới hạn:** không có ADB device, chưa chứng minh live end-to-end. Font dự phòng BeVietnamPro, icon Material và màu chữ tương phản có khác thiết kế. Build còn KGP warning cũ. Không đổi backend/schema/rules/billing/package, không deploy/commit/push. Snapshot mfp lịch sử giữ nguyên, ảnh mới đặt trong `docs/ux/reference-v2/`.
 7. **Tiếp theo đề xuất:** nghiệm thu giao diện trên Android thật; chưa triển khai giai đoạn khác.
+
+## 27/10/2026 — Giai đoạn 4, mở rộng catalog và lọc lựa chọn ăn
+
+1. **Trạng thái:** hoàn tất phạm vi người dùng yêu cầu: kiểm đếm/đối chiếu quy mô,
+   tăng danh mục và áp dụng lựa chọn ăn theo người. Không thực hiện giai đoạn mới.
+2. **Đã hoàn thành:** 162 → **7.606 mục**; 58 → **7.169 mục có khẩu phần**. Thêm
+   7.444 mục USDA có provenance/core macros, giữ món Việt. Chay/thuần chay trong
+   hồ sơ được dùng làm bộ lọc ban đầu của form Nhật ký và lọc gợi ý thực đơn Việt.
+   Mục tiêu tăng/giảm/giữ cân tiếp tục dùng cơ chế chỉ tiêu kcal hiện có. Chưa rõ
+   thành phần bị ẩn khi lọc chay; không thay nhật ký đã lưu.
+3. **File chính:** asset `usda-sr-legacy.json`; importer/test Python và manifest;
+   bundled loader, catalog reader/model/search, `food_diet.dart`, meal form,
+   journal entry và planner; pubspec asset; `catalog_expansion_test.dart`.
+   Nguồn/cách dùng/giới hạn: [catalog-expansion-and-diets.md](catalog-expansion-and-diets.md).
+4. **Kiểm thử thật:** format 12 file Dart (1 file test được định dạng); analyze
+   **No issues found (7,3s)**; full Flutter **663/663 qua (74s)**; importer Python
+   **5/5**, bộ nguồn Việt Node **10/10**; runtime config build **7/7**. APK debug
+   build thành công, Gradle **17,6s**. Kiểm tra ZIP xác nhận cả hai asset trong
+   APK trùng byte với source và tổng 7.606 mục. Logs: `build/catalog-expansion/`.
+5. **Cần người dùng làm:** cài `build/releases/healthmate-food-catalog-debug.apk`
+   để nghiệm thu trên Android thật. Không cần Firebase setup/deploy mới cho
+   phần catalog; APK giữ cấu hình runtime admin. SHA256/size có manifest cạnh APK.
+6. **Vấn đề/giới hạn:** vẫn nhỏ hơn quy mô MyFitnessPal/Calz công bố; USDA là bản
+   lịch sử 2018, nhiều tên/khẩu phần còn tiếng Anh. Phân loại chỉ sàng lọc theo
+   mô tả, không chứng nhận chay; chưa lọc dị ứng hoặc tối ưu thực đơn theo kcal.
+   Các lối món cá nhân/lịch sử chưa được phân loại đầy đủ. Admin Firestore không
+   hiện toàn bộ asset offline. ADB không có thiết bị; chưa đo tốc độ trên Android
+   thật hoặc kiểm production end-to-end. Còn warning KGP plugin cũ khi build.
+7. **Tiếp theo đề xuất:** nghiệm thu danh mục và chế độ ăn trên Android thật.
+   Không tự triển khai thêm, ghi catalog cloud, push GitHub hoặc tắt laptop.
+
+## 27/10/2026 — Giai đoạn 4, sửa các điểm chưa ổn trong luồng người dùng
+
+1. **Trạng thái:** hoàn tất sửa code và kiểm thử luồng dinh dưỡng theo yêu cầu
+   làm nốt các điểm chưa ổn; tiếp tục cùng Giai đoạn 4. Không triển khai backlog
+   báo cáo/in/ảnh trong `docs/requirements/` hoặc chuyển giai đoạn khác.
+2. **Đã sửa:** phát hiện preference mới chỉ được đưa vào constructor trong luồng
+   chính nhưng nhánh `sourcesBuilder` chưa dùng bộ lọc. Nay màn Nhập tay thực sự
+   lọc danh mục/duyệt/tìm/kết quả ngoài, đổi chế độ ăn hủy response cũ. Bộ lọc có
+   trong Yêu thích; catalog favorite ngoài chế độ bị khóa nút thêm, vẫn bỏ lưu
+   được. Sửa kế hoạch và xác nhận đã ăn nhận chế độ ăn từ hồ sơ. Giữ nguyên món
+   đã chọn/lịch sử khi đổi bộ lọc. Món riêng/lịch sử chưa có phân loại được nhắc
+   kiểm tra thành phần, không giả được chứng nhận chay.
+3. **Khả năng phục hồi:** lỗi tìm thêm không làm mất kết quả local; hiện lời nhắn
+   tiếng Việt/thử lại, không lộ raw exception. Catalog đổi trong khi tìm cập nhật
+   truy vấn hiện tại. Asset mở rộng thiếu/hỏng vẫn giữ 162 mục gốc, phân loại
+   thiếu là unknown. Không thay dữ liệu riêng tư hoặc ghi production.
+4. **File chính:** `food_diet_filter.dart`, `meal_form_dialog.dart`,
+   `meal_food_sources.dart`, `journal_meal_entry.dart`, `wellness_screen.dart`,
+   bundled loader, `catalog_expansion_test.dart` và callback test core journal.
+   Docs nguồn/cách dùng: [catalog-expansion-and-diets.md](catalog-expansion-and-diets.md).
+5. **Kiểm thử thực tế:** format cuối 15 file Dart 0 thay đổi; analyze No issues
+   found (7,1s); full Flutter cuối **668/668 qua (68s)**; nhóm catalog **12/12**.
+   Log ở `build/nutrition-polish/`. Test cũ chỉ kiểm constructor được mở rộng
+   thành thao tác thật trên form chính; không coi kết quả 663 trước là bằng chứng
+   nhánh `sourcesBuilder` đã lọc đúng. APK/kết quả build ghi trong test-report.
+6. **Cần người dùng làm / giới hạn:** cài APK mới và thử trên Android thật; ADB
+   không có thiết bị. Không cần Firebase setup mới. Vẫn còn tên USDA tiếng Anh,
+   chưa lọc dị ứng tự động/chứng nhận chay hoặc cân thực đơn khớp kcal; không tự
+   đoán thành phần để lấp dữ liệu. Không khẳng định toàn bộ app đã nghiệm thu UAT.
+7. **Tiếp theo đề xuất:** nghiệm thu luồng dinh dưỡng trên Android thật; chỉ đề
+   xuất, không chuyển giai đoạn hoặc tự tắt laptop.
+
+APK cuối của lượt sửa: `build/releases/healthmate-nutrition-polish-debug.apk`.
+Build thành công (Gradle16,7s), runtime config7/7; ZIP xác nhận2asset/tổng7.606
+mục; SHA256/size có manifest cạnh APK. Còn warning KGP cũ; chưa có thiết bị ADB.
+
+## 27/10/2026 — Giai đoạn 4, hoàn thiện ba giới hạn theo yêu cầu
+
+1. **Trạng thái:** hoàn tất triển khai và kiểm thử phần thực phẩm cần tránh,
+   gợi ý theo kcal, Việt hóa USDA trong cùng phạm vi dinh dưỡng.
+2. **Người dùng làm được:** khai báo thực phẩm cần tránh để tự lọc danh mục/
+   tìm kiếm/gợi ý, kể cả món chưa rõ thành phần. Kế hoạch chặn lưu snapshot cần
+   tránh/chưa rõ; nhật ký cho phép ghi bữa đã ăn sau xác nhận rõ. Không mở form
+   với bộ lọc rỗng nếu chưa tải được hồ sơ. Thực đơn dùng mục tiêu kcal có hiệu
+   lực từng ngày, giữ bữa đã lên kế hoạch, điều chỉnh gram có giới hạn và xem
+   tổng/mức lệch trước lưu; không tự ghi nhật ký. Danh mục có tên Việt rút gọn,
+   xem/tìm tên gốc tiếng Anh, giữ dinh dưỡng/portion/snapshot cũ.
+3. **File chính:** `food_avoidance.dart`, `meal_plan_suggestion.dart`,
+   `meal_form_dialog.dart`, `meal_food_sources.dart`, `food_portion_dialog.dart`,
+   `journal_meal_entry.dart`, `wellness_screen.dart`, food model/reader/cache,
+   bundled loader, `usda_vietnamese.py`, importer/asset/manifest và tests/docs.
+4. **Kiểm thử:** full678/678; hồi quy cuối33/33; Python7/7; analyze sạch.
+   Format21file thay đổi sạch, 4file cũ ngoài phạm vi cần format; `dart format .`
+   vướng cache Chrome không tồn tại. Đã kiểm source nutrient/portion7.444mục
+   không đổi so APK trước. Chi tiết và log ở `docs/test-report.md`.
+5. **Cần người dùng làm:** cài APK mới, khai báo tên cần tránh ngăn cách bằng `;`
+   tại Cá nhân hóa, xác nhận mục tiêu kcal và nghiệm thu thực đơn/nhật ký trên
+   Android thật. Không cần cấu hình Firebase mới cho phần này.
+6. **Giới hạn:** từ khóa và thành phần công thức tham khảo không đại diện mọi
+   món/nhãn hàng, không kiểm nhiễm chéo. Không bảo đảm khớp kcal với mọi hạn chế/
+   mục tiêu; không tối ưu riêng macro/vi chất. 475 mục USDA còn giữ thương hiệu/
+   tên hiếm kèm nhóm tiếng Việt, đối chiếu tên gốc khi chọn món. Chưa có ADB
+   device, chưa thử production/Android thật; warning KGP cũ còn.
+7. **Đề xuất tiếp theo:** nghiệm thu dinh dưỡng trên thiết bị Android.
+
+APK bàn giao: `build/releases/healthmate-personalized-food-debug.apk`,
+236.866.438byte, build14,3s, runtime config7/7, hash/asset đã đối chiếu với
+manifest JSON. SHA256 `5C2FB0C58A262521BF4A4A45B1BFF86F78D2372513B3BB8484A631B1B7104726`.
+
+## 27/10/2026 — Giai đoạn 10, nghiệm thu dinh dưỡng trên Android
+
+1. **Trạng thái:** hoàn tất nghiệm thu local có điều kiện;11/11 checkpoint
+   nghiệp vụ qua trên AVD Android11/API30, chưa kiểm điện thoại vật lý.
+2. **Hành vi đã xác minh:**7.606món và metadata SQLite; mục tiêu2200kcal;
+   tránh sữa/trứng vẫn áp dụng khi chọn Tất cả chế độ; tìm tên USDA/xem tên
+   gốc; thêm150g/sửa200g/xóa; snapshot/tổng kcal; preview/Hủy không ghi;
+   28bữa/7ngày khớp±5%; chỉ xác nhận đã ăn mới ghi nhật ký; UID B không đọc A.
+3. **Sửa blocker:** `firestore.rules` thiếu `personalization` trong allowlist
+   update hồ sơ. Bổ sung field, giữ validation/quyền; thêm regression trong
+   `rules-tests/firestore.rules.test.cjs`. Thêm native suite
+   `integration_test/nutrition_acceptance_test.dart`, mở rộng runner
+   `tool/test_android_core.ps1`; cập nhật database-design và test-report.
+4. **Kiểm thử:** native suite qua khoảng74s, Gradle14,8s; Rules56/56;
+   analyzer cuối sạch20,3s; format test mới0thay đổi; diff-check qua.10ảnh
+   và log tại `build/android-nutrition-20261027`; không chạy lại full678test.
+5. **Cần làm trước production:** triển khai Rules đã review tới đúng Firebase
+   project, rồi nghiệm thu trên điện thoại. Chưa deploy; APK không tự sửa Rules.
+6. **Còn lại:** thực đơn thuần chay của fixture khớp kcal nhưng lặp bún/cam,
+   khẩu phần lớn, chưa cân bằng macro; header dashboard chồng khi cuộn;
+   qualifier khẩu phần USDA còn tiếng Anh. Chưa kiểm API ngoài/AI/offline mọi
+   trường hợp. Không có APK sản phẩm mới vì không đổi Dart runtime sản phẩm.
+7. **Đề xuất kế tiếp:** cải thiện chất lượng thực đơn/UX dinh dưỡng, sau đó
+   nghiệm thu production trên điện thoại. Chưa tự triển khai giai đoạn tiếp.
+
+Chi tiết, lần lỗi trước khi đạt và bằng chứng:
+[android-nutrition-acceptance.md](android-nutrition-acceptance.md).
+
+## 27/10/2026 — Giai đoạn 4, cập nhật nguồn dữ liệu thực phẩm
+
+1. **Trạng thái:** hoàn tất bảo trì catalog. Thêm 308 Foundation Foods từ
+   USDA 04/2026 và 3.255 FNDDS 2021–2023 phát hành 10/2024; tổng 11.169 mục.
+   Nguồn mới có tên Việt rút gọn, tên gốc, phiên bản và FDC ID; ưu tiên trước
+   USDA SR Legacy khi mức khớp bằng nhau. Không thay ID/snapshot cũ.
+2. **File chính:** `assets/nutrition/usda-current.json`,
+   `data/food_catalog/usda-current-manifest.json`, `tool/import_usda_current.py`,
+   `tool/test_usda_current.py`, `test/current_food_catalog_test.dart`;
+   bổ sung loader/parser/sort/pubspec, translator tùy chọn mapping, test đếm
+   catalog, benchmark, README và báo cáo nguồn.
+3. **Kiểm thử:** importer17/17, nhóm dinh dưỡng25/25, full Flutter688/688,
+   file mới sau bổ sung snapshot3/3; analyzer cuối sạch9,1s; format7file sạch.
+   Build debug Gradle19,4s, cấu hình7/7; asset APK khớp SHA nguồn.
+4. **Cần người dùng làm:** cài `build/releases/healthmate-current-foods-debug.apk`
+   để tự test. Không cần thêm key hay cấu hình Firebase cho catalog offline.
+5. **Giới hạn:** Foundation bản2026 chứa bản ghi công bố2019–2025; FNDDS có
+   giá trị biên soạn/kế thừa. Chưa có bản số Việt Nam2017 chính thức để nhập.
+   Survey chưa rõ thành phần giữ unknown; không coi là chứng nhận dị ứng.
+   KGP warning cũ và whitespace có sẵn `lib/main.dart:32` còn.
+6. **Triển khai:** chưa deploy/push; không chạy lại luồng Android. APK chuẩn
+   `lib/main.dart`,222.932.966byte, hash
+   `FF1F1E256F1C566D42172BABA2CC34F58374460A54358F6E3A12522FD018792B`.
+7. **Bước tiếp theo đề xuất:** người dùng nghiệm thu bản cập nhật; bổ sung
+   nguồn Việt2017 khi có bộ dữ liệu số có quyền sử dụng. Chưa tự triển khai.
+
+Chi tiết: [current-food-data-2026-10-27.md](current-food-data-2026-10-27.md).
+# 27/10/2026 — Sửa khởi chạy web admin trong VS Code
+
+1. **Giai đoạn/phạm vi:** bảo trì vận hành thuộc Giai đoạn10, chỉ sửa lệnh mở
+   admin; không đổi UI/nghiệp vụ, cấu hình Firebase hay deploy.
+2. **Đã hoàn thành:** xác định localhost4173 không có listener; launch Chrome
+   thiếu preLaunchTask. F5 local nay gọi script bật server nền, kiểm HTTP sẵn
+   sàng và dùng lại server đang chạy. Thêm lựa chọn Admin(online) cho dữ liệu thật.
+3. **File chính:** `.vscode/launch.json`, `.vscode/tasks.json`,
+   `tool/start_admin_local.ps1`, `admin-web/README.md` và báo cáo này.
+4. **Kiểm tra:** chạy đúng lệnh PowerShell5.1 của task thành công; lần thứ hai
+   dùng lại cùng PID. HTML/config/app/firebase/CSS đều HTTP200, giữ nosniff.
+   Online `https://healthmate-app-20261013.web.app` HTTP200 và đúng trang admin.
+   Lần đầu PowerShell5.1 chặn script theo policy mặc định; task đã thêm cờ
+   execution policy cho riêng tiến trình, không đổi policy Windows đã lưu.
+5. **Cần người dùng làm:** tải lại trang, hoặc chọn Admin(online) và đăng nhập
+   Google bằng tài khoản admin đã cấp. Local vẫn cần Emulator theo README.
+6. **Còn lại:** chưa bấm F5 qua UI VS Code hoặc đăng nhập thay người dùng;
+   Auth9098/Firestore8092 hiện chưa chạy. Không seed/reset fixture, không thử
+   lại luồng Android. Server local được giữ chạy tại loopback4173.
+7. **Tiếp theo:** người dùng thử đăng nhập đúng môi trường; không tự mở rộng.
+
+## 30/10/2026 — Mở rộng theo yêu cầu: Premium demo và doanh thu admin
+
+1. **Phạm vi:** một đợt Premium demo, theo lựa chọn mô phỏng đồ án của người
+   dùng; 20.000đ/30 ngày, không thu tiền hoặc tự gia hạn. Không mở dịch vụ trả
+   phí, không thêm dependency hoặc chuyển sang giai đoạn MVP khác.
+2. **Đã hoàn thành:** Cá nhân → Premium có mua/xác nhận/Hủy, hạn dùng và lượt
+   hôm nay. Free 3 ảnh/5 câu AI, Premium 20 ảnh/50 câu AI, chung theo UID,
+   reset 00:00 Việt Nam; reserve lượt nguyên tử trước AI, không tính mã vạch/
+   lookup local/thử lưu lại. Admin có doanh thu mô phỏng, lọc ngày, tổng hợp
+   từng ngày, chi tiết và Excel. Không suy doanh thu từ số gói.
+3. **File chính:** `lib/features/premium/` (model/repository/providers/UI),
+   router/profile/scanner/chat providers, `firestore.rules`,
+   `admin-web/dist/revenue-model.mjs`, `revenue-page.mjs`, app/list model,
+   `tool/build_android.ps1`, các test Premium/Rules/admin/chat và tài liệu.
+4. **Kiểm thử:** full Flutter **697/697**; analyzer sạch **10,6s**; admin
+   **25/25**, syntax qua; Rules Emulator **84/84**, gồm 6 Premium test và
+   tranh lượt cuối trên 2 thiết bị. Runtime build **7/7**, Gradle **55,4s**,
+   debug APK thành công, SHA/3 catalog assets khớp. Không chạy lại luồng Android.
+5. **Bàn giao:** `build/releases/healthmate-premium-demo-debug.apk`,
+   **222.955.916 byte**, SHA-256
+   `974348DCF030F070FAE1FA9760F6E3D379510C62ACA66E84236A5331FF94A449`,
+   manifest cùng tên có `premiumDemoEnabled:true`. Cờ demo mặc định false,
+   build riêng với `tool/build_android.ps1 -PremiumDemo`.
+6. **Triển khai:** đã cập nhật Firebase Hosting/Rules sau backup và đối
+   chiếu production; đọc lại Rules khớp source, cả 13 file HTTP200/hash đúng.
+   Web: https://healthmate-app-20261013.web.app. Ngoài Premium, Rules chỉ sửa allowlist
+   `personalization` đã kiểm thử khi nghiệm thu dinh dưỡng; không đổi validation
+   hoặc mở quyền người khác. Không nâng billing, đổi App Check hoặc cấp role.
+   Người dùng cài APK mới/tải lại web để nghiệm thu; không cần tự deploy.
+7. **Giới hạn:** quota trong client chính thức + counter Rules, chưa có chặn
+   AI ở backend chống client sửa. Không tăng quota dịch vụ AI. Metadata demo
+   chưa tự xóa theo tài khoản Auth, đã công khai trước mua. Chưa test Android
+   thật/AI thật/offline toàn luồng; người dùng tự nghiệm thu. Warning KGP cũ còn.
+8. **Bước tiếp theo đề xuất:** người dùng test APK demo và báo cáo; gói thu
+   tiền thật cần đợt riêng thiết kế xác minh thanh toán/quota phía server.
+
+Chi tiết: [premium-demo-2026-10-30.md](premium-demo-2026-10-30.md).
+
+## 30/10/2026 — Đổi địa chỉ web admin theo lựa chọn người dùng
+
+- **Phạm vi:** bảo trì Hosting thuộc Giai đoạn 10, chỉ đổi link; không thiết
+  kế lại giao diện hoặc mở giai đoạn MVP tiếp theo.
+- Tên `healthmate-admin.web.app` bị dự án khác giữ. Sau khi kiểm tra tên trống,
+  người dùng chọn **https://healthmate-admin-vn.web.app**.
+- Đã tạo site `healthmate-admin-vn` trong project hiện có và clone bản live
+  Premium demo từ site cũ. Không tạo project/database/Auth account mới.
+- Cấu hình Firebase Auth authorized domains và reCAPTCHA Enterprise allowlist
+  bổ sung hai hostname `.web.app`/`.firebaseapp.com` của site mới, giữ domain
+  cũ, key App Check/ngưỡng kiểm tra/quyền/billing. `billingEnabled:false`.
+- HTTPS 13/13 file HTTP200/hash khớp bản phát hành, header bảo vệ giữ nguyên;
+  link cũ HTTP200. Hosting version `74c1043d0c4d1f45`. Log/backup cấu hình tại
+  `build/admin-domain-switch-20261030/`.
+- File sửa: `.vscode/launch.json`, `admin-web/tool/prepare-release.cjs`, README
+  gốc/admin, docs admin-production/Premium/progress/test-report. Tool đóng gói
+  đã chạy thử với site mới, syntax check qua. Không sửa Dart/Rules, không cần
+  build lại APK hoặc chạy lại Flutter/Android.
+- **Cần người dùng làm:** mở link mới và đăng nhập tài khoản admin như trước.
+  Browser đã qua App Check và mở form đăng nhập sau tải lại; chưa thử Google
+  popup bằng tài khoản của người dùng. Chi tiết trong test-report.
+- **Tiếp theo đề xuất:** người dùng kiểm tra đăng nhập tại địa chỉ mới; không
+  tự mở rộng tính năng hoặc đổi giao diện.
+
+## 30/10/2026 — Mở rộng theo yêu cầu: Báo lỗi, góp ý và admin phản hồi
+
+1. **Giai đoạn/phạm vi:** đợt hỗ trợ khách hàng được người dùng yêu cầu riêng,
+   chỉ làm báo lỗi/góp ý/trao đổi/trạng thái; không mở các giai đoạn khác.
+2. **Đã hoàn thành:** Cá nhân → Báo lỗi & Góp ý, tạo yêu cầu, xem trạng thái/
+   phản hồi, bổ sung thông tin. Web admin → Hỗ trợ khách hàng có tìm kiếm,
+   bộ lọc, phân trang, xem/trả lời, cập nhật xử lý. Khách bổ sung mở lại yêu
+   cầu đã đóng; gửi lại dùng cùng ID, không nhân bản. Xóa tài khoản xóa cả
+   ticket/messages, freeze trước để ngăn phản hồi đồng thời tạo dữ liệu mồ côi.
+3. **File chính:** `lib/features/support/`, router/profile/privacy,
+   `firebase_account_data_repository.dart`, `firestore.rules`,
+   `firestore.indexes.json`, `admin-web/dist/support-model.mjs`,
+   `support-page.mjs`, app/firebase/list/CSS, tests Flutter/Rules/DOM/SDK.
+4. **Kiểm thử:** full cuối **707/707 Flutter**; analyzer sạch; admin **29/29**,
+   Rules **91/91**, SDK thật qua Emulator **5/5**. Build runtime **7/7**,
+   Gradle **21,8s**, APK debug thành công. Không chạy lại luồng Android.
+5. **Bàn giao:** `build/releases/healthmate-support-debug.apk`,222.973.794byte,
+   SHA256 `68D2B3F50ADDC5681FE4E589CA99E77CF53763A0096DFB1DFA2473C3A1A14854`.
+   Giữ Premium demo; người dùng cần cài APK mới, tải lại web admin.
+6. **Triển khai:** đã phát hành tại https://healthmate-admin-vn.web.app và
+   Rules project hiện có; Rules đọc lại khớp bản đã test;15/15file HTTPS/hash
+   đúng. Index support UID/updatedAt READY, giữ index cũ. Không nâng billing,
+   thêm dependency hoặc cấp quyền. Không gửi phản hồi tới khách thật để test.
+7. **Giới hạn:** chưa push/email/ảnh đính kèm, tối đa100tin/cuộc,2000ký tự/tin;
+   app hiện50ticket cập nhật gần nhất; admin loader5000. Gửi đồng thời có thể
+   cần bấm thử lại, draft/ID được giữ. Chưa rate limit/đánh dấu đã đọc; chưa
+   nghiệm thu điện thoại thật. Xóa Auth bên ngoài app không tự chạy cleanup.
+8. **Tiếp theo đề xuất:** người dùng test ticket A → admin reply → A xem/bổ sung
+   và kiểm UID B; không tự làm thông báo đẩy hoặc giai đoạn khác.
+
+Chi tiết: [customer-support-2026-10-30.md](customer-support-2026-10-30.md).

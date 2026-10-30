@@ -7,6 +7,9 @@ import '../../food_library/models/food_library_models.dart';
 import '../../food_library/presentation/meal_food_sources.dart';
 import '../../food_library/providers/food_library_providers.dart';
 import '../../nutrition/models/nutrition_models.dart';
+import '../../nutrition/models/food_diet.dart';
+import '../../nutrition/models/food_avoidance.dart';
+import '../../profile/providers/profile_providers.dart';
 import '../../nutrition/models/nutrition_failure.dart';
 import '../../nutrition/presentation/meal_form_dialog.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
@@ -32,6 +35,27 @@ Future<void> openJournalMealForm(
 }) async {
   final uid = ref.read(authSessionProvider).value?.uid;
   if (uid == null) return;
+  // Do not silently disable a saved avoidance filter while the profile loads.
+  final profile = await ref
+      .read(userProfileProvider.future)
+      .timeout(const Duration(seconds: 15))
+      .catchError((Object _) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Chưa tải được hồ sơ và thực phẩm cần tránh. Hãy thử mở lại bữa ăn.',
+              ),
+            ),
+          );
+        }
+        return null;
+      });
+  if (profile == null ||
+      !context.mounted ||
+      ref.read(authSessionProvider).value?.uid != uid) {
+    return;
+  }
   final store = ref.read(mealDraftStoreProvider);
   final localSupported = ref.read(privateLocalDataProvider).supported;
   SavedMealDraft? restored;
@@ -121,14 +145,23 @@ Future<void> openJournalMealForm(
               _ => null,
             },
         catalog: catalog,
+        initialDiet: FoodDietPreference.fromAnswer(
+          profile.personalization?['diet'],
+        ),
+        avoidance: FoodAvoidance.fromText(
+          profile.personalization?['avoidFoods'],
+        ),
         templatesBuilder: (items, onUse) =>
             MealTemplatePanel(items: items, onUse: onUse),
-        sourcesBuilder: (add, recent, custom) => MealFoodSources(
-          onCatalog: add,
-          onRecent: recent,
-          onCustom: custom,
-          initialSearch: initialSearch,
-        ),
+        sourcesBuilder: (add, recent, custom, diet, avoidance) =>
+            MealFoodSources(
+              diet: diet,
+              avoidance: avoidance,
+              onCatalog: add,
+              onRecent: recent,
+              onCustom: custom,
+              initialSearch: initialSearch,
+            ),
         meal: meal,
         initialConsumedAt: copy?.consumedAt ?? initialConsumedAt,
         initialType: copy?.type ?? initialType,

@@ -6,6 +6,14 @@ Không cần React, bundler, Admin SDK, service-account hoặc backend riêng.
 
 ## Chức năng hiện tại — 27/10/2026
 
+Cập nhật 30/10: thêm **Hỗ trợ khách hàng**. Khách tạo báo lỗi/góp ý trong app;
+admin lọc loại/trạng thái/từ khóa, mở cuộc trao đổi, Gửi phản hồi và Lưu trạng
+thái xử lý. Phản hồi hiển thị trong app, không gửi email hoặc push. Khách bổ
+sung tin nhắn sẽ mở lại yêu cầu. Không thể sửa nội dung gốc hoặc tin đã gửi.
+Tối đa 100 tin/cuộc, 2.000 ký tự/tin; bộ tải danh sách giới hạn 5.000 ticket.
+Xóa tài khoản trong app xóa ticket/messages; admin không có quyền xóa thay.
+Chi tiết: [Hỗ trợ khách hàng](../docs/customer-support-2026-10-30.md).
+
 - Đăng nhập email/mật khẩu hoặc Google bằng Firebase Auth; quyền đọc/ghi kiểm tra bằng Firestore Rules.
 - Thêm/sửa/ẩn/hiện món dùng chung, dinh dưỡng trên 100 g, chất xơ và nguồn.
 - Danh sách tài khoản đã đồng bộ: tên/email/UID; khóa/mở quyền dữ liệu HealthMate.
@@ -23,7 +31,7 @@ Gõ tìm kiếm không đọc Firestore lại. Dùng **Tải lại** để cập
 đây không phải ảnh chụp database tại cùng một thời điểm khi có ghi đồng thời.
 Danh sách tài khoản cần thêm lượt đọc trạng thái/role theo UID đã biết.
 
-Trạng thái: **đã publish https://healthmate-app-20261013.web.app**. App Check web,
+Trạng thái: **đã publish https://healthmate-admin-vn.web.app**. App Check web,
 role và Rules/Hosting đã cấu hình. Dùng **Tiếp tục với Google →
 luuxuantung285600@gmail.com**; tài khoản này không có mật khẩu riêng.
 17 kiểm tra server thật qua, người dùng chọn thử giao diện sau. Client chờ token
@@ -35,6 +43,22 @@ Admin không được đọc hồ sơ, bữa ăn, cân nặng hoặc hội tho�
 Không có nút tự cấp quyền, xóa tài khoản Auth hoặc đổi mật khẩu người dùng.
 
 ## Mở trong VS Code và chạy bản local
+
+Nếu cần quản trị dữ liệu thật, chọn **HealthMate Admin (online)** trong Run and
+Debug rồi F5, hoặc mở <https://healthmate-admin-vn.web.app>. Bản online không
+cần server localhost hoặc emulator. Đăng nhập Google bằng tài khoản admin đã cấp.
+
+Cấu hình **HealthMate Admin (localhost:4173)** nay tự chạy server web trước khi
+mở Chrome. Nếu server đang chạy, dùng lại; không khởi tạo trùng. Có thể chạy
+riêng `powershell -NoProfile -ExecutionPolicy Bypass -File tool/start_admin_local.ps1`
+từ gốc repository. Cờ này chỉ áp dụng cho tiến trình chạy script, không đổi
+execution policy đã lưu của Windows.
+Log/PID nằm ở `build/admin-local/`. Server chạy nền sau khi đóng Chrome; muốn
+dừng thì kiểm tra PID trong file đó trước khi dừng đúng tiến trình Node.
+
+Địa chỉ localhost là **bản thử nghiệm**, dùng Firebase Emulator và tài khoản
+fixture bên dưới. F5 chỉ khởi động web server; vẫn cần chạy emulator để đăng
+nhập local. Không dùng tài khoản Google thật của production cho bản này.
 
 Mở thư mục gốc **HealthMate 2** bằng File → Open Folder. Cần Node.js,
 Firebase CLI và Java 21 trở lên. Web không cần `npm install`.
@@ -180,6 +204,29 @@ mobile có cờ này; đây không phải toàn bộ danh sách Firebase Authent
   App Check Enterprise có phần miễn phí và phí vượt quota theo cấu hình dự án.
 
 ## Kiểm thử
+
+### Doanh thu Premium demo
+
+Mục **Doanh thu** tải `demo_premium_transactions` và
+`demo_premium_accounts`, chỉ chấp nhận gói `premium_demo_30d`, giá 20.000 VND,
+`mode:demo`, `status:simulated_paid`, `source:demo_checkout`. Không cộng số
+người dùng thành doanh thu, không trộn giao dịch thật hoặc dữ liệu sai.
+
+Chọn ngày đầu/cuối theo UTC+7, tối đa 366 ngày; ngày cuối bao gồm cả ngày.
+Hiển thị tổng số tiền mô phỏng, số giao dịch/khách mua trong kỳ, gói còn hạn
+hiện tại, tổng theo ngày và tối đa 100 chi tiết mới nhất. Excel chứa đủ giao
+dịch trong kỳ đã tải. Tải thiếu/lỗi quyền/vượt giới hạn 5.000 bản ghi của bộ
+tải sẽ báo lỗi, không hiện tổng thiếu. Nhãn demo đi cùng màn hình và Excel.
+
+Rules chỉ cấp admin đọc metadata giao dịch/gói, không cho đọc nhật ký sức
+khỏe người khác hoặc sửa receipt. Bản ghi demo hiện giữ sau xóa Auth, nên số
+gói còn hạn là số bản ghi, không bảo đảm tài khoản Auth vẫn tồn tại.
+
+Đã triển khai `build/admin-premium-demo-review-20261030/` ngày 30/10/2026 lên
+[admin online](https://healthmate-admin-vn.web.app). Đã backup/đối chiếu
+Rules production trước triển khai và đọc lại khớp bản đã test. Quyền admin,
+App Check và billing giữ nguyên; chưa đăng nhập/mua demo thay người dùng.
+Chi tiết: [Premium demo](../docs/premium-demo-2026-10-30.md).
 
 ```powershell
 # Cần Node.js hỗ trợ node:module registerHooks (máy kiểm thử hiện tại có sẵn).

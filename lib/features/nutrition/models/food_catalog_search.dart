@@ -1,5 +1,37 @@
 import 'nutrition_models.dart';
 
+/// Preserve curated Vietnamese discovery; prefer current USDA references over
+/// historical USDA rows for equally relevant matches. Never remap old IDs.
+int compareCatalogFoods(FoodCatalogItem a, FoodCatalogItem b) {
+  int group(String id) {
+    if (id.startsWith('usda-foundation-')) return 1;
+    if (id.startsWith('usda-fndds-')) return 2;
+    if (id.startsWith('usda-sr-')) return 3;
+    return 0;
+  }
+
+  final priority = group(a.id).compareTo(group(b.id));
+  if (priority != 0) return priority;
+  final name = a.name.compareTo(b.name);
+  return name != 0 ? name : a.id.compareTo(b.id);
+}
+
+// Catalog objects are immutable for the lifetime of a snapshot. A weak index
+// avoids normalizing thousands of names again on each keystroke and releases
+// old entries when a Firestore snapshot is replaced.
+final _foodSearchIndex = Expando<List<(String, Set<String>)>>();
+
+List<(String, Set<String>)> _searchTerms(FoodCatalogItem food) =>
+    _foodSearchIndex[food] ??= [
+      for (final raw in [food.name, ?food.originalName, ...food.alternateNames])
+        _normalizedTerm(raw),
+    ];
+
+(String, Set<String>) _normalizedTerm(String raw) {
+  final text = normalizeFoodSearch(raw);
+  return (text, text.split(' ').toSet());
+}
+
 /// Search Vietnamese names with or without tone marks, including keyboard NFD.
 String normalizeFoodSearch(String text) {
   var value = text.toLowerCase().trim();
@@ -29,9 +61,7 @@ List<FoodCatalogItem> searchFoodCatalog(
   final words = normalized.split(' ');
   int score(FoodCatalogItem food) {
     var best = 99;
-    for (final raw in [food.name, ...food.alternateNames]) {
-      final name = normalizeFoodSearch(raw);
-      final tokens = name.split(' ');
+    for (final (name, tokens) in _searchTerms(food)) {
       final rank = name == normalized
           ? 0
           : name.startsWith('$normalized ')

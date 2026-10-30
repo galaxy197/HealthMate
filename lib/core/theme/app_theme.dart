@@ -92,10 +92,12 @@ abstract final class AppTheme {
         titleLarge: text.titleLarge?.copyWith(
           fontSize: 20,
           fontWeight: FontWeight.w400,
+          height: 1.35,
         ),
         titleMedium: text.titleMedium?.copyWith(
           fontSize: 16,
           fontWeight: FontWeight.w400,
+          height: 1.4,
         ),
         titleSmall: text.titleSmall?.copyWith(
           fontSize: 14,
@@ -128,6 +130,8 @@ abstract final class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         shape: shape,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        titleTextStyle: text.titleLarge?.copyWith(fontSize: 20, height: 1.3),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surface,
@@ -168,6 +172,7 @@ abstract final class AppTheme {
         filled: true,
         fillColor: scheme.surfaceContainerLow,
         errorMaxLines: 4,
+        helperMaxLines: 3,
         contentPadding: const EdgeInsets.all(16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),

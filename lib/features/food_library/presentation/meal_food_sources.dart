@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../core/widgets/help_details.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../nutrition/data/unified_food_search_service.dart';
 import '../../nutrition/models/food_catalog_search.dart';
+import '../../nutrition/models/food_diet.dart';
+import '../../nutrition/models/food_avoidance.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
 import '../models/favorite_food.dart';
@@ -30,6 +33,8 @@ class MealFoodSources extends ConsumerStatefulWidget {
     required this.onCustom,
     this.initialSearch = '',
     this.favoritesOnly = false,
+    this.diet = FoodDietPreference.general,
+    this.avoidance = const FoodAvoidance.none(),
     super.key,
   });
   final ValueChanged<FoodCatalogItem> onCatalog;
@@ -37,6 +42,8 @@ class MealFoodSources extends ConsumerStatefulWidget {
   final VoidCallback onCustom;
   final String initialSearch;
   final bool favoritesOnly;
+  final FoodDietPreference diet;
+  final FoodAvoidance avoidance;
   @override
   ConsumerState<MealFoodSources> createState() => _MealFoodSourcesState();
 }
@@ -54,6 +61,23 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   String? _searchError;
   Timer? _searchDebounce;
   int _searchGeneration = 0;
+
+  List<FoodCatalogItem> get _eligibleCatalog =>
+      (ref.read(foodCatalogProvider).value ?? const <FoodCatalogItem>[])
+          .where(
+            (food) => widget.diet.allows(food) && widget.avoidance.allows(food),
+          )
+          .toList();
+
+  @override
+  void didUpdateWidget(covariant MealFoodSources oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.diet != widget.diet ||
+        oldWidget.avoidance.label != widget.avoidance.label) {
+      _visible = 12;
+      _onSearchChanged();
+    }
+  }
 
   @override
   void initState() {
@@ -90,19 +114,14 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     }
     final query = _query.text.trim();
     setState(() {
-      _searchResults =
-          searchFoodCatalog(
-                ref.read(foodCatalogProvider).value ??
-                    const <FoodCatalogItem>[],
-                query,
-              )
-              .map(
-                (food) => FoodSearchResult(
-                  food: food,
-                  source: FoodResultSource.firestore,
-                ),
-              )
-              .toList();
+      _searchResults = searchFoodCatalog(_eligibleCatalog, query)
+          .map(
+            (food) => FoodSearchResult(
+              food: food,
+              source: FoodResultSource.firestore,
+            ),
+          )
+          .toList();
       _isSearching = query.isNotEmpty;
       _searchError = null;
     });
@@ -125,31 +144,24 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     }
 
     setState(() {
-      _searchResults =
-          searchFoodCatalog(
-                ref.read(foodCatalogProvider).value ??
-                    const <FoodCatalogItem>[],
-                query,
-              )
-              .map(
-                (food) => FoodSearchResult(
-                  food: food,
-                  source: FoodResultSource.firestore,
-                ),
-              )
-              .toList();
+      _searchResults = searchFoodCatalog(_eligibleCatalog, query)
+          .map(
+            (food) => FoodSearchResult(
+              food: food,
+              source: FoodResultSource.firestore,
+            ),
+          )
+          .toList();
       _isSearching = true;
       _searchError = null;
     });
 
     try {
-      final catalogState = ref.read(foodCatalogProvider);
-      final catalog = catalogState.value ?? [];
       final searchService = ref.read(unifiedFoodSearchProvider);
 
       final results = await searchService.search(
         query: query,
-        firestoreCatalog: catalog,
+        firestoreCatalog: _eligibleCatalog,
         limit: 50,
       );
 
@@ -157,17 +169,24 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
           generation == _searchGeneration &&
           _query.text.trim() == query) {
         setState(() {
-          _searchResults = results;
+          _searchResults = results
+              .where(
+                (result) =>
+                    widget.diet.allows(result.food) &&
+                    widget.avoidance.allows(result.food),
+              )
+              .toList();
           _isSearching = false;
           _visible = 12;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted &&
           generation == _searchGeneration &&
           _query.text.trim() == query) {
         setState(() {
-          _searchError = e.toString();
+          _searchError =
+              'Chưa tìm thêm được món. Bạn có thể dùng kết quả trong danh mục hoặc thử lại.';
           _isSearching = false;
         });
       }
@@ -207,35 +226,28 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     ],
   );
 
-  Widget _dataSourceBadge(FoodResultSource source) => Text(switch (source) {
-    FoodResultSource.firestore => 'Danh mục',
-    FoodResultSource.cache => 'Đã lưu trên máy',
-    FoodResultSource.usdaApi => 'USDA',
-    FoodResultSource.user => 'Món riêng',
-  }, style: Theme.of(context).textTheme.bodySmall);
   Widget _catalogTile(
     FoodCatalogItem food, {
     bool removable = false,
     FoodResultSource? source,
   }) {
     final busy = ref.watch(favoriteFoodControllerProvider).isLoading;
+    final allowed = widget.diet.allows(food) && widget.avoidance.allows(food);
     return ListTile(
       key: ValueKey('${removable ? 'favorite' : 'catalog'}-food-${food.id}'),
       contentPadding: EdgeInsets.zero,
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(food.name),
-          if (source != null) _dataSourceBadge(source),
-        ],
-      ),
+      onTap: food.hasNutritionData && allowed
+          ? () => widget.onCatalog(food)
+          : null,
+      title: Text(food.name),
+      minVerticalPadding: 12,
       subtitle: Text(
-        !food.hasNutritionData
+        !allowed
+            ? 'Không phù hợp bộ lọc chế độ ăn/thực phẩm cần tránh hoặc chưa rõ thành phần.'
+            : !food.hasNutritionData
             ? 'Món thiếu dữ liệu dinh dưỡng; chưa thể thêm vào bữa.'
-            : '${food.nutritionPer100g.kcal.toStringAsFixed(0)} kcal / 100 g${food.isEstimated ? ' · Ước tính' : ''} · ${food.sourceLabel}'
-                  '${food.packageLabel == null ? '' : ' · ${food.packageLabel}'}'
-                  '${food.hasValidServing ? ' · 1 ${food.servingLabel} = ${foodNumber(food.servingGrams!)} g' : ''}'
-                  '${food.servingMetadataInvalid ? ' · Dùng gram: khẩu phần chưa hợp lệ' : ''}',
+            : '${food.nutritionPer100g.kcal.toStringAsFixed(0)} kcal / 100 g${food.isEstimated ? ' · Ước tính' : ''}'
+                  '${source == FoodResultSource.usdaApi ? ' · USDA' : ''}',
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -255,7 +267,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
             ),
           ),
           IconButton.filledTonal(
-            onPressed: food.hasNutritionData
+            onPressed: food.hasNutritionData && allowed
                 ? () => widget.onCatalog(food)
                 : null,
             tooltip: 'Thêm ${food.name}',
@@ -279,11 +291,11 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     }
 
     // Show error if any
-    if (_searchError != null) {
+    if (_searchError != null && _searchResults.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Lỗi tìm kiếm: $_searchError'),
+          Text(_searchError!),
           TextButton(
             onPressed: _performUnifiedSearch,
             child: const Text('Thử lại'),
@@ -303,23 +315,33 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
           'Chưa tải được danh mục món.',
           () => ref.invalidate(foodCatalogProvider),
         ),
-        data: (foods) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (foods.isEmpty)
-              const Text(
-                'Chưa có món trong danh mục. Bạn có thể nhập món riêng.',
-              ),
-            for (final food in foods.take(_visible)) _catalogTile(food),
-            if (foods.length > _visible)
-              TextButton.icon(
-                key: const ValueKey('more-catalog-foods'),
-                onPressed: () => setState(() => _visible += 12),
-                icon: const Icon(Icons.expand_more),
-                label: const Text('Xem thêm món'),
-              ),
-          ],
-        ),
+        data: (foods) {
+          final eligible = foods
+              .where(
+                (food) =>
+                    widget.diet.allows(food) && widget.avoidance.allows(food),
+              )
+              .toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (eligible.isEmpty)
+                Text(
+                  foods.isEmpty
+                      ? 'Chưa có món trong danh mục. Bạn có thể nhập món riêng.'
+                      : 'Chưa có món phù hợp bộ lọc. Bạn có thể đổi chế độ ăn hoặc nhập món riêng.',
+                ),
+              for (final food in eligible.take(_visible)) _catalogTile(food),
+              if (eligible.length > _visible)
+                TextButton.icon(
+                  key: const ValueKey('more-catalog-foods'),
+                  onPressed: () => setState(() => _visible += 12),
+                  icon: const Icon(Icons.expand_more),
+                  label: const Text('Xem thêm món'),
+                ),
+            ],
+          );
+        },
       );
     }
     // Show search results with badges
@@ -340,6 +362,13 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_searchError != null) ...[
+          Text(_searchError!),
+          TextButton(
+            onPressed: _performUnifiedSearch,
+            child: const Text('Thử lại'),
+          ),
+        ],
         Text(
           'Kết quả phù hợp',
           style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -505,6 +534,14 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   @override
   Widget build(BuildContext context) {
     if (_source == _FoodSource.search) {
+      ref.listen(foodCatalogProvider, (previous, next) {
+        if (next.hasValue &&
+            !identical(previous?.value, next.value) &&
+            _source == _FoodSource.search &&
+            _query.text.trim().isNotEmpty) {
+          _onSearchChanged();
+        }
+      });
       ref.watch(foodCatalogProvider);
     }
     if (!_initialResolved && widget.initialSearch.isEmpty) {
@@ -522,49 +559,62 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!widget.favoritesOnly)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final source in _FoodSource.values)
-                ChoiceChip(
-                  key: ValueKey('food-source-${source.name}'),
-                  label: Text(source.label),
-                  selected: _source == source,
-                  onSelected: (_) => setState(() {
-                    _initialResolved = true;
-                    _source = source;
-                    _visible = 12;
-                    _query.clear();
-                  }),
-                ),
-            ],
-          ),
-        const SizedBox(height: 12),
         TextField(
           key: const ValueKey('food-search'),
           controller: _query,
           onChanged: (_) => setState(() => _visible = 12),
           decoration: const InputDecoration(
-            labelText: 'Tìm trong nguồn đang chọn',
+            labelText: 'Tìm món ăn',
             hintText: 'Ví dụ: phở bò, com tam…',
             prefixIcon: Icon(Icons.search),
           ),
         ),
+        const SizedBox(height: 12),
+        if (!widget.favoritesOnly)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              spacing: 8,
+              children: [
+                for (final source in _FoodSource.values)
+                  ChoiceChip(
+                    key: ValueKey('food-source-${source.name}'),
+                    label: Text(source.label),
+                    selected: _source == source,
+                    onSelected: (_) => setState(() {
+                      _initialResolved = true;
+                      _source = source;
+                      _visible = 12;
+                      _query.clear();
+                    }),
+                  ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 12),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           key: const ValueKey('add-custom-food'),
           onPressed: widget.onCustom,
           icon: const Icon(Icons.edit_note),
-          label: const Text('Nhập món ngoài danh mục'),
+          label: const Text('Tự nhập món'),
         ),
-        const Text(
-          'Khối lượng tính theo g. Không tự quy đổi bát, tô hoặc ổ thành 100 g.',
-        ),
+        const SizedBox(height: 12),
+        if ((widget.diet != FoodDietPreference.general ||
+                widget.avoidance.isActive) &&
+            _source != _FoodSource.search)
+          const HelpDetails(
+            title: 'Lưu ý thành phần',
+            children: [
+              Text(
+                'Món riêng và món từ lịch sử có thể chưa rõ thành phần. Kiểm tra nhãn thực tế trước khi chọn.',
+              ),
+            ],
+          ),
         if (action.isLoading) ...[
           const LinearProgressIndicator(),
-          const Text('Đang chờ máy chủ xác nhận yêu thích; không gửi lặp.'),
+          const Text('Đang lưu yêu thích…'),
         ],
         if (action.error case final FavoriteFoodFailure error)
           Text(

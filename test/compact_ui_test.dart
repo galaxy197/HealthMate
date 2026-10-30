@@ -86,10 +86,26 @@ void main() {
         await tapVisible(tester, find.text('Đóng'));
         await tapVisible(tester, find.byKey(const ValueKey('add-meal')));
         expect(find.byType(MealFormDialog), findsOneWidget);
-        await tapVisible(tester, find.byTooltip('Khẩu phần và số món'));
-        expect(find.textContaining('không mặc định là 100 g'), findsOneWidget);
-        await tapVisible(tester, find.text('Đóng'));
+        expect(find.textContaining('Mỗi bản ghi tối đa 5 món.'), findsNothing);
+        await tapVisible(tester, find.text('Lưu ý khi ghi bữa'));
+        expect(
+          find.textContaining('Mỗi bản ghi tối đa 5 món.'),
+          findsOneWidget,
+        );
+        expect(find.byType(AlertDialog), findsNothing);
+        await tapVisible(tester, find.text('Lưu ý khi ghi bữa'));
+        expect(find.textContaining('Mỗi bản ghi tối đa 5 món.'), findsNothing);
         expect(find.byKey(const ValueKey('save-meal')), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('scan-barcode')),
+          -180,
+          scrollable: find
+              .descendant(
+                of: find.byKey(const ValueKey('meal-manual-content')),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
         expect(find.byKey(const ValueKey('scan-barcode')), findsOneWidget);
         expect(tester.takeException(), isNull);
       },

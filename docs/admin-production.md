@@ -1,5 +1,14 @@
 # Triển khai admin production — 27/10/2026
 
+Cập nhật 30/10/2026: địa chỉ quản trị chính là
+**https://healthmate-admin-vn.web.app**. Hosting site mới trong cùng Firebase
+project, dùng chung Auth/Firestore/quyền admin và web App Check key; không tạo
+database hoặc tài khoản mới. Auth và reCAPTCHA đã cho phép hai hostname mới
+`healthmate-admin-vn.web.app` / `healthmate-admin-vn.firebaseapp.com`.
+Nội dung clone từ bản live gồm Premium demo; link cũ giữ hoạt động.
+`prepare-release.cjs` nay xuất cấu hình Hosting site mới; cần readiness mới
+có site này trước khi đóng gói. Các URL/hash bên dưới là lịch sử rollout 27/10.
+
 Cập nhật 27/10: Rules production mới cho bộ 20 câu cá nhân hóa, hash `04a81618172e2a843e71c57b21208a080aa2643c14c55efce2dd24e6ab0c0428`, đọc lại khớp source. Hosting/App Check/role admin giữ nguyên. Xem [báo cáo bộ câu hỏi](personalization-questionnaire.md). Các hash rollout admin bên dưới là lịch sử trước cập nhật này.
 
 **Giai đoạn:** cấu hình App Check, cấp quyền và nghiệm thu production theo yêu

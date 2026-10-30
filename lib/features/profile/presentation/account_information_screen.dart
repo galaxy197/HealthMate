@@ -95,6 +95,10 @@ class AccountInformationScreen extends StatelessWidget {
         'Xóa dữ liệu',
         'Bạn có thể xóa tài khoản trong màn Cá nhân. Ứng dụng xóa dữ liệu HealthMate trước rồi mới xóa tài khoản đăng nhập.',
       ),
+      _InformationSection(
+        'Báo lỗi và góp ý',
+        'Chỉ nội dung bạn chủ động gửi tại Báo lỗi & Góp ý, mã tài khoản và thời điểm trao đổi được cung cấp cho admin để hỗ trợ. Admin không được truy cập nhật ký sức khỏe qua tính năng này. Không gửi mật khẩu, thông tin ngân hàng hoặc hồ sơ sức khỏe nhạy cảm. Yêu cầu và phản hồi được xóa cùng dữ liệu HealthMate khi bạn xóa tài khoản trong ứng dụng.',
+      ),
     ],
   ),
   AccountInformationPage.disclaimer => (

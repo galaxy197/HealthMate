@@ -1,0 +1,21 @@
+{
+  "sourceUrl": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_csv_2018-04.zip",
+  "archiveSha256": "b80817294b8850530aaedf2e515c02593b1824f763a0ff356e5c2081643e6fd0",
+  "sourceFoodsInAdultCategories": 7448,
+  "addedFoods": 7444,
+  "originalFoods": 162,
+  "bundledTotal": 7606,
+  "addedWithPortion": 7111,
+  "excluded": {
+    "existing_source_record": 4
+  },
+  "assetBytes": 8658798,
+  "vietnameseHeadMatched": 6969,
+  "vietnameseDisplayNames": 7444,
+  "dietaryCounts": {
+    "vegan": 1625,
+    "vegetarian": 151,
+    "nonVegetarian": 3024,
+    "unknown": 2644
+  }
+}

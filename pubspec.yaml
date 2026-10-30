@@ -85,6 +85,8 @@ flutter:
     - assets/design/
     - assets/branding/google_g.png
     - assets/nutrition/vietnamese-foods.json
+    - assets/nutrition/usda-sr-legacy.json
+    - assets/nutrition/usda-current.json
 
   fonts:
     - family: BeVietnamPro

@@ -316,7 +316,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.addCalls, 1);
-    expect(find.textContaining('Cơm trắng chín 150 g'), findsOneWidget);
+    expect(find.textContaining('Cơm trắng chín · 150 g'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

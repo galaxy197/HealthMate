@@ -249,7 +249,7 @@ void main() {
       for (final type in MealType.values) {
         expect(find.byKey(ValueKey('meal-group-${type.name}')), findsOneWidget);
       }
-      expect(find.textContaining('Cơm trắng chín 150 g'), findsNWidgets(2));
+      expect(find.textContaining('Cơm trắng chín · 150 g'), findsNWidgets(2));
       await tapVisible(tester, find.byKey(const ValueKey('add-meal-snack')));
       expect(added, MealType.snack);
     },
@@ -350,10 +350,7 @@ void main() {
       await tester.tap(button);
       await tester.pump();
       expect(favorites.calls, 1);
-      expect(
-        find.textContaining('Đang chờ máy chủ xác nhận yêu thích'),
-        findsOneWidget,
-      );
+      expect(find.text('Đang lưu yêu thích…'), findsOneWidget);
       favorites.pending!.complete();
       await tester.pumpAndSettle();
       await tester.tap(button);
@@ -760,13 +757,26 @@ void main() {
             wrap: (_) => MealFormDialog(
               catalog: const [],
               initialItems: meal('copy').items,
-              sourcesBuilder: (onCatalog, onRecent, onCustom) =>
-                  MealFoodSources(
-                    onCatalog: onCatalog,
-                    onRecent: onRecent,
-                    onCustom: onCustom,
-                  ),
+              sourcesBuilder:
+                  (onCatalog, onRecent, onCustom, diet, avoidance) =>
+                      MealFoodSources(
+                        diet: diet,
+                        avoidance: avoidance,
+                        onCatalog: onCatalog,
+                        onRecent: onRecent,
+                        onCustom: onCustom,
+                      ),
             ),
+          );
+          await tester.scrollUntilVisible(
+            find.byKey(const ValueKey('food-search')),
+            180,
+            scrollable: find
+                .descendant(
+                  of: find.byKey(const ValueKey('meal-manual-content')),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
           );
           await tester.ensureVisible(find.byKey(const ValueKey('food-search')));
           await tester.pumpAndSettle();

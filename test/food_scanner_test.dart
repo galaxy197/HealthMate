@@ -152,10 +152,15 @@ Future<void> _expectSelectedMeal(
         )
         .first,
   );
-  final item = tester.widget<ListTile>(row);
-  expect((item.title! as Text).data, name);
-  expect((item.subtitle! as Text).data, contains('$grams g'));
-  expect((item.subtitle! as Text).data, contains('$kcal kcal'));
+  expect(find.descendant(of: row, matching: find.text(name)), findsOneWidget);
+  expect(
+    find.descendant(of: row, matching: find.textContaining('$grams g')),
+    findsOneWidget,
+  );
+  expect(
+    find.descendant(of: row, matching: find.textContaining('$kcal kcal')),
+    findsOneWidget,
+  );
 }
 
 void main() {

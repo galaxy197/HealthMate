@@ -25,6 +25,8 @@ import '../models/chat_models.dart';
 import '../models/assistant_request.dart';
 import 'assistant_providers.dart';
 import 'chat_resume_provider.dart';
+import '../../premium/providers/premium_providers.dart';
+import '../../premium/models/premium_models.dart';
 
 final chatRepositoryProvider = Provider<ChatRepository>(
   (ref) => FirebaseChatRepository(FirebaseFirestore.instance),
@@ -458,6 +460,12 @@ class ChatController extends Notifier<ChatState> {
     }
     final access = ref.read(aiAccessProvider);
     if (!access.allowed) throw ChatFailure(access.message);
+    try {
+      await ref.read(premiumQuotaProvider)(PremiumAiFeature.chat);
+    } on PremiumFailure catch (error) {
+      throw ChatFailure(error.message);
+    }
+    if (!_valid(generation)) throw const _Cancelled();
     final result = Completer<String>();
     final buffer = StringBuffer();
     final Stream<String> answerStream;

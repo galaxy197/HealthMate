@@ -425,6 +425,140 @@ service cloud.firestore {
         && d.createdAt is timestamp && d.updatedAt is timestamp;
     }
 
+    // Support is explicitly submitted to admins; health journals remain private.
+    function validSupportTicket(d) {
+      return d.keys().hasAll(['uid','type','title','description','status','createdAt','updatedAt','messageCount','lastMessageId','updatedBy','deleting'])
+        && d.keys().hasOnly(['uid','type','title','description','status','createdAt','updatedAt','messageCount','lastMessageId','updatedBy','deleting'])
+        && d.uid is string && d.type in ['bug','suggestion']
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 120 && d.title.matches('(?s).*\\S.*')
+        && d.description is string && d.description.size() > 0 && d.description.size() <= 2000 && d.description.matches('(?s).*\\S.*')
+        && d.status in ['open','in_progress','resolved']
+        && d.createdAt is timestamp && d.updatedAt == request.time
+        && d.messageCount is int && d.messageCount >= 0 && d.messageCount <= 100
+        && d.lastMessageId is string && d.updatedBy == request.auth.uid && d.deleting is bool;
+    }
+    match /support_tickets/{ticketId} {
+      function supportAccess() { return owns(resource.data.uid) || admin(); }
+      function supportReply() {
+        let d = request.resource.data;
+        let message = getAfter(/databases/$(database)/documents/support_tickets/$(ticketId)/messages/$(d.lastMessageId)).data;
+        return d.messageCount == resource.data.messageCount + 1
+          && d.lastMessageId.matches('[a-zA-Z0-9]{20}')
+          && !exists(/databases/$(database)/documents/support_tickets/$(ticketId)/messages/$(d.lastMessageId))
+          && message.authorUid == request.auth.uid && message.createdAt == request.time
+          && message.sequence == d.messageCount
+          && ((message.role == 'admin' && admin()) || (message.role == 'customer' && owns(d.uid) && d.status == 'open'));
+      }
+      allow get: if admin() || (request.auth != null && request.auth.token.email_verified == true
+        && accountAllowed(request.auth.uid) && (resource == null || owns(resource.data.uid)));
+      allow list: if supportAccess();
+      allow create: if owns(request.resource.data.uid) && ticketId.matches('[a-zA-Z0-9]{20}')
+        && validSupportTicket(request.resource.data) && request.resource.data.createdAt == request.time
+        && request.resource.data.messageCount == 0 && request.resource.data.lastMessageId == ''
+        && request.resource.data.status == 'open' && request.resource.data.deleting == false;
+      allow update: if supportAccess() && resource.data.deleting == false && validSupportTicket(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','updatedBy','messageCount','lastMessageId','deleting'])
+        && ((owns(resource.data.uid) && request.resource.data.deleting == true
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.messageCount == resource.data.messageCount && request.resource.data.lastMessageId == resource.data.lastMessageId)
+          || (request.resource.data.deleting == false && ((admin() && request.resource.data.messageCount == resource.data.messageCount && request.resource.data.lastMessageId == resource.data.lastMessageId)
+            || supportReply())));
+      allow delete: if owns(resource.data.uid) && resource.data.deleting == true;
+      match /messages/{messageId} {
+        function supportParent() { return get(/databases/$(database)/documents/support_tickets/$(ticketId)).data; }
+        allow read: if owns(supportParent().uid) || admin();
+        allow create: if validSupportMessage();
+        function validSupportMessage() {
+          let d = request.resource.data;
+          let parent = getAfter(/databases/$(database)/documents/support_tickets/$(ticketId)).data;
+          return messageId.matches('[a-zA-Z0-9]{20}')
+            && d.keys().hasAll(['authorUid','role','text','sequence','createdAt'])
+            && d.keys().hasOnly(['authorUid','role','text','sequence','createdAt'])
+            && d.authorUid == request.auth.uid && d.createdAt == request.time
+            && d.text is string && d.text.size() > 0 && d.text.size() <= 2000 && d.text.matches('(?s).*\\S.*')
+            && d.sequence is int && d.sequence == parent.messageCount && d.sequence <= 100
+            && parent.lastMessageId == messageId && parent.updatedAt == request.time && parent.deleting == false
+            && ((d.role == 'customer' && owns(parent.uid)) || (d.role == 'admin' && admin()));
+        }
+        allow update: if false;
+        allow delete: if owns(supportParent().uid) && supportParent().deleting == true;
+      }
+    }
+
+    // Explicitly simulated purchases. These paths never confer a paid/live
+    // entitlement and cannot be used as verified payment records.
+    function validDemoPeriod(d) {
+      return d.mode == 'demo' && d.planId == 'premium_demo_30d'
+        && d.startedAt is timestamp && d.expiresAt is timestamp
+        && d.startedAt >= request.time - duration.value(2,'m')
+        && d.startedAt <= request.time + duration.value(2,'m')
+        && d.expiresAt == d.startedAt + duration.value(30,'d');
+    }
+    function demoPurchaseAccount(uid, transactionId, d) {
+      let a = getAfter(/databases/$(database)/documents/demo_premium_accounts/$(uid)).data;
+      return a.transactionId == transactionId && a.mode == 'demo'
+        && a.planId == d.planId && a.startedAt == d.startedAt
+        && a.expiresAt == d.expiresAt && a.updatedAt == request.time;
+    }
+    function demoQuota(uid, scan) {
+      let a = get(/databases/$(database)/documents/demo_premium_accounts/$(uid));
+      let premium = a != null && a.data.mode == 'demo'
+        && a.data.planId == 'premium_demo_30d'
+        && a.data.startedAt <= request.time && a.data.expiresAt > request.time;
+      return scan ? (premium ? 20 : 3) : (premium ? 50 : 5);
+    }
+    match /demo_premium_accounts/{uid} {
+      allow read: if owns(uid) || admin();
+      allow create, update: if owns(uid)
+        && request.resource.data.keys().hasOnly(['mode','planId','startedAt','expiresAt','transactionId','updatedAt'])
+        && validDemoPeriod(request.resource.data)
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.transactionId is string
+        && request.resource.data.transactionId.matches('[a-zA-Z0-9]{20}')
+        && (!exists(/databases/$(database)/documents/demo_premium_accounts/$(uid))
+          || resource.data.expiresAt <= request.time)
+        && !exists(/databases/$(database)/documents/demo_premium_transactions/$(request.resource.data.transactionId))
+        && getAfter(/databases/$(database)/documents/demo_premium_transactions/$(request.resource.data.transactionId)).data.uid == uid
+        && getAfter(/databases/$(database)/documents/demo_premium_transactions/$(request.resource.data.transactionId)).data.occurredAt == request.time
+        && demoPurchaseAccount(uid,request.resource.data.transactionId,
+          getAfter(/databases/$(database)/documents/demo_premium_transactions/$(request.resource.data.transactionId)).data);
+      allow delete: if false;
+    }
+    match /demo_premium_transactions/{id} {
+      allow get: if admin() || (request.auth != null && request.auth.token.email_verified == true
+        && accountAllowed(request.auth.uid) && (resource == null || resource.data.uid == request.auth.uid));
+      allow list: if admin() || (request.auth != null && owns(resource.data.uid));
+      allow create: if owns(request.resource.data.uid) && id.matches('[a-zA-Z0-9]{20}')
+        && request.resource.data.keys().hasOnly(['mode','planId','startedAt','expiresAt','uid','amountVnd','currency','status','source','occurredAt'])
+        && validDemoPeriod(request.resource.data)
+        && request.resource.data.amountVnd == 20000 && request.resource.data.amountVnd is int
+        && request.resource.data.currency == 'VND' && request.resource.data.status == 'simulated_paid'
+        && request.resource.data.source == 'demo_checkout' && request.resource.data.occurredAt == request.time
+        && demoPurchaseAccount(request.auth.uid,id,request.resource.data);
+      allow update, delete: if false;
+    }
+    match /demo_ai_usage/{uid}/days/{day} {
+      allow read: if owns(uid);
+      allow create, update: if owns(uid)
+        && request.resource.data.keys().hasOnly(['mode','dayStart','scans','chats','updatedAt'])
+        && request.resource.data.mode == 'demo' && request.resource.data.updatedAt == request.time
+        && request.resource.data.dayStart == (request.time + duration.value(7,'h')).date() - duration.value(7,'h')
+        && day == string(request.resource.data.dayStart.toMillis())
+        && request.resource.data.scans is int && request.resource.data.chats is int
+        && request.resource.data.scans >= 0 && request.resource.data.chats >= 0
+        && ((!exists(/databases/$(database)/documents/demo_ai_usage/$(uid)/days/$(day))
+          && ((request.resource.data.scans == 1 && request.resource.data.chats == 0)
+            || (request.resource.data.scans == 0 && request.resource.data.chats == 1)))
+          || (exists(/databases/$(database)/documents/demo_ai_usage/$(uid)/days/$(day))
+            && ((request.resource.data.scans == resource.data.scans + 1 && request.resource.data.chats == resource.data.chats)
+              || (request.resource.data.scans == resource.data.scans && request.resource.data.chats == resource.data.chats + 1))))
+        && ((request.resource.data.scans <= demoQuota(uid,true) &&
+              (!exists(/databases/$(database)/documents/demo_ai_usage/$(uid)/days/$(day)) || request.resource.data.chats == resource.data.chats))
+          || (request.resource.data.chats <= demoQuota(uid,false) &&
+              (!exists(/databases/$(database)/documents/demo_ai_usage/$(uid)/days/$(day)) || request.resource.data.scans == resource.data.scans)));
+      allow delete: if false;
+    }
+
     match /food_catalog/{foodId} {
       allow read: if request.auth != null && request.auth.token.email_verified == true && accountAllowed(request.auth.uid);
       allow create: if request.resource.data.keys().hasOnly(catalogFields().concat(adminFields()))
@@ -520,7 +654,7 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'email', 'heightCm', 'birthDate', 'healthGoal',
           'targetWeightKg', 'onboardingCompletedAt', 'updatedAt',
-          'schemaVersion'
+          'schemaVersion', 'personalization'
         ]);
 
       allow delete: if owns(uid);

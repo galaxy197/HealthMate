@@ -124,7 +124,7 @@ class FoodLocalDatabase {
       'fdc_id': food.fdcId,
       'name': food.name,
       'name_normalized': _normalize(
-        [food.name, ...food.alternateNames].join(' '),
+        [food.name, ?food.originalName, ...food.alternateNames].join(' '),
       ),
       'category': food.category,
       'data_source': food.dataSource.wireValue,
@@ -159,7 +159,7 @@ class FoodLocalDatabase {
         'fdc_id': food.fdcId,
         'name': food.name,
         'name_normalized': _normalize(
-          [food.name, ...food.alternateNames].join(' '),
+          [food.name, ?food.originalName, ...food.alternateNames].join(' '),
         ),
         'category': food.category,
         'data_source': food.dataSource.wireValue,
@@ -340,6 +340,15 @@ class FoodLocalDatabase {
       id: map['id'] as String,
       fdcId: map['fdc_id'] as int?,
       name: map['name'] as String,
+      originalName: metadata['originalName'] as String?,
+      ingredientNames: (metadata['ingredientNames'] as List? ?? [])
+          .cast<String>(),
+      ingredientsKnown: metadata['ingredientsKnown'] == true,
+      dietaryClass:
+          FoodDietClass.values
+              .where((k) => k.name == metadata['dietaryClass'])
+              .firstOrNull ??
+          FoodDietClass.unknown,
       alternateNames: (metadata['aliases'] as List? ?? []).cast<String>(),
       defaultServingGrams:
           (metadata['defaultGrams'] as num?)?.toDouble() ?? 100,
@@ -364,6 +373,10 @@ class FoodLocalDatabase {
   }
 
   String _metadata(FoodCatalogItem f) => jsonEncode({
+    'originalName': f.originalName,
+    'ingredientNames': f.ingredientNames,
+    'ingredientsKnown': f.ingredientsKnown,
+    'dietaryClass': f.dietaryClass.name,
     'aliases': f.alternateNames,
     'defaultGrams': f.defaultServingGrams,
     'servingLabel': f.servingLabel,

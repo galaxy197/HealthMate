@@ -88,6 +88,8 @@ enum ServingBasis {
   };
 }
 
+enum FoodDietClass { unknown, vegan, vegetarian, nonVegetarian }
+
 class FoodCatalogItem {
   const FoodCatalogItem({
     required this.id,
@@ -115,10 +117,18 @@ class FoodCatalogItem {
     this.fatGPer100g,
     this.fiberGPer100g,
     this.extraNutrientsPer100g = const {},
+    this.dietaryClass = FoodDietClass.unknown,
+    this.originalName,
+    this.ingredientNames = const [],
+    this.ingredientsKnown = false,
   });
 
   final String id;
   final String name;
+  final FoodDietClass dietaryClass;
+  final String? originalName;
+  final List<String> ingredientNames;
+  final bool ingredientsKnown;
   final List<String> alternateNames;
   final String category;
   final ServingBasis servingBasis;

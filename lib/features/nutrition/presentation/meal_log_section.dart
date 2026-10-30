@@ -245,14 +245,25 @@ class _MealTile extends StatelessWidget {
       title: Text(
         '${meal.type.label} · ${integer.format(meal.totals.kcal.round())} kcal',
       ),
-      subtitle: Text(
-        '${DateFormat('dd/MM/yyyy').format(meal.consumedAt)}, '
-        '${DateFormat('HH:mm').format(meal.consumedAt)}\n'
-        '${meal.items.map((item) => '${item.name} ${snapshotQuantityLabel(item)}').join(' · ')}\n'
-        '${nutritionLabel(meal.totals)}'
-        '${meal.source == MealSource.aiAssisted ? ' · Có hỗ trợ nhận diện' : ''}',
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 8,
+          children: [
+            Text(
+              '${DateFormat('dd/MM/yyyy').format(meal.consumedAt)}, '
+              '${DateFormat('HH:mm').format(meal.consumedAt)}',
+            ),
+            for (final item in meal.items)
+              Text('${item.name} · ${snapshotQuantityLabel(item)}'),
+            FoodNutritionSummary(value: meal.totals, showEnergy: false),
+            if (meal.source == MealSource.aiAssisted)
+              const Text('Có hỗ trợ nhận diện'),
+          ],
+        ),
       ),
-      isThreeLine: true,
+      titleAlignment: ListTileTitleAlignment.top,
       trailing: PopupMenuButton<String>(
         onSelected: (value) => switch (value) {
           'edit' => onEdit(),

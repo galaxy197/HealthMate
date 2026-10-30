@@ -15,7 +15,15 @@
             "type": "chrome",
             "request": "launch",
             "name": "HealthMate Admin (localhost:4173)",
+            "preLaunchTask": "HealthMate: start admin local",
             "url": "http://127.0.0.1:4173",
+            "webRoot": "${workspaceFolder}/admin-web/dist"
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "HealthMate Admin (online)",
+            "url": "https://healthmate-admin-vn.web.app",
             "webRoot": "${workspaceFolder}/admin-web/dist"
         }
     ]

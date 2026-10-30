@@ -1098,6 +1098,17 @@ test('personalization round trip is owner-only, old profile updates preserve it,
   await assertSucceeds(deleteDoc(ref));
 });
 
+test('existing profile can save and edit validated diet and avoidance answers', async () => {
+  const db = verifiedContext('alice',{email:'alice@example.com'}).firestore();
+  const ref = doc(db,'users/alice');
+  await assertSucceeds(setDoc(ref,profileData()));
+  await assertSucceeds(updateDoc(ref,{personalization:{...surveyData(),diet:'vegan',avoidFoods:'sữa; trứng'},updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(ref,{personalization:{...surveyData(),diet:'vegetarian',avoidFoods:'Đậu phộng'},updatedAt:serverTimestamp()}));
+  require('node:assert/strict').equal((await getDoc(ref)).data().personalization.avoidFoods,'Đậu phộng');
+  await assertFails(updateDoc(ref,{personalization:{...surveyData(),diet:'invalid'},updatedAt:serverTimestamp()}));
+  await assertFails(updateDoc(doc(verifiedContext('bob',{email:'bob@example.com'}).firestore(),'users/alice'),{personalization:surveyData(),updatedAt:serverTimestamp()}));
+});
+
 test('survey rejects malformed, oversized, unknown and contradictory fields', async () => {
   const db = verifiedContext('alice',{email:'alice@example.com'}).firestore();
   const ref = doc(db,'users/alice');

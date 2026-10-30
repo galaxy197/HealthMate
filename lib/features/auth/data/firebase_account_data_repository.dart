@@ -38,6 +38,7 @@ class FirebaseAccountDataRepository implements AccountDataRepository {
         await _deleteCollection(user.collection(collectionName));
       }
       await _deleteChatSessions(user.collection('chat_sessions'));
+      await _deleteSupportTickets(uid);
       if (adminRuntimeEnabled) {
         await _firestore.collection('user_directory').doc(uid).delete();
       }
@@ -66,6 +67,33 @@ class FirebaseAccountDataRepository implements AccountDataRepository {
         batch.delete(session.reference);
       }
       await batch.commit();
+    }
+  }
+
+  Future<void> _deleteSupportTickets(String uid) async {
+    while (true) {
+      final snapshot = await _firestore
+          .collection('support_tickets')
+          .where('uid', isEqualTo: uid)
+          .limit(50)
+          .get(const GetOptions(source: Source.server));
+      if (snapshot.docs.isEmpty) return;
+      for (final ticket in snapshot.docs) {
+        // Freeze the thread before cleanup so a simultaneous admin reply cannot
+        // leave orphaned messages after the parent is deleted.
+        await _firestore.runTransaction((t) async {
+          final current = await t.get(ticket.reference);
+          if (current.exists && current.data()?['deleting'] != true) {
+            t.update(ticket.reference, {
+              'deleting': true,
+              'updatedBy': uid,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        });
+        await _deleteCollection(ticket.reference.collection('messages'));
+        await ticket.reference.delete();
+      }
     }
   }
 

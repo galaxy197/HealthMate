@@ -4,6 +4,7 @@ import { getFirestore, connectFirestoreEmulator, doc, collection, getDocFromServ
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-app-check.js';
 import { changedFields, entityVersion } from './validation.mjs';
 import { adminLists, collectAdminRows } from './list-model.mjs';
+import {supportId,supportText,supportStatuses,validateSupportThread} from './support-model.mjs';
 
 export async function connect(config) {
   if (!config?.firebase?.projectId) throw Error('Chưa cấu hình Firebase cho web admin.');
@@ -83,6 +84,45 @@ export async function connect(config) {
       check();
       return data.sort(kind === 'admin_audit' ? (a,b)=>(b.at?.toMillis?.()??0)-(a.at?.toMillis?.()??0)||a.id.localeCompare(b.id) :
         (a,b)=>String(a.name??a.displayName??a.email??a.id).localeCompare(String(b.name??b.displayName??b.email??b.id),'vi')||a.id.localeCompare(b.id));
+    },
+    newSupportMessageId() { return doc(collection(db,'support_tickets')).id; },
+    async supportThread(id) {
+      supportId(id);const check=session();
+      const ticket=await getDocFromServer(doc(db,'support_tickets',id));check();
+      if(!ticket.exists())throw Error('Yêu cầu không còn khả dụng.');
+      const messages=await getDocsFromServer(query(collection(db,'support_tickets',id,'messages'),orderBy('sequence'),limit(101)));check();
+      return validateSupportThread({id,...ticket.data()},messages.docs.map(s=>({id:s.id,...s.data()})));
+    },
+    async supportReply(id,messageId,input) {
+      supportId(id);supportId(messageId);const text=supportText(input),check=session(),actorUid=auth.currentUser.uid;
+      const ticket=doc(db,'support_tickets',id),message=doc(ticket,'messages',messageId);
+      await runTransaction(db,async t=>{
+        check();const [existing,parent]=await Promise.all([t.get(message),t.get(ticket)]);
+        if(!parent.exists()||parent.data().deleting)throw Error('Yêu cầu không còn khả dụng.');
+        if(existing.exists()){
+          if(existing.data().authorUid!==actorUid||existing.data().text!==text)throw Error('Mã phản hồi đã được dùng. Tải lại cuộc trao đổi.');
+          return;
+        }
+        if(parent.data().messageCount>=100)throw Error('Cuộc trao đổi đã đủ 100 tin nhắn.');
+        const count=parent.data().messageCount+1;
+        t.set(message,{authorUid:actorUid,role:'admin',text,sequence:count,createdAt:serverTimestamp()});
+        t.update(ticket,{messageCount:count,lastMessageId:messageId,updatedBy:actorUid,updatedAt:serverTimestamp()});
+      });check();
+      const confirmed=await getDocFromServer(message);check();
+      if(!confirmed.exists()||confirmed.data().authorUid!==actorUid||confirmed.data().text!==text)throw Error('Chưa xác nhận gửi phản hồi. Hãy thử lại.');
+    },
+    async supportStatus(id,status,expectedVersion) {
+      supportId(id);if(!Object.hasOwn(supportStatuses,status))throw Error('Trạng thái không hợp lệ.');
+      const check=session(),actorUid=auth.currentUser.uid,ticket=doc(db,'support_tickets',id);
+      await runTransaction(db,async t=>{
+        check();const current=await t.get(ticket);
+        if(!current.exists()||current.data().deleting)throw Error('Yêu cầu không còn khả dụng.');
+        if(current.data().status===status)return;
+        if(entityVersion(current.data())!==expectedVersion)throw Error('Yêu cầu vừa thay đổi. Tải lại trước khi lưu trạng thái.');
+        t.update(ticket,{status,updatedAt:serverTimestamp(),updatedBy:actorUid});
+      });check();
+      const confirmed=await getDocFromServer(ticket);check();
+      if(!confirmed.exists()||confirmed.data().status!==status)throw Error('Trạng thái vừa thay đổi. Hãy tải lại.');
     },
     async config() { const check=session();const s = await getDocFromServer(doc(db,'app_config','runtime'));check();return s.exists() ? s.data() : null; },
     async counts() {

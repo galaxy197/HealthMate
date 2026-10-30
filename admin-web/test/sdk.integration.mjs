@@ -65,3 +65,34 @@ test('server-backed account suspension and config changes keep audit and restore
   const changed=await api.config();assert.equal(changed.maintenanceMode,true);
   await api.save('app_config','runtime',{...payload,maintenanceMode:false,maintenanceMessage:''},'SDK QA config restore',entityVersion(changed));
 });
+
+test('support SDK sends a single idempotent admin reply, changes status and reads customer follow-up',async()=>{
+  const {getFirestore,collection,doc,setDoc,serverTimestamp,runTransaction,updateDoc,deleteDoc}=require('firebase/firestore');
+  const {getApp}=require('firebase/app');const db=getFirestore(getApp());
+  const ref=doc(collection(db,'support_tickets')),uid=currentUser.uid;
+  await setDoc(ref,{uid,type:'bug',title:'SDK lỗi lưu bữa',description:'Nội dung QA trên emulator.',status:'open',
+    messageCount:0,lastMessageId:'',updatedBy:uid,deleting:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  try {
+    const initial=await api.supportThread(ref.id);assert.equal(initial.messages.length,0);
+    const messageId=api.newSupportMessageId();
+    await assert.rejects(api.supportReply(ref.id,messageId,'   '),/Nội dung/);
+    await api.supportReply(ref.id,messageId,'Bạn vui lòng thử lại.');
+    await api.supportReply(ref.id,messageId,'Bạn vui lòng thử lại.');
+    const replied=await api.supportThread(ref.id);assert.equal(replied.messages.length,1);assert.equal(replied.messages[0].role,'admin');
+    await assert.rejects(api.supportStatus(ref.id,'resolved',entityVersion(initial.ticket)),/vừa thay đổi/);
+    await api.supportStatus(ref.id,'resolved',entityVersion(replied.ticket));
+    const followup=doc(collection(ref,'messages'));
+    await runTransaction(db,async t=>{
+      const parent=await t.get(ref),count=parent.data().messageCount+1;
+      t.set(followup,{authorUid:uid,role:'customer',text:'Mình đã thử, cảm ơn.',sequence:count,createdAt:serverTimestamp()});
+      t.update(ref,{status:'open',messageCount:count,lastMessageId:followup.id,updatedBy:uid,updatedAt:serverTimestamp()});
+    });
+    const result=await api.supportThread(ref.id);assert.equal(result.ticket.status,'open');assert.equal(result.messages.length,2);
+    assert.equal(result.messages[1].role,'customer');
+  } finally {
+    const thread=await api.supportThread(ref.id);
+    await updateDoc(ref,{deleting:true,updatedBy:uid,updatedAt:serverTimestamp()});
+    for(const message of thread.messages)await deleteDoc(doc(ref,'messages',message.id));
+    await deleteDoc(ref);
+  }
+});

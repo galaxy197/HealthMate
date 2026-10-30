@@ -7,6 +7,7 @@ import '../../../core/utils/local_date_key.dart';
 import '../models/nutrition_failure.dart';
 import '../models/nutrition_models.dart';
 import '../models/catalog_food_reader.dart';
+import '../models/food_catalog_search.dart';
 import 'nutrition_repository.dart';
 import 'bundled_vietnamese_foods.dart';
 
@@ -26,11 +27,14 @@ class FirebaseNutritionRepository implements NutritionRepository {
   Stream<List<FoodCatalogItem>> watchFoodCatalog() async* {
     List<FoodCatalogItem> bundled = const [];
     try {
-      bundled = await _catalogLoader().timeout(const Duration(seconds: 3));
+      // Local asset decoding runs in an isolate; a short network-style timeout
+      // could discard the expanded catalog on a slower device.
+      bundled = await _catalogLoader();
     } catch (_) {
       /* A missing bundle must not block the real server catalog. */
     }
     if (bundled.isNotEmpty) yield bundled;
+    final bundledById = {for (final food in bundled) food.id: food};
     try {
       await for (final snapshot
           in _firestore
@@ -40,10 +44,16 @@ class FirebaseNutritionRepository implements NutritionRepository {
         final serverIds = snapshot.docs.map((d) => d.id).toSet();
         yield [
           for (final doc in snapshot.docs)
-            if (doc.data()['isActive'] != false) _food(doc.id, doc.data()),
+            if (doc.data()['isActive'] != false)
+              readCatalogFood(
+                doc.id,
+                doc.data(),
+                updatedAt: _date(doc.data()['updatedAt']),
+                referenceFood: bundledById[doc.id],
+              ),
           for (final food in bundled)
             if (!serverIds.contains(food.id)) food,
-        ]..sort((a, b) => a.name.compareTo(b.name));
+        ]..sort(compareCatalogFoods);
       }
     } on FirebaseException catch (error) {
       if (bundled.isEmpty) throw NutritionFailure.fromCode(error.code);
@@ -295,9 +305,6 @@ class FirebaseNutritionRepository implements NutritionRepository {
           : 2,
     };
   }
-
-  FoodCatalogItem _food(String id, Map<String, dynamic> data) =>
-      readCatalogFood(id, data, updatedAt: _date(data['updatedAt']));
 
   MealLog _meal(String id, Map<String, dynamic> data) {
     final items = (data['items'] as List? ?? const [])

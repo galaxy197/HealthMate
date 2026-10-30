@@ -1,5 +1,32 @@
 # HealthMate
 
+## Cập nhật nguồn thực phẩm — 27/10/2026
+
+Danh mục đóng gói hiện có **11.169 mục**, thêm **308 USDA Foundation Foods**
+từ bản tải chính thức **04/2026** và **3.255 USDA FNDDS 2021–2023** phát hành
+**10/2024**. Các nguồn USDA mới được ưu tiên trước SR Legacy khi mức khớp tìm
+kiếm bằng nhau; giữ nguyên ID, giá trị cũ và snapshot nhật ký. Bản phát hành
+2026 không có nghĩa tất cả thực phẩm được đo năm 2026. Xem nguồn, số mục đã
+loại và cách tái tạo tại [báo cáo cập nhật dữ liệu](docs/current-food-data-2026-10-27.md).
+
+## Lần mở rộng trước: 7.606 mục và bộ lọc chế độ ăn — 27/10/2026
+
+Tăng từ 162 lên **7.606 mục thực phẩm/món/biến thể**, có **7.169 mục kèm khẩu
+phần quy đổi**. Bổ sung USDA SR Legacy 2018 offline, giữ món Việt hiện có và
+tìm bằng từ khóa Việt/Anh. Quy mô vẫn nhỏ hơn MyFitnessPal và Calz công bố.
+Nhật ký và gợi ý thực đơn đọc lựa chọn chay/thuần chay trong hồ sơ; mục tiêu
+tăng/giảm cân tiếp tục dùng chỉ tiêu kcal và khẩu phần. Mục thực phẩm cần tránh
+trong hồ sơ nay tự lọc món trùng và món chưa rõ thành phần khi tìm/gợi ý.
+Thực đơn điều chỉnh gram theo mục tiêu kcal từng ngày, tính cả bữa đã lên kế
+hoạch; xem trước tổng và báo khi chưa khớp trong ±5%. Tên USDA đã có tên Việt
+rút gọn, giữ mô tả gốc để tra cứu và đối chiếu; thương hiệu/tên giống hiếm được giữ.
+Web admin vẫn quản lý catalog Firestore, không hiện toàn bộ asset mới.
+[Nguồn, cách dùng, tái tạo và giới hạn](docs/catalog-expansion-and-diets.md).
+APK mới: `build/releases/healthmate-personalized-food-debug.apk` (giữ cấu hình
+admin). **678 Flutter tests qua, analyze sạch**. Sàng lọc theo thành phần tham
+khảo/từ khóa không chứng nhận an toàn dị ứng và không xác minh nhiễm chéo.
+Chưa nghiệm thu bản này trên thiết bị thật.
+
 ## Android nhận điều khiển admin — 27/10/2026
 
 Chạy `powershell -ExecutionPolicy Bypass -File tool/run_android.ps1 -DeviceId emulator-5554`
@@ -629,6 +656,38 @@ hai script cùng lúc vì cùng dùng project/cổng emulator. Chi tiết kết 
 ảnh, APK, giới hạn production và thiết bị trong docs/test-report.md phần C6.
 
 ## Tài liệu đã đối chiếu
+
+### Báo lỗi, góp ý và hỗ trợ khách hàng (30/10/2026)
+
+Trong app: **Cá nhân → Báo lỗi & Góp ý**, gửi yêu cầu mới rồi mở lại để xem
+phản hồi hoặc bổ sung thông tin. Trên [web admin](https://healthmate-admin-vn.web.app):
+**Hỗ trợ khách hàng → Xem & trả lời**, lọc loại/trạng thái và cập nhật xử lý.
+Phản hồi hiển thị trong app; chưa có email/push hay ảnh đính kèm. Khách chỉ xem
+yêu cầu của mình; yêu cầu/tin nhắn hỗ trợ được xóa khi xóa tài khoản trong app.
+
+APK mới: `build/releases/healthmate-support-debug.apk` (giữ Premium demo).
+Chi tiết dữ liệu, giới hạn và kiểm thử:
+[customer-support-2026-10-30.md](docs/customer-support-2026-10-30.md).
+
+### Premium demo và báo cáo doanh thu (30/10/2026)
+
+Web quản trị online: **https://healthmate-admin-vn.web.app**. Mở trực tiếp trên
+trình duyệt, không cần VS Code/server local. Đăng nhập bằng tài khoản admin đã
+cấp; link cũ vẫn hoạt động, dữ liệu dùng chung trong Firebase project hiện có.
+
+Gói mô phỏng **20.000đ/30 ngày**, không thu tiền/không tự gia hạn. Miễn phí:
+3 lượt quét ảnh và 5 câu hỏi AI/ngày; Premium demo: 20 và 50 lượt. Đặt lại
+lúc 00:00 giờ Việt Nam. Nhật ký và tra cứu local không dùng lượt AI.
+Vào **Cá nhân → Premium** trên APK có bật demo; admin có mục **Doanh thu**,
+lọc ngày, tổng hợp ngày và Excel đều ghi rõ doanh thu mô phỏng.
+
+Build riêng: `.\tool\build_android.ps1 -PremiumDemo`, tạo
+`build/releases/healthmate-premium-demo-debug.apk` và manifest JSON.
+Cờ `HEALTHMATE_ENABLE_PREMIUM_DEMO` mặc định false. Đã triển khai Rules và
+trang Doanh thu ngày 30/10/2026 lên Firebase hiện có; cài APK demo mới để dùng.
+Giới hạn này không nâng quota nhà cung cấp AI và chưa chống client bị sửa.
+Quy trình, dữ liệu, lưu giữ sau xóa tài khoản và trạng thái triển khai:
+[docs/premium-demo-2026-10-30.md](docs/premium-demo-2026-10-30.md).
 
 - [Firestore range queries](https://firebase.google.com/docs/firestore/query-data/queries)
 - [fl_chart BarChartData](https://pub.dev/documentation/fl_chart/latest/fl_chart/BarChartData-class.html)

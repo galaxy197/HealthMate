@@ -1,4 +1,6 @@
 abstract final class AppRoutes {
+  static const support = '/support';
+  static const premium = '/premium';
   static const dashboard = '/dashboard';
   static const journal = '/journal';
   static const quest = '/quest';

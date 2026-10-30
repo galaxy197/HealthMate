@@ -929,3 +929,119 @@ Google được Firebase xác minh thì không cần gửi thêm email xác minh
 Rules mới chưa deploy production; bảo vệ server chỉ được xác nhận trên
 emulator. Không nâng billing hoặc sửa provider/config cloud trong lượt này.
 Hướng dẫn rollout và nghiệm thu: `docs/authentication-flow.md`.
+
+## 27/10/2026 — Mở rộng catalog offline và metadata chế độ ăn
+
+Không đổi schema/Rules Firestore trong lượt này. `assets/nutrition/` có 7.606
+mục, gồm 162 mục cũ và 7.444 mục USDA SR Legacy 2018; các mục bổ sung không được
+tự ghi lên `food_catalog`. Web admin tiếp tục quản lý document Firestore.
+
+Model catalog có `dietaryClass`: `unknown | vegan | vegetarian | nonVegetarian`,
+mặc định unknown khi dữ liệu chưa được phân loại. Phân loại local lấy từ mô tả
+nguồn và thành phần công thức được rà soát, không phải chứng nhận thành phần.
+Nếu server ghi đè cùng ID, chỉ kế thừa metadata local khi tên/nhãn nguồn/bốn
+macro chính khớp; server đã thay thông tin thì giữ unknown trừ khi có phân loại
+hợp lệ tường minh. Không mở quyền ghi field này từ client hoặc thêm field vào
+form admin trong lượt này.
+
+Lựa chọn cá nhân tiếp tục dùng `personalization.diet` đã có; không thêm dữ liệu
+sức khỏe hoặc thay snapshot meal log. Bộ lọc discovery không viết lại lịch sử.
+`avoidFoods` dùng để sàng lọc từ khóa/thành phần tham khảo khi tìm/gợi ý, ẩn cả
+món chưa đủ metadata. Không suy ra an toàn dị ứng hoặc khả năng nhiễm chéo.
+Model/offline asset/cache có `originalName`, `ingredientNames`, `ingredientsKnown`;
+cache giữ các trường này trong JSON metadata sẵn có, không migration SQL.
+Không mở thêm field ghi Firestore từ client, không đổi schema/rules meal log.
+Tên Việt hóa chỉ áp dụng catalog; snapshot lịch sử giữ nguyên. Cách tái tạo, provenance,
+thống kê và giới hạn: [catalog-expansion-and-diets.md](catalog-expansion-and-diets.md).
+
+## 27/10/2026 — Sửa Rules khi nghiệm thu dinh dưỡng Android
+
+`users/{uid}` update bổ sung `personalization` vào danh sách affectedKeys được
+phép. Trước đó `validProfile()` cho phép field này khi create nhưng allow update
+thiếu nó, làm transaction hoàn tất onboarding/cập nhật cá nhân hóa bị từ chối.
+Không đổi schema, collection hoặc quyền đọc; nội dung vẫn phải qua
+`validPersonalization`, chủ tài khoản đã xác minh email và `accountAllowed`.
+Đã thêm regression cho cập nhật chế độ ăn/món tránh từ hồ sơ cũ, sửa lần hai,
+từ chối diet không hợp lệ và UID khác. Chỉ kiểm Rules local; chưa deploy Firebase
+production. APK không tự triển khai Rules lên server.
+# 27/10/2026 — Bổ sung catalog tham khảo USDA hiện hành
+
+Thêm asset `assets/nutrition/usda-current.json`:308 Foundation Foods bản04/2026
+và3.255 FNDDS2021–2023 bản10/2024, tổng catalog11.169 mục. Không thay schema
+Firestore, collection, Rules, ID cũ hay nhật ký. ID mới có tiền tố
+`usda-foundation-` / `usda-fndds-` và FDC ID chính thức.
+
+Provenance trong asset: `sourceDetails.datasetRelease`, `publicationDate`,
+`energyNutrientId`, `fdcId`, cơ sở100g, URL và tên gốc; manifest riêng ghi SHA
+ZIP và các mục loại trừ. Model hiện giữ tên gốc, FDC ID/loại nguồn, nhãn nguồn
+có phiên bản. Snapshot meal giữ nhãn và giá trị đã xác nhận như trước, không
+tự đổi sang số mới. FNDDS chưa đủ nguyên liệu giữ `ingredientsKnown:false`,
+`dietaryClass:unknown`. Không coi năm phát hành là năm đo.
+
+Chi tiết: [current-food-data-2026-10-27.md](current-food-data-2026-10-27.md).
+
+## 30/10/2026 — Namespace riêng cho Premium demo
+
+Không thu tiền hoặc thay hồ sơ sức khỏe. Ba đường dẫn mới:
+
+| Đường dẫn | Field |
+| --- | --- |
+| `demo_premium_accounts/{uid}` | `mode:demo`, `planId:premium_demo_30d`, `startedAt`, `expiresAt`, `transactionId`, `updatedAt` |
+| `demo_premium_transactions/{autoId}` | `mode`, `planId`, `startedAt`, `expiresAt`, `uid`, `amountVnd:20000`, `currency:VND`, `status:simulated_paid`, `source:demo_checkout`, `occurredAt` |
+| `demo_ai_usage/{uid}/days/{dayStartMillis}` | `mode:demo`, `dayStart`, `scans`, `chats`, `updatedAt` |
+
+`autoId` 20 ký tự chữ/số. Account và receipt tạo nguyên tử; receipt bất biến,
+account chỉ thay khi gói cũ đã hết hạn và có receipt mới. Thời hạn đúng 30 ngày;
+`startedAt` sai tối đa 2 phút so server; `occurredAt`/`updatedAt` bằng
+`request.time` qua server timestamp. Không có auto-renew/refund/thanh toán thật.
+
+Usage ID là milliseconds UTC của đầu ngày Việt Nam; ví dụ 00:00 UTC+7 là
+17:00 UTC ngày trước, không phụ thuộc múi giờ máy. Rules kiểm đúng ngày server
+và mỗi lần tăng đúng một counter. Trần free 3 scan/5 chat, Premium còn hạn
+20/50; transaction đọc trạng thái gói và usage trước khi tăng, dùng chung giữa
+thiết bị. Không reset khi mua/hết hạn trong cùng ngày.
+
+Chủ UID đã xác minh và không bị khóa đọc account/receipt/usage của mình.
+Admin chỉ được đọc danh sách account/receipt cho báo cáo, không được đọc
+usage hoặc nhật ký sức khỏe của người khác; không cho client sửa/xóa receipt.
+Hồ sơ demo vẫn được giữ sau xóa tài khoản Auth ở phiên bản này; chưa có TTL
+hay quy trình ẩn danh, đã công khai trong màn mua gói. Không lưu ảnh/thẻ/ngân
+hàng hoặc nội dung chat trong những collection này.
+
+Không có index mới; admin dùng bộ tải phân trang có giới hạn 5.000 bản ghi và
+lọc khoảng ngày phía client cho quy mô đồ án. Đã deploy Rules ngày 30/10/2026,
+đọc lại server khớp source đã kiểm thử. 84 kiểm thử Rules Emulator qua, gồm 6
+test Premium. Đây là counter bảo vệ bởi Rules;
+chưa phải chặn AI ở server chống client bị chỉnh sửa.
+
+Xem [premium-demo-2026-10-30.md](premium-demo-2026-10-30.md).
+
+## 30/10/2026 — Báo lỗi/góp ý và phản hồi quản trị
+
+Thêm `support_tickets/{20-char-auto-id}` gồm `uid`, `type:bug|suggestion`,
+`title` (1–120 ký tự), `description` (1–2.000), `status:open|in_progress|resolved`,
+`createdAt`, `updatedAt` (server timestamp), `messageCount` (0–100),
+`lastMessageId` (rỗng khi chưa có tin), `updatedBy`, `deleting` (ban đầu false).
+Không lưu email, ảnh hoặc snapshot nhật ký; chỉ nội dung khách chủ động gửi.
+
+Subcollection `messages/{20-char-auto-id}` gồm `authorUid`, `role:customer|admin`,
+`text` (1–2.000), `sequence` (1–100), `createdAt` server timestamp. Tin bất biến;
+transaction ghi message và tăng parent count đúng 1/link lastMessageId. Rules
+xác minh vai trò Auth/quyền owner/admin, nội dung gốc/UID/type/createdAt bất biến.
+Admin được đổi trạng thái; tin khách bổ sung buộc trở về open. Tin admin giữ
+trạng thái hiện tại; đóng yêu cầu là thao tác chủ động riêng.
+
+Khách chỉ truy cập theo UID, admin chỉ đọc nội dung support đã được gửi, không
+đọc health logs qua tính năng này. List mobile UID + updatedAt DESC, giới hạn
+50 gần nhất; composite index thêm riêng, giữ index cũ. Messages theo sequence,
+giới hạn 100. Admin bộ tải có giới hạn 5.000 document và phân trang/lọc local.
+
+Xóa tài khoản: freeze `deleting:true` trước, chặn phản hồi/status update từ
+thời điểm đó, xóa subcollection rồi parent. Chỉ owner được xóa và chỉ sau freeze;
+admin không được xóa hoặc unfreeze. Cleanup chạy trước Auth và có thể retry.
+Không có backend xử lý khi xóa Auth bằng Console ngoài ứng dụng.
+
+Không thay schema người dùng/nhật ký hoặc Rules trước đây. Provenance phản hồi
+là authorUid/role/server timestamp trên mỗi message; không cho sửa/xóa để làm
+lại lịch sử ngoài luồng cleanup account. Chi tiết và giới hạn:
+[customer-support-2026-10-30.md](customer-support-2026-10-30.md).

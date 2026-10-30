@@ -7,6 +7,7 @@ FoodCatalogItem readCatalogFood(
   String id,
   Map<String, dynamic> data, {
   DateTime? updatedAt,
+  FoodCatalogItem? referenceFood,
 }) {
   String? text(String key, [int max = 100]) {
     final value = data[key];
@@ -45,9 +46,39 @@ FoodCatalogItem readCatalogFood(
       data['servingLabel'] != null || data['servingGrams'] != null;
   final validServing =
       label != null && grams != null && basisStr == 'per_100g' && unit == 'g';
+  final referenceMatches =
+      referenceFood != null &&
+      referenceFood.id == id &&
+      (referenceFood.name == text('name') ||
+          referenceFood.originalName == text('name')) &&
+      referenceFood.sourceLabel == text('sourceLabel', 160) &&
+      referenceFood.nutritionPer100g.kcal == kcal &&
+      referenceFood.nutritionPer100g.proteinG == protein &&
+      referenceFood.nutritionPer100g.carbsG == carbs &&
+      referenceFood.nutritionPer100g.fatG == fat;
+  final dietaryClass = FoodDietClass.values
+      .where((kind) => kind.name == data['dietaryClass'])
+      .firstOrNull;
   return FoodCatalogItem(
     id: id,
     name: text('name') ?? 'Món chưa có tên',
+    originalName:
+        text('originalName', 1000) ??
+        (referenceMatches ? referenceFood.originalName : null),
+    ingredientNames: data['ingredientNames'] is List
+        ? (data['ingredientNames'] as List)
+              .whereType<String>()
+              .take(60)
+              .toList()
+        : (referenceMatches ? referenceFood.ingredientNames : const []),
+    ingredientsKnown:
+        data['ingredientsKnown'] == true ||
+        (data['ingredientsKnown'] == null &&
+            referenceMatches &&
+            referenceFood.ingredientsKnown),
+    dietaryClass:
+        dietaryClass ??
+        (referenceMatches ? referenceFood.dietaryClass : FoodDietClass.unknown),
     alternateNames: data['alternateNames'] is List
         ? (data['alternateNames'] as List)
               .whereType<String>()
@@ -82,5 +113,13 @@ FoodCatalogItem readCatalogFood(
     servingMetadataInvalid: hasRawServing && !validServing,
     brand: text('brand', 60),
     packageLabel: text('packageLabel', 60),
+    dataSource:
+        FoodDataSource.values
+            .where((source) => source.wireValue == data['dataSource'])
+            .firstOrNull ??
+        FoodDataSource.local,
+    fdcId: data['fdcId'] is int && (data['fdcId'] as int) > 0
+        ? data['fdcId'] as int
+        : null,
   );
 }

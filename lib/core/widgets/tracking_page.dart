@@ -24,7 +24,7 @@ class TrackingPage extends StatelessWidget {
           pinned: true,
           automaticallyImplyLeading: false,
           toolbarHeight: headerHeight * scale,
-          backgroundColor: Colors.transparent,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
           titleSpacing: 20,

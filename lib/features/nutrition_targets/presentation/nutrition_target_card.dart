@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/help_details.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/local_date_key.dart';
@@ -42,6 +43,7 @@ class NutritionTargetCard extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 6,
           children: [
             Text(
               '$label: ${recorded == null ? '—' : number.format(recorded)} / ${number.format(target)} $unit',
@@ -67,6 +69,7 @@ class NutritionTargetCard extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
           children: [
             Text('Mục tiêu dinh dưỡng', style: theme.textTheme.titleLarge),
             Text('Ngày ${DateFormat('dd/MM/yyyy').format(day)}'),
@@ -84,16 +87,13 @@ class NutritionTargetCard extends ConsumerWidget {
             ] else if (value == null)
               const Text('Chưa đặt mục tiêu')
             else ...[
-              Text(
-                'Áp dụng từ ${value.effectiveFromDateKey} · Bạn tự thiết lập',
-              ),
               if (meals == null)
                 Text(
                   'Mục tiêu gốc: ${number.format(value.kcalTarget)} kcal/ngày',
                 )
               else ...[
                 line(
-                  'Năng lượng đã ghi / mục tiêu',
+                  'Năng lượng',
                   budget?.kcalTarget ?? value.kcalTarget,
                   budget == null ? null : totals?.kcal,
                   'kcal',
@@ -147,10 +147,17 @@ class NutritionTargetCard extends ConsumerWidget {
                 ],
               ] else
                 const Text('Chưa đặt mục tiêu cho ba chất'),
-              if (meals != null)
-                const Text(
-                  'So sánh chỉ từ nhật ký đã ghi, không khẳng định bạn đã ghi đủ ngày.',
-                ),
+              HelpDetails(
+                title: 'Thông tin mục tiêu',
+                children: [
+                  Text(
+                    'Áp dụng từ ${value.effectiveFromDateKey} · Bạn tự thiết lập',
+                  ),
+                  const Text(
+                    'Số đã ghi chỉ tính từ nhật ký. Chưa ghi đủ không có nghĩa là chưa ăn. Mục tiêu mới không thay đổi lịch sử.',
+                  ),
+                ],
+              ),
             ],
             if (ready)
               TextButton.icon(
@@ -158,9 +165,7 @@ class NutritionTargetCard extends ConsumerWidget {
                 onPressed: () => openPersonalNutritionPlanner(context),
                 icon: const Icon(Icons.calculate_outlined),
                 label: Text(
-                  value == null
-                      ? 'Cá nhân hóa kế hoạch kcal'
-                      : 'Tính lại kế hoạch kcal từ hôm nay',
+                  value == null ? 'Gợi ý mục tiêu' : 'Tính lại mục tiêu',
                 ),
               ),
             if (ready)
@@ -176,7 +181,7 @@ class NutritionTargetCard extends ConsumerWidget {
                   localDateKey(today) == key
                       ? (value == null
                             ? 'Thiết lập mục tiêu'
-                            : 'Chỉnh mục tiêu từ hôm nay')
+                            : 'Chỉnh mục tiêu')
                       : 'Thiết lập từ hôm nay',
                 ),
               ),

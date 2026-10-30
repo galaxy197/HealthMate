@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/help_details.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/local_date_key.dart';
@@ -207,46 +208,6 @@ class _NutritionTargetFormState extends ConsumerState<NutritionTargetForm>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'Bạn tự thiết lập mục tiêu; có thể tham khảo mức duy trì trước khi nhập. Giới hạn 20.000 kcal và 5.000 g mỗi chất chỉ là giới hạn kỹ thuật.',
-                  ),
-                  TextButton.icon(
-                    key: const ValueKey('personalize-target-form'),
-                    icon: const Icon(Icons.auto_awesome_outlined),
-                    label: const Text('Cá nhân hóa kcal và ba chất'),
-                    onPressed: () async {
-                      final result = await openPersonalNutritionPlanner(
-                        context,
-                        saveToAccount: false,
-                      );
-                      if (!_current || result == null) return;
-                      setState(() {
-                        _fill(result);
-                        _error = null;
-                      });
-                    },
-                  ),
-                  const Text(
-                    'Đề xuất chỉ điền vào form. Hãy kiểm tra ngày áp dụng và xác nhận Lưu mục tiêu.',
-                  ),
-                  TextButton.icon(
-                    key: const ValueKey('open-energy-estimate'),
-                    icon: const Icon(Icons.calculate_outlined),
-                    label: const Text('Tham khảo mức duy trì (tùy chọn)'),
-                    onPressed: () async {
-                      final result = await showDialog<double>(
-                        context: context,
-                        builder: (_) => const AccountBoundDialog(
-                          child: EnergyEstimateDialog(),
-                        ),
-                      );
-                      if (!_current || result == null) return;
-                      setState(() {
-                        _fields[0].text = result.toStringAsFixed(0);
-                        _error = null;
-                      });
-                    },
-                  ),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     key: const ValueKey('target-date'),
@@ -255,9 +216,6 @@ class _NutritionTargetFormState extends ConsumerState<NutritionTargetForm>
                     label: Text(
                       'Áp dụng từ ${DateFormat('dd/MM/yyyy').format(_day)}',
                     ),
-                  ),
-                  const Text(
-                    'Chọn ngày khác sẽ tải thiết lập của ngày đó để chỉnh. Lưu cùng ngày thay thiết lập ngày đó; không viết lại ngày trước.',
                   ),
                   if (_loading) const LinearProgressIndicator(),
                   if (_loadError != null) ...[
@@ -312,6 +270,48 @@ class _NutritionTargetFormState extends ConsumerState<NutritionTargetForm>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  const HelpDetails(
+                    title: 'Cách đặt mục tiêu',
+                    children: [
+                      Text(
+                        'Bạn có thể nhập chỉ kcal hoặc thêm mục tiêu ba chất. Chọn ngày áp dụng rồi lưu; các ngày trước được giữ nguyên. Giới hạn nhập là giới hạn kỹ thuật, không phải khuyến nghị ăn uống.',
+                      ),
+                    ],
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey('personalize-target-form'),
+                    icon: const Icon(Icons.auto_awesome_outlined),
+                    label: const Text('Cá nhân hóa kcal và ba chất'),
+                    onPressed: () async {
+                      final result = await openPersonalNutritionPlanner(
+                        context,
+                        saveToAccount: false,
+                      );
+                      if (!_current || result == null) return;
+                      setState(() {
+                        _fill(result);
+                        _error = null;
+                      });
+                    },
+                  ),
+                  TextButton.icon(
+                    key: const ValueKey('open-energy-estimate'),
+                    icon: const Icon(Icons.calculate_outlined),
+                    label: const Text('Tham khảo mức duy trì (tùy chọn)'),
+                    onPressed: () async {
+                      final result = await showDialog<double>(
+                        context: context,
+                        builder: (_) => const AccountBoundDialog(
+                          child: EnergyEstimateDialog(),
+                        ),
+                      );
+                      if (!_current || result == null) return;
+                      setState(() {
+                        _fields[0].text = result.toStringAsFixed(0);
+                        _error = null;
+                      });
+                    },
+                  ),
                   if (_error != null)
                     Text(
                       _error!,

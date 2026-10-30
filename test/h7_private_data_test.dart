@@ -233,7 +233,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('restore-draft-restored')));
       await tester.pumpAndSettle();
       expect(find.byType(MealFormDialog), findsOneWidget);
-      expect(find.textContaining('Đã giữ mã hóa'), findsOneWidget);
+      expect(find.text('Đã giữ nháp trên thiết bị'), findsOneWidget);
       expect(nutrition.addCalls, 0);
       await tester.tap(find.byKey(const ValueKey('save-meal')));
       await tester.pumpAndSettle();

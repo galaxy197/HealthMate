@@ -13,6 +13,8 @@ String _destination(Uri uri) {
     AppRoutes.quest,
     AppRoutes.chat,
     AppRoutes.profile,
+    AppRoutes.premium,
+    AppRoutes.support,
     AppRoutes.progress,
     AppRoutes.foodLibrary,
     AppRoutes.personalization,

@@ -6,7 +6,7 @@ param(
   [string]$AndroidSdk = "$env:LOCALAPPDATA\Android\sdk",
   [string]$JavaHome = 'C:\Program Files\Android\Android Studio\jbr',
   [switch]$CrossDriveBuild,
-  [ValidateSet('core','wellness')]
+  [ValidateSet('core','wellness','nutrition')]
   [string]$Suite = 'core'
 )
 
@@ -69,7 +69,11 @@ try {
     $qaProperties = [System.IO.File]::ReadAllBytes($propertiesPath)
     [System.IO.File]::AppendAllText($propertiesPath, "`nkotlin.incremental=false`n", [System.Text.UTF8Encoding]::new($false))
   }
-  $target = if ($Suite -eq 'wellness') { 'integration_test/wellness_acceptance_test.dart' } else { 'integration_test/core_acceptance_test.dart' }
+  $target = switch ($Suite) {
+    'wellness' { 'integration_test/wellness_acceptance_test.dart' }
+    'nutrition' { 'integration_test/nutrition_acceptance_test.dart' }
+    default { 'integration_test/core_acceptance_test.dart' }
+  }
   # The API30 SwiftShader AVD exceeds an Impeller GLES uniform limit. Use Skia
   # only for this guarded QA device; production build settings stay unchanged.
   $command = '"' + $flutter + '" drive --no-pub -d ' + $DeviceId + ' --no-enable-impeller --keep-app-running --driver=test_driver/core_acceptance_driver.dart --target=' + $target + ' --dart-define=HEALTHMATE_CORE_EMULATOR_TESTS=true --dart-define=HEALTHMATE_ENABLE_CHATBOT=false --dart-define=HEALTHMATE_ENABLE_FOOD_SCANNER=false'

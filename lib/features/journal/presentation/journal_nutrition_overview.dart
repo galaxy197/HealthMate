@@ -125,6 +125,7 @@ class JournalNutritionOverview extends ConsumerWidget {
                           padding: const EdgeInsets.all(20),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
+                            spacing: 12,
                             children: [
                               JournalNutritionOverview(day: day, meals: meals),
                               if (target != null)
@@ -278,6 +279,7 @@ class JournalNutritionOverview extends ConsumerWidget {
                         padding: const EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: 12,
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(

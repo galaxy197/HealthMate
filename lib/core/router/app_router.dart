@@ -11,6 +11,8 @@ import '../../features/daily_quest/presentation/quest_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/journal/presentation/journal_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/premium/presentation/premium_screen.dart';
+import '../../features/support/presentation/support_screen.dart';
 import '../../features/progress/presentation/progress_screen.dart';
 import '../../features/food_library/presentation/food_library_screen.dart';
 import '../../features/wellness/presentation/wellness_screen.dart';
@@ -109,6 +111,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.profile,
                 builder: (context, state) => const ProfileScreen(),
+              ),
+              GoRoute(
+                path: AppRoutes.premium,
+                builder: (context, state) => const PremiumScreen(),
+              ),
+              GoRoute(
+                path: AppRoutes.support,
+                builder: (context, state) => const SupportScreen(),
               ),
               GoRoute(
                 path: AppRoutes.foodLibrary,

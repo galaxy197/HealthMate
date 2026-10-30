@@ -31,7 +31,7 @@ class PersonalizationQuestions extends StatelessWidget {
               initialValue: answers[q.id] as String? ?? '',
               maxLength: 200,
               decoration: const InputDecoration(
-                hintText: 'Ví dụ: đậu phộng; để trống nếu bỏ qua',
+                hintText: 'Ví dụ: sữa; trứng; đậu phộng; tôm',
               ),
               onChanged: (v) => onChanged(
                 answers.withAnswer(q.id, v.trim().isEmpty ? null : v.trim()),
@@ -87,7 +87,7 @@ class PersonalizationQuestions extends StatelessWidget {
             ),
           if (q.id == 'avoidFoods')
             const Text(
-              'Thông tin tự khai, chưa xác minh thành phần món ăn. Hãy tự kiểm tra nhãn và nguyên liệu trước khi ăn.',
+              'Ngăn cách từng thực phẩm bằng dấu ; hoặc dấu phẩy. App ẩn món có từ khóa trùng và món chưa đủ thành phần khi tìm/gợi ý. Không kiểm tra được nhiễm chéo; luôn kiểm tra nhãn và nguyên liệu thực tế.',
             ),
           const SizedBox(height: 20),
         ],

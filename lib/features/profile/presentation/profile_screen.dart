@@ -25,6 +25,7 @@ import 'profile_form_dialog.dart';
 import 'weight_chart.dart';
 import 'personal_overview.dart';
 import '../../data_export/presentation/journal_export_dialog.dart';
+import '../../premium/providers/premium_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -63,10 +64,31 @@ class ProfileScreen extends ConsumerWidget {
       title: 'Không gian cá nhân',
       subtitle: '',
       children: [
+        if (ref.watch(premiumDemoEnabledProvider))
+          Card(
+            child: ListTile(
+              key: const ValueKey('open-premium'),
+              leading: const Icon(Icons.workspace_premium_outlined),
+              title: const Text('HealthMate Premium'),
+              subtitle: const Text('20.000đ / 30 ngày · Demo không thu tiền'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push(AppRoutes.premium),
+            ),
+          ),
         PersonalOverview(
           onEdit: profile == null
               ? null
               : () => _editProfile(context, ref, profile),
+        ),
+        Card(
+          child: ListTile(
+            key: const ValueKey('open-support'),
+            leading: const Icon(Icons.support_agent_outlined),
+            title: const Text('Báo lỗi & Góp ý'),
+            subtitle: const Text('Gửi yêu cầu và xem phản hồi từ HealthMate'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push(AppRoutes.support),
+          ),
         ),
         Card(
           child: Column(

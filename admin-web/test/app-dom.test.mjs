@@ -23,7 +23,7 @@ async function setup({member=false,pendingList=false}={}) {
     authChanges(callback){this.auth=callback;callback({uid:'admin',email:'admin@healthmate.local',emailVerified:true});},
     role(uid,data){this.roleData=data;data(!member);return()=>{};},
     async logout(){this.auth(null);},async counts(){return[67,3,0,0];},async config(){return{chatbotEnabled:true,foodScannerEnabled:true,maintenanceMode:false};},
-    async list(kind){this.listCalls++;if(pendingList)await held;return kind==='food_catalog'?this.rows:[{id:'member',email:'member@example.com',displayName:'Member',adminRole:null,control:null},{id:'admin',email:'admin@example.com',adminRole:{enabled:true}}];},
+    async list(kind){this.listCalls++;if(pendingList)await held;if(kind==='support_tickets')return this.supportRows??[];if(kind.startsWith('demo_premium_'))return this.demoRows?.[kind] ?? [];return kind==='food_catalog'?this.rows:[{id:'member',email:'member@example.com',displayName:'Member',adminRole:null,control:null},{id:'admin',email:'admin@example.com',adminRole:{enabled:true}}];},
     async save(kind,id,payload,reason,version){this.saves.push({kind,id,payload,reason,version});if(this.failSave)throw Error('Lỗi nguồn QA');const row=this.rows.find(r=>r.id===id);if(row)Object.assign(row,payload);else this.rows.push({...payload,id});},
     release,
   };
@@ -96,6 +96,59 @@ test('Google sign-in opens from login and handles popup rejection without a stuc
   t.api.loginGoogle=async()=>{calls++;throw{code:'auth/popup-closed-by-user'};};
   await t.click(t.document.querySelector('#google-login'));
   assert.equal(calls,2);assert.match(t.document.querySelector('.error').textContent,/hủy đăng nhập/);
+});
+
+test('revenue page displays only simulated money, empty state and confirmed order totals',async()=>{
+  const t=await setup();await t.click(t.document.querySelector('[data-page="revenue"]'));
+  assert.match(t.document.querySelector('#page-content').textContent,/KHÔNG THU TIỀN/);
+  assert.match(t.document.querySelector('#revenue-results').textContent,/Chưa có giao dịch/);
+  const now=Date.now();
+  t.api.demoRows={demo_premium_transactions:[{id:'demo-1',uid:'member',mode:'demo',planId:'premium_demo_30d',
+    amountVnd:20000,currency:'VND',status:'simulated_paid',source:'demo_checkout',occurredAt:{toMillis:()=>now}}],
+    demo_premium_accounts:[{id:'member',mode:'demo',planId:'premium_demo_30d',startedAt:{toMillis:()=>now-1000},expiresAt:{toMillis:()=>now+86400000}}]};
+  await t.click(t.button('Tải lại'));
+  assert.match(t.document.querySelector('#revenue-results').textContent,/20\.000đ/);
+  assert.match(t.document.querySelector('#revenue-results').textContent,/demo-1/);
+  assert.ok(t.button('Xuất Excel mô phỏng'));
+  t.api.demoRows.demo_premium_transactions[0].mode='live';
+  await t.click(t.button('Tải lại'));
+  assert.match(t.document.querySelector('#revenue-results').textContent,/chưa hợp lệ/);
+  assert.equal(t.document.querySelector('#revenue-results .stats'),null);
+});
+test('support list filters and replies safely, retains failed draft/id and updates status',async()=>{
+  const t=await setup();
+  const stamp={toDate:()=>new Date(),toMillis:()=>Date.now(),seconds:1,nanoseconds:0};
+  const ticket={id:'AbCdEfGhIjKlMnOpQrSt',uid:'member',title:'<script>QA</script>',description:'Không lưu được bữa sáng',type:'bug',status:'open',messageCount:0,createdAt:stamp,updatedAt:stamp};
+  t.api.supportRows=[ticket];let sends=[];
+  t.api.supportThread=async()=>({ticket,messages:[]});
+  t.api.newSupportMessageId=()=> 'ZbCdEfGhIjKlMnOpQrSt';
+  t.api.supportReply=async(id,msg,text)=>{sends.push({id,msg,text});if(t.api.failSave)throw Error('Chưa gửi được phản hồi');};
+  t.api.supportStatus=async(id,status)=>{ticket.status=status;};
+  await t.click(t.document.querySelector('[data-page="support"]'));
+  assert.match(t.document.querySelector('tbody').textContent,/<script>QA/);
+  assert.equal(t.document.querySelectorAll('#app script').length,0);
+  await t.click(t.button('Xem & trả lời'));
+  await t.click(t.button('Gửi phản hồi'));assert.equal(sends.length,0);
+  t.api.failSave=true;
+  t.document.querySelector('textarea').value='Bạn vui lòng thử cập nhật app.';
+  await t.click(t.button('Gửi phản hồi'));
+  assert.match(t.document.querySelector('.error').textContent,/Chưa gửi/);
+  assert.equal(t.document.querySelector('textarea').value,'Bạn vui lòng thử cập nhật app.');
+  t.api.failSave=false;await t.click(t.button('Gửi phản hồi'));
+  assert.equal(sends.length,2);assert.equal(sends[0].msg,sends[1].msg);
+  t.document.querySelector('[aria-label="Trạng thái xử lý"]').value='resolved';await t.click(t.button('Lưu trạng thái'));
+  assert.equal(ticket.status,'resolved');
+  await t.api.logout();await t.flush();assert.equal(t.document.querySelector('.support-thread'),null);
+});
+
+test('late support thread after logout never restores customer content',async()=>{
+  const t=await setup();let release;
+  t.api.supportRows=[{id:'AbCdEfGhIjKlMnOpQrSt',uid:'member',title:'QA riêng',type:'bug',status:'open'}];
+  t.api.supportThread=()=>new Promise(resolve=>release=resolve);
+  await t.click(t.document.querySelector('[data-page="support"]'));
+  await t.click(t.button('Xem & trả lời'));await t.api.logout();
+  release({ticket:{title:'Nội dung riêng tư'},messages:[]});await t.flush();
+  assert.doesNotMatch(t.document.querySelector('#app').textContent,/Nội dung riêng tư/);
 });
 
 test.after(()=>hooks.deregister());

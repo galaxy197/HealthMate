@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/help_details.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/models/nutrition_validation.dart';
 import 'food_nutrition_text.dart';
@@ -104,7 +105,7 @@ class _FoodPortionDialogState extends State<FoodPortionDialog> {
         widget.snapshot?.quantityUnit != null &&
                 widget.snapshot!.quantityUnit != 'g'
             ? 'Lượng đã ghi'
-            : 'Khối lượng đã ăn',
+            : 'Khẩu phần',
       ),
       content: SingleChildScrollView(
         child: Form(
@@ -112,46 +113,10 @@ class _FoodPortionDialogState extends State<FoodPortionDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
             children: [
-              if (hasPortion) ...[
-                Text(
-                  '1 ${food!.servingLabel} = ${foodNumber(food.servingGrams!)} g',
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ChoiceChip(
-                      label: const Text('Gram'),
-                      selected: !_portions,
-                      onSelected: (_) => _switchUnit(false),
-                    ),
-                    ChoiceChip(
-                      key: const ValueKey('portion-unit'),
-                      label: Text(food.servingLabel!),
-                      selected: _portions,
-                      onSelected: (_) => _switchUnit(true),
-                    ),
-                  ],
-                ),
-                const Text(
-                  'Khối lượng tham khảo; tô/chén thực tế có thể khác. Ưu tiên cân phần ăn được.',
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final count in [0.5, 1.0, 1.5, 2.0])
-                      ActionChip(
-                        label: Text(
-                          '${foodNumber(count)} ${food.servingLabel!}',
-                        ),
-                        onPressed: () => setState(() {
-                          _portions = true;
-                          _amount.text = count.toString();
-                        }),
-                      ),
-                  ],
-                ),
-              ],
+              if (food != null)
+                Text(food.name, style: Theme.of(context).textTheme.titleSmall),
               TextFormField(
                 key: const ValueKey('meal-grams'),
                 controller: _amount,
@@ -160,36 +125,85 @@ class _FoodPortionDialogState extends State<FoodPortionDialog> {
                   decimal: true,
                 ),
                 decoration: InputDecoration(
-                  labelText: _portions
-                      ? 'Số ${food!.servingLabel}'
-                      : 'Lượng (${widget.snapshot?.quantityUnitLabel ?? 'g'})',
+                  labelText: _portions ? 'Số phần' : 'Lượng đã ăn',
                   suffixText: _portions
-                      ? null
+                      ? 'phần'
                       : widget.snapshot?.quantityUnitLabel ?? 'g',
                 ),
                 onChanged: (_) => setState(() {}),
                 validator: (_) => _validate(),
                 onFieldSubmitted: (_) => _submit(),
               ),
+              if (hasPortion) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Gram'),
+                      selected: !_portions,
+                      onSelected: (_) => _switchUnit(false),
+                    ),
+                    ChoiceChip(
+                      key: const ValueKey('portion-unit'),
+                      label: const Text('Khẩu phần'),
+                      selected: _portions,
+                      onSelected: (_) => _switchUnit(true),
+                    ),
+                  ],
+                ),
+                if (_portions) ...[
+                  Text(
+                    '1 ${food!.servingLabel} = ${foodNumber(food.servingGrams!)} g',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final count in [0.5, 1.0, 1.5, 2.0])
+                        ActionChip(
+                          label: Text('${foodNumber(count)} phần'),
+                          onPressed: () => setState(() {
+                            _portions = true;
+                            _amount.text = count.toString();
+                          }),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
               if (grams != null &&
                   grams.isFinite &&
                   grams > 0 &&
                   grams <= 2000) ...[
-                Text(
-                  'Quy đổi: ${foodNumber(grams)} ${widget.snapshot?.quantityUnitLabel ?? 'g'}',
-                ),
+                if (_portions) Text('Tương đương ${foodNumber(grams)} g'),
                 if (widget.snapshot != null)
-                  Text(
-                    nutritionLabel(
-                      widget.snapshot!.withQuantity(grams).nutrition,
-                    ),
-                  ),
-                if (food?.hasNutritionData == true)
-                  Text(nutritionLabel(food!.forGrams(grams))),
+                  FoodNutritionSummary(
+                    value: widget.snapshot!.withQuantity(grams).nutrition,
+                  )
+                else if (food?.hasNutritionData == true)
+                  FoodNutritionSummary(value: food!.forGrams(grams)),
               ],
               if (food?.servingMetadataInvalid == true)
-                const Text(
-                  'Thông tin khẩu phần chưa hợp lệ. Hãy dùng khối lượng gram đã cân.',
+                const Text('Khẩu phần chưa rõ. Hãy nhập số gram đã cân.'),
+              if (food != null)
+                HelpDetails(
+                  title: food.originalName != null
+                      ? 'Tên gốc và nguồn USDA'
+                      : 'Nguồn và khẩu phần',
+                  children: [
+                    if (food.originalName != null)
+                      SelectableText(food.originalName!),
+                    Text(food.sourceLabel),
+                    if (hasPortion)
+                      Text(
+                        '1 ${food.servingLabel} = ${foodNumber(food.servingGrams!)} g',
+                      ),
+                    const Text(
+                      'Khẩu phần tham khảo. Kiểm tra đúng món và cân phần ăn được khi có thể.',
+                    ),
+                  ],
                 ),
             ],
           ),

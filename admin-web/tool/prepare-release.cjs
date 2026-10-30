@@ -12,9 +12,10 @@ const dest = path.resolve(root, output);
 if (!dest.startsWith(build) || fs.existsSync(dest)) fail('Output must be a new directory below build; existing files are never overwritten.');
 const report = JSON.parse(fs.readFileSync(path.resolve(root, readinessFile), 'utf8'));
 const project = 'healthmate-app-20261013';
+const hostingSite = 'healthmate-admin-vn';
 if (report.project !== project || report.webConfigStatus !== 200 || report.webConfig?.projectId !== project ||
     !report.requestedAdmin?.emailVerified || report.requestedAdmin.disabled) fail('A successful readiness check for the verified HealthMate admin is required.');
-const site = report.hostingSites?.find(s => s.name === `projects/${project}/sites/${project}`);
+const site = report.hostingSites?.find(s => s.name === `projects/${project}/sites/${hostingSite}`);
 if (!site) fail('Expected existing Hosting site was not confirmed.');
 const siteKey = suppliedSiteKey || report.appCheck?.siteKey || '';
 if (siteKey && !/^[a-zA-Z0-9_-]{20,200}$/.test(siteKey)) fail('Invalid public App Check site key.');
@@ -29,7 +30,7 @@ fs.cpSync(path.join(root, 'admin-web/dist'), path.join(dest, 'site'), {recursive
 fs.writeFileSync(path.join(dest, 'site/config.js'), 'window.HEALTHMATE_ADMIN_CONFIG = ' + JSON.stringify({firebase,appCheckSiteKey:siteKey}, null, 2) + ';\n');
 fs.copyFileSync(path.join(root, 'firestore.rules'), path.join(dest, 'firestore.rules'));
 const config = {
-  hosting: {site:project,public:'site',ignore:['**/.*','**/node_modules/**'],headers:[{source:'**',headers:[
+  hosting: {site:hostingSite,public:'site',ignore:['**/.*','**/node_modules/**'],headers:[{source:'**',headers:[
     {key:'Content-Security-Policy',value:csp},
     {key:'Cache-Control',value:'no-store'},
     {key:'X-Content-Type-Options',value:'nosniff'},
@@ -42,7 +43,7 @@ const config = {
 fs.writeFileSync(path.join(dest, siteKey ? 'firebase.review.json' : 'hosting.blocked.json'), JSON.stringify(config,null,2));
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(path.join(dest,file))).digest('hex');
 const manifest = {
-  preparedAtUtc:new Date().toISOString(),project,hostingSite:project,hostingUrl:site.defaultUrl,
+  preparedAtUtc:new Date().toISOString(),project,hostingSite,hostingUrl:site.defaultUrl,
   clientConfigured:Boolean(siteKey),deploymentApproved:false,roleGranted:false,deployed:false,
   blockers:[...(!siteKey ? ['Register the web App Check Enterprise site key and rebuild this bundle.'] : []),
     'Review use of the existing Hosting site: publishing replaces its current contents.',

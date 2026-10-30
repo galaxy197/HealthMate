@@ -180,7 +180,7 @@ void main() {
     'Vietnamese asset has sources, reference portions and unaccented search',
     () async {
       final foods = await loadBundledVietnameseFoods();
-      expect(foods.length, 162);
+      expect(foods.length, greaterThan(7000));
       expect(foods.map((f) => f.id).toSet().length, foods.length);
       final meal = foods.singleWhere((f) => f.id == 'vn-com-suon-trung');
       expect(meal.hasValidServing, true);

@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/widgets/help_details.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,10 +12,16 @@ import '../../food_library/presentation/food_nutrition_text.dart';
 import '../../food_library/presentation/food_portion_dialog.dart';
 import '../../nutrition/models/extra_nutrients.dart';
 import '../../nutrition/models/food_catalog_search.dart';
+import '../../nutrition/models/food_diet.dart';
+import '../../nutrition/models/food_avoidance.dart';
+import '../../nutrition_targets/providers/nutrition_target_providers.dart';
+import '../../nutrition/presentation/food_diet_filter.dart';
+import '../../profile/providers/profile_providers.dart';
 import '../../nutrition/models/nutrition_models.dart';
 import '../../nutrition/presentation/meal_form_dialog.dart';
 import '../../nutrition/providers/nutrition_providers.dart';
 import '../models/wellness_models.dart';
+import '../models/meal_plan_suggestion.dart';
 import '../providers/wellness_providers.dart';
 import '../providers/sleep_insight_providers.dart';
 import 'energy_panel.dart';
@@ -70,7 +77,16 @@ class _WellnessScreenState extends State<WellnessScreen> {
               child: Column(
                 children: [
                   AppBar(
-                    title: const Text('Thói quen & kế hoạch'),
+                    title: Text(
+                      const [
+                        'Nhắc bữa',
+                        'Thực đơn',
+                        'Bước chân',
+                        'Giấc ngủ',
+                        'Dưỡng chất',
+                        'Cân nặng',
+                      ][_tab],
+                    ),
                     leading: BackButton(
                       onPressed: () {
                         if (context.canPop()) {
@@ -938,6 +954,7 @@ class MealPlannerPanel extends ConsumerStatefulWidget {
 }
 
 class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
+  bool suggesting = false;
   DateTime week = localDateOnly(DateTime.now());
   Future<void> edit(
     DateTime date,
@@ -948,6 +965,14 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
     if (uid == null) return;
     await act((_) async {
       final catalog = await ref.read(foodCatalogProvider.future);
+      final profile = await ref
+          .read(userProfileProvider.future)
+          .timeout(const Duration(seconds: 15));
+      if (profile == null) {
+        throw const FormatException(
+          'Chưa tải được hồ sơ và thực phẩm cần tránh. Hãy thử lại.',
+        );
+      }
       if (!mounted || ref.read(authSessionProvider).value?.uid != uid) return;
       final draft = await showDialog<MealDraft>(
         context: context,
@@ -957,6 +982,12 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
             date: date,
             type: type,
             catalog: catalog,
+            initialDiet: FoodDietPreference.fromAnswer(
+              profile.personalization?['diet'],
+            ),
+            avoidance: FoodAvoidance.fromText(
+              profile.personalization?['avoidFoods'],
+            ),
             items: existing?.items ?? [],
             onSave: (draft) async {
               if (ref.read(authSessionProvider).value?.uid != uid) return false;
@@ -982,6 +1013,14 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
         return;
       }
       final catalog = await ref.read(foodCatalogProvider.future);
+      final profile = await ref
+          .read(userProfileProvider.future)
+          .timeout(const Duration(seconds: 15));
+      if (profile == null) {
+        throw const FormatException(
+          'Chưa tải được hồ sơ và thực phẩm cần tránh. Hãy thử lại.',
+        );
+      }
       if (!mounted || ref.read(authSessionProvider).value?.uid != uid) return;
       await showDialog<void>(
         context: context,
@@ -989,6 +1028,12 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
         builder: (_) => AccountBoundDialog(
           child: MealFormDialog(
             catalog: catalog,
+            initialDiet: FoodDietPreference.fromAnswer(
+              profile.personalization?['diet'],
+            ),
+            avoidance: FoodAvoidance.fromText(
+              profile.personalization?['avoidFoods'],
+            ),
             initialItems: plan.items,
             initialType: plan.type,
             initialConsumedAt: plan.date == localDateOnly(now)
@@ -1025,50 +1070,37 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
     final uid = ref.read(authSessionProvider).value?.uid;
     if (uid == null) return;
     final catalog = await ref.read(foodCatalogProvider.future);
+    final profile = await ref
+        .read(userProfileProvider.future)
+        .timeout(const Duration(seconds: 15));
+    if (profile == null) {
+      throw const FormatException(
+        'Chưa tải được hồ sơ và thực phẩm cần tránh. Hãy thử lại.',
+      );
+    }
     if (!mounted || ref.read(authSessionProvider).value?.uid != uid) return;
-    final choices = catalog
-        .where(
-          (f) =>
-              f.id.startsWith('vn-') && f.hasValidServing && f.hasNutritionData,
-        )
-        .toList();
-    if (choices.isEmpty) {
-      setState(() => message = 'Chưa đủ món có khẩu phần để gợi ý.');
-      return;
-    }
-    final occupied = existing.map((p) => p.id).toSet();
-    final drafts = <MealDraft>[];
-    for (var d = 0; d < 7; d++) {
-      final date = DateTime(week.year, week.month, week.day + d);
-      for (final type in [
-        MealType.breakfast,
-        MealType.lunch,
-        MealType.dinner,
-      ]) {
-        if (occupied.contains('${localDateKey(date)}-${type.name}')) continue;
-        final preferred = choices
-            .where(
-              (f) => type == MealType.breakfast
-                  ? RegExp(
-                      'phở|bún|cháo|bánh mì',
-                    ).hasMatch(f.name.toLowerCase())
-                  : RegExp('^cơm|^bún|^phở|^mì').hasMatch(f.name.toLowerCase()),
-            )
-            .toList();
-        final pool = preferred.isEmpty ? choices : preferred;
-        final food = pool[(d * 3 + type.index) % pool.length];
-        drafts.add(
-          MealDraft(
-            type: type,
-            consumedAt: DateTime(date.year, date.month, date.day, 12),
-            items: [MealItemSnapshot.fromCatalog(food, food.servingGrams!)],
-            source: MealSource.manual,
-          ),
-        );
-      }
-    }
+    final diet = FoodDietPreference.fromAnswer(
+      profile.personalization?['diet'],
+    );
+    final avoidance = FoodAvoidance.fromText(
+      profile.personalization?['avoidFoods'],
+    );
+    final targets = await ref.read(weeklyNutritionTargetsProvider(week).future);
+    if (!mounted || ref.read(authSessionProvider).value?.uid != uid) return;
+    final suggestion = suggestMealPlan(
+      start: week,
+      catalog: catalog,
+      existing: existing,
+      targets: targets,
+      diet: diet,
+      avoidance: avoidance,
+    );
+    final drafts = suggestion.drafts;
     if (drafts.isEmpty) {
-      setState(() => message = 'Các bữa trong tuần đã có kế hoạch.');
+      setState(
+        () => message =
+            'Các bữa đã có kế hoạch hoặc kcal dự kiến đã đạt mục tiêu; không thêm bữa tự động.',
+      );
       return;
     }
     final accept = await showDialog<bool>(
@@ -1080,19 +1112,82 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
           height: 400,
           child: ListView(
             children: [
-              const Text(
-                'Khẩu phần công thức tham khảo, chưa cá nhân hóa theo bệnh, dị ứng hay mục tiêu năng lượng. Kiểm tra/sửa từng bữa sau khi thêm. Không tự ghi nhật ký.',
+              if (diet != FoodDietPreference.general)
+                Text('Lựa chọn trong hồ sơ: ${diet.label}.'),
+              if (avoidance.isActive) ...[
+                const SizedBox(height: 8),
+                Text('Đang tránh: ${avoidance.label}'),
+              ],
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('Chỉ lưu kế hoạch. Xác nhận đã ăn để ghi nhật ký.'),
               ),
-              for (final draft in drafts)
-                ListTile(
-                  title: Text(
-                    '${DateFormat('dd/MM').format(draft.consumedAt)} · ${draft.type.label}',
+              for (final summary in suggestion.summaries)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ExpansionTile(
+                    key: ValueKey(
+                      'suggested-day-${localDateKey(summary.date)}',
+                    ),
+                    initiallyExpanded: summary.date == week,
+                    title: Text(
+                      DateFormat('EEEE dd/MM', 'vi').format(summary.date),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 6,
+                        children: [
+                          Text(
+                            '${foodNumber(summary.plannedKcal)} kcal dự kiến'
+                            '${summary.targetKcal == null ? ' · Chưa có mục tiêu' : ' / ${foodNumber(summary.targetKcal!)} kcal mục tiêu'}',
+                          ),
+                          if (summary.outsideTarget)
+                            const Text('Lệch trên 5% · Cần kiểm tra khẩu phần'),
+                        ],
+                      ),
+                    ),
+                    children: [
+                      for (final draft in drafts.where(
+                        (d) =>
+                            localDateKey(d.consumedAt) ==
+                            localDateKey(summary.date),
+                      ))
+                        Padding(
+                          key: ValueKey(
+                            'suggested-meal-${localDateKey(draft.consumedAt)}-${draft.type.name}',
+                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            spacing: 6,
+                            children: [
+                              Text(
+                                '${draft.type.label} · ${foodNumber(draft.totals.kcal)} kcal',
+                                style: Theme.of(c).textTheme.titleSmall,
+                              ),
+                              for (final item in draft.items)
+                                Text(
+                                  '${item.name} · ${foodNumber(item.grams)} g',
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
-                  subtitle: Text(
-                    '${draft.items.single.name} · ${foodNumber(draft.items.single.grams)} g',
-                  ),
-                  trailing: Text('${foodNumber(draft.totals.kcal)} kcal'),
                 ),
+              const HelpDetails(
+                title: 'Cách gợi ý và giới hạn',
+                children: [
+                  Text(
+                    'Điều chỉnh gram theo mục tiêu kcal, giữ các bữa đã có kế hoạch. Chưa cân bằng riêng từng chất hay thay thế tư vấn dinh dưỡng.',
+                  ),
+                  Text(
+                    'Ẩn món cần tránh và món chưa rõ thành phần. Kiểm tra món thực tế; bộ lọc không xác minh nhiễm chéo.',
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -1130,15 +1225,15 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Text('Thực đơn 7 ngày · chỉ là kế hoạch'),
-        const Text(
-          'Bữa dự kiến chưa được tính vào kcal đã ăn. Chỉ chuyển sang Nhật ký sau khi bạn xác nhận đã ăn và kiểm tra khẩu phần.',
-        ),
+        Text('Thực đơn 7 ngày', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        const Text('Chỉ bữa đã xác nhận ăn mới được tính vào nhật ký.'),
+        const SizedBox(height: 12),
         Row(
           children: [
             IconButton(
               tooltip: '7 ngày trước',
-              onPressed: busy
+              onPressed: busy || suggesting
                   ? null
                   : () => setState(
                       () =>
@@ -1154,7 +1249,7 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
             ),
             IconButton(
               tooltip: '7 ngày sau',
-              onPressed: busy
+              onPressed: busy || suggesting
                   ? null
                   : () => setState(
                       () =>
@@ -1173,17 +1268,21 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
             children: [
               OutlinedButton(
                 key: const ValueKey('suggest-week-plan'),
-                onPressed: busy
+                onPressed: busy || suggesting
                     ? null
                     : () async {
+                        setState(() => suggesting = true);
                         try {
                           await suggest(values);
                         } catch (e) {
                           if (mounted) setState(() => message = _failure(e));
+                        } finally {
+                          if (mounted) setState(() => suggesting = false);
                         }
                       },
-                child: const Text('Gợi ý từ món Việt trong danh mục'),
+                child: const Text('Gợi ý thực đơn'),
               ),
+              const SizedBox(height: 16),
               for (var index = 0; index < 7; index++)
                 Builder(
                   builder: (_) {
@@ -1194,10 +1293,12 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
                     );
                     final daily = values.where((p) => p.date == date).toList();
                     return Card(
+                      margin: const EdgeInsets.only(bottom: 16),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: 12,
                           children: [
                             Text(
                               DateFormat('EEEE dd/MM', 'vi').format(date),
@@ -1227,9 +1328,9 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
                                               : plan.items
                                                     .map(
                                                       (i) =>
-                                                          '${i.name} ${snapshotQuantityLabel(i)}',
+                                                          '${i.name} · ${snapshotQuantityLabel(i)}',
                                                     )
-                                                    .join(', '),
+                                                    .join('\n'),
                                         ),
                                         trailing: IconButton(
                                           tooltip: 'Chỉnh kế hoạch',
@@ -1313,6 +1414,8 @@ class PlanMealDialog extends StatefulWidget {
     required this.catalog,
     required this.items,
     this.onSave,
+    this.initialDiet = FoodDietPreference.general,
+    this.avoidance = const FoodAvoidance.none(),
     super.key,
   });
   final DateTime date;
@@ -1320,6 +1423,8 @@ class PlanMealDialog extends StatefulWidget {
   final List<FoodCatalogItem> catalog;
   final List<MealItemSnapshot> items;
   final Future<bool> Function(MealDraft)? onSave;
+  final FoodDietPreference initialDiet;
+  final FoodAvoidance avoidance;
   @override
   State<PlanMealDialog> createState() => _PlanMealDialogState();
 }
@@ -1328,6 +1433,7 @@ class _PlanMealDialogState extends State<PlanMealDialog>
     with ConfirmedSave<MealDraft, PlanMealDialog> {
   late final List<MealItemSnapshot> items = [...widget.items];
   String search = '';
+  late FoodDietPreference diet = widget.initialDiet;
   @override
   Widget build(BuildContext context) => guardSave(
     Dialog.fullscreen(
@@ -1337,7 +1443,11 @@ class _PlanMealDialogState extends State<PlanMealDialog>
           actions: [
             TextButton(
               key: const ValueKey('save-meal-plan'),
-              onPressed: items.isEmpty
+              onPressed:
+                  items.isEmpty ||
+                      widget.avoidance
+                          .flaggedSnapshots(items, widget.catalog)
+                          .isNotEmpty
                   ? null
                   : () => saveDraft(
                       MealDraft(
@@ -1360,10 +1470,23 @@ class _PlanMealDialogState extends State<PlanMealDialog>
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text(
-              'Tối đa 5 món. Khẩu phần tô/chén là tham khảo, có thể sửa bằng gram.',
-            ),
+            const SizedBox(height: 8),
             saveFeedback(),
+            if (widget.avoidance.isActive)
+              Text('Đang tránh: ${widget.avoidance.label}'),
+            if (widget.avoidance
+                .flaggedSnapshots(items, widget.catalog)
+                .isNotEmpty)
+              const Text(
+                'Có món chứa thực phẩm cần tránh hoặc chưa rõ thành phần. Hãy bỏ hoặc thay món đó trước khi lưu kế hoạch.',
+              ),
+            FoodDietFilter(
+              value: diet,
+              onChanged: saving
+                  ? null
+                  : (value) => setState(() => diet = value),
+            ),
+            const SizedBox(height: 12),
             for (final entry in items.indexed)
               ListTile(
                 title: Text(entry.$2.name),
@@ -1390,12 +1513,19 @@ class _PlanMealDialogState extends State<PlanMealDialog>
               onChanged: (value) => setState(() => search = value),
             ),
             for (final food in searchFoodCatalog(
-              widget.catalog,
+              widget.catalog
+                  .where(
+                    (food) =>
+                        diet.allows(food) && widget.avoidance.allows(food),
+                  )
+                  .toList(),
               search,
             ).where((f) => f.hasNutritionData).take(25))
               ListTile(
                 title: Text(food.name),
-                subtitle: Text(food.sourceLabel),
+                subtitle: Text(
+                  '${foodNumber(food.nutritionPer100g.kcal)} kcal / 100 g',
+                ),
                 trailing: const Icon(Icons.add),
                 onTap: items.length >= 5
                     ? null

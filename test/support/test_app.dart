@@ -34,6 +34,8 @@ import 'package:healthmate/features/profile/providers/profile_providers.dart';
 import 'package:healthmate/features/water/providers/water_providers.dart';
 import 'package:healthmate/shared/providers/theme_mode_provider.dart';
 import 'package:healthmate/shared/providers/local_clock_provider.dart';
+import 'package:healthmate/features/premium/providers/premium_providers.dart';
+import 'package:healthmate/features/premium/models/premium_models.dart';
 
 import 'fake_account_data_repository.dart';
 import 'fake_energy_repository.dart';
@@ -118,6 +120,7 @@ Future<ProviderContainer> pumpApp(
   FakeAuthRepository? repository,
   FakeChatRepository? chatRepository,
   FakeKnowledgeService? knowledgeService,
+  Future<void> Function(PremiumAiFeature)? premiumQuota,
   ChatAssistant? chatAssistant,
   String chatApiEndpoint = '',
   FoodImagePicker? foodImagePicker,
@@ -172,6 +175,8 @@ Future<ProviderContainer> pumpApp(
   final library = libraryRepository ?? FakeFoodLibraryRepository();
   final container = ProviderContainer(
     overrides: [
+      if (premiumQuota != null)
+        premiumQuotaProvider.overrideWithValue(premiumQuota),
       stepHistoryProvider.overrideWith((ref) => Stream.value(stepDays)),
       sleepHistoryProvider.overrideWith((ref) => Stream.value(sleepLogs)),
       sleepStartProvider.overrideWith((ref) => Stream.value(null)),

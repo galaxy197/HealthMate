@@ -1,6 +1,8 @@
 import { foodPayload, configPayload, text, validFoodId, entityVersion } from './validation.mjs';
 import { filterRows, paginateRows, canControlAccount, exportRows } from './list-model.mjs';
 import { buildXlsx } from './xlsx-export.mjs';
+import { revenuePage } from './revenue-page.mjs';
+import { supportPage } from './support-page.mjs';
 
 const root = document.querySelector('#app'), dialog = document.querySelector('#editor');
 const editorForm = document.querySelector('#editor-form'), fieldsHost = document.querySelector('#editor-fields');
@@ -9,9 +11,11 @@ let currentPage = 'overview', rows = [], pageNumber = 1, filter = '', rowsReady 
 let categoryFilter = '', statusFilter = '', roleFilter = '';
 let editorAction, editorBusy = false, currentConfig = null;
 const pages = {
+  revenue: ['Doanh thu demo', 'Premium và giao dịch mô phỏng', 'Báo cáo Premium demo 20.000đ / 30 ngày. Không có khoản tiền thật nào được thu.'],
   overview: ['Tổng quan', 'Theo dõi và vận hành HealthMate', 'Một nơi để chăm sóc dữ liệu, tài khoản và trải nghiệm trong ứng dụng.'],
   food_catalog: ['Danh mục món ăn', 'Dữ liệu tốt, lựa chọn tốt hơn', 'Quản lý nguồn dinh dưỡng dùng chung. Chỉnh danh mục không làm thay đổi nhật ký đã lưu.'],
   user_directory: ['Tài khoản', 'Quản lý quyền truy cập', 'Chỉ hiển thị thông tin tài khoản tối thiểu. Hồ sơ và nhật ký sức khỏe vẫn riêng tư.'],
+  support: ['Hỗ trợ khách hàng', 'Báo lỗi và góp ý', 'Tiếp nhận, phản hồi và theo dõi yêu cầu từ khách hàng.'],
   app_config: ['Cấu hình ứng dụng', 'Điều chỉnh trải nghiệm HealthMate', 'Cấu hình áp dụng cho bản ứng dụng đã bật chức năng quản trị từ xa.'],
   admin_audit: ['Nhật ký quản trị', 'Mọi thay đổi đều có dấu vết', 'Lịch sử thao tác được ghi cùng thay đổi dữ liệu và không thể sửa hoặc xóa trên web.']
 };
@@ -83,7 +87,7 @@ function loginForm() {
 }
 function shell() {
   const nav = h('nav',{class:'nav-group','aria-label':'Quản trị'},h('p',{},'KHÔNG GIAN LÀM VIỆC'));
-  const icons = { overview:'▦',food_catalog:'♧',user_directory:'♙',app_config:'☷',admin_audit:'◷' };
+  const icons = { overview:'▦',food_catalog:'♧',user_directory:'♙',app_config:'☷',admin_audit:'◷',revenue:'₫',support:'✉' };
   for (const [key,info] of Object.entries(pages)) nav.append(h('button',{class:`nav-button${currentPage===key?' active':''}`,'data-page':key,onClick:() => openPage(key)},h('span',{class:'nav-icon','aria-hidden':'true'},icons[key]),info[0]));
   const main = h('main',{class:'main',id:'main-content'});
   root.replaceChildren(h('div',{class:'layout'},h('aside',{class:'sidebar'},brand(),nav,h('div',{class:'sidebar-bottom'},h('strong',{},'Quản trị có trách nhiệm'),h('p',{},'Chỉ truy cập dữ liệu cần thiết. Mỗi thay đổi được ghi vào nhật ký.'))),h('div',{class:'workspace'},h('header',{class:'topbar'},h('span',{class:'breadcrumb'},'HealthMate / Quản trị'),h('div',{class:'identity'},h('span',{class:`environment${api.emulator?'':' cloud'}`},api.emulator?'LOCAL · EMULATOR':'FIREBASE · PRODUCTION'),h('span',{class:'avatar','aria-hidden':'true'},'A'),h('span',{class:'identity-name'},user.email || user.uid),button('Đăng xuất',() => api.logout()))),main)));
@@ -100,6 +104,14 @@ async function openPage(key) {
   const content = h('div',{id:'page-content'}); main.append(content);
   if (key === 'overview') return overview(content);
   if (key === 'app_config') return configPage(content);
+  if (key === 'support') {
+    const g = generation, p = pageGeneration;
+    return supportPage({host:content,api,h,button,isCurrent:() => safeCurrent(g) && pageGeneration === p});
+  }
+  if (key === 'revenue') {
+    const g = generation, p = pageGeneration;
+    return revenuePage({host:content,api,h,button,isCurrent:() => safeCurrent(g) && pageGeneration === p});
+  }
   const toolbar = h('div',{class:'toolbar'},h('input',{class:'search',type:'search',id:'list-search',placeholder:'Tìm toàn bộ danh sách, có hoặc không dấu…','aria-label':'Tìm toàn bộ danh sách',maxLength:200,onInput:event => { filter=event.target.value;pageNumber=1;renderRows(); }}));
   function select(id,label,values,change) {
     return h('label',{class:'filter-field'},label,h('select',{id,'aria-label':label,onChange:event=>{change(event.target.value);pageNumber=1;renderRows();}},...values.map(([value,title])=>h('option',{value},title))));

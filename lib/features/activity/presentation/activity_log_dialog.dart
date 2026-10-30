@@ -108,6 +108,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog>
                 saveFeedback(),
                 DropdownButtonFormField<ActivityType>(
                   key: const ValueKey('activity-type'),
+                  isExpanded: true,
                   initialValue: _type,
                   decoration: const InputDecoration(
                     labelText: 'Loại hoạt động',

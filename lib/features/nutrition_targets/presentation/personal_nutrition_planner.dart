@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/help_details.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -415,8 +416,8 @@ class _PlannerFormState extends ConsumerState<_PlannerForm>
     const SizedBox(height: 8),
     Text(
       widget.lockProfileSeed
-          ? 'Dùng thông tin ở các bước trước. Nếu cần sửa tuổi, chiều cao, cân nặng hoặc mục tiêu, hãy đóng đề xuất và quay lại bước hồ sơ.'
-          : 'Thông tin có sẵn được điền từ hồ sơ. Nếu cân nặng trống hoặc đã cũ, hãy nhập số đo hiện tại. Chỉnh ở đây chỉ dùng cho lần tính này, không sửa hồ sơ.',
+          ? 'Thông tin từ hồ sơ. Quay lại bước trước nếu cần sửa.'
+          : 'Kiểm tra số đo hiện tại trước khi tính.',
     ),
     const SizedBox(height: 20),
     _numeric('nutrition-plan-age', 'Tuổi', _age),
@@ -466,8 +467,13 @@ class _PlannerFormState extends ConsumerState<_PlannerForm>
     ),
     if (_activity != null) Text(_activity!.description),
     const SizedBox(height: 8),
-    const Text(
-      'Tính cả sinh hoạt và tập luyện thường lệ. Bước chân thường ngày đã nằm trong mức này; app không tự cộng thêm calo vận động.',
+    const HelpDetails(
+      title: 'Chọn mức hoạt động',
+      children: [
+        Text(
+          'Tính cả sinh hoạt và tập luyện thường lệ. Không cộng lặp bước chân thường ngày vào kcal.',
+        ),
+      ],
     ),
     const SizedBox(height: 16),
     DropdownButtonFormField<HealthGoal>(
@@ -514,9 +520,7 @@ class _PlannerFormState extends ConsumerState<_PlannerForm>
         onChanged: (v) => setState(() => _pace = v ?? _pace),
       ),
       const SizedBox(height: 8),
-      const Text(
-        'Đây là nhịp điều chỉnh kcal khởi đầu, không cam kết số kg mỗi tuần hoặc ngày đạt cân nặng đích.',
-      ),
+      const Text('Nhịp kcal khởi đầu, không dự báo ngày đạt cân nặng đích.'),
     ],
     const SizedBox(height: 16),
     DropdownButtonFormField<PlanMacroSplit>(
@@ -569,29 +573,27 @@ class _PlannerFormState extends ConsumerState<_PlannerForm>
     Text('${plan.input.goal!.label} · ${plan.input.activity!.label}'),
     if (plan.input.changesWeight)
       Text('Cân nặng đích ${_number.format(plan.input.targetWeightKg)} kg'),
-    Text(
-      'Năng lượng nghỉ ước tính: ${_number.format(plan.restingKcal)} kcal/ngày',
-    ),
-    Text(
-      'Mức duy trì ước tính: ${_number.format(plan.maintenanceKcal)} kcal/ngày (hệ số ${plan.input.activity!.factor})',
-    ),
-    Text(
-      'Điều chỉnh: ${_number.format(plan.input.adjustmentFraction * 100)}% · Làm tròn kcal đến hàng chục',
-    ),
     const SizedBox(height: 12),
-    const Text(
-      'Đây là mức khởi đầu ước tính, không phải số đo chuyển hóa hay đơn ăn điều trị. Kết quả thực tế cần theo dõi và điều chỉnh. Không tự cập nhật khi cân nặng thay đổi.',
-    ),
-    const Text(
-      'Sinh hoạt/bước chân thường ngày đã tính trong hệ số. Không tự cộng calo từ bước hoặc giấc ngủ.',
-    ),
-    const SizedBox(height: 12),
+    const Text('Mức khởi đầu ước tính. Theo dõi tiến độ để điều chỉnh.'),
     if (!widget.saveToAccount)
-      const Text(
-        'Chưa lưu. Mục tiêu chỉ có hiệu lực khi bạn xác nhận lưu ở bước tiếp theo.',
-      ),
-    const Text(
-      'Chỉ lưu kcal và mục tiêu ba chất sau xác nhận. Các lựa chọn hệ số và đầu vào lần tính này không được lưu thêm hoặc gửi cho AI.',
+      const Text('Chưa lưu. Xác nhận ở bước tiếp theo để áp dụng.'),
+    HelpDetails(
+      title: 'Cách tính và lưu dữ liệu',
+      children: [
+        Text('Năng lượng nghỉ: ${_number.format(plan.restingKcal)} kcal/ngày'),
+        Text(
+          'Mức duy trì: ${_number.format(plan.maintenanceKcal)} kcal/ngày · Hệ số ${plan.input.activity!.factor}',
+        ),
+        Text(
+          'Điều chỉnh ${_number.format(plan.input.adjustmentFraction * 100)}% · Làm tròn đến hàng chục kcal',
+        ),
+        const Text(
+          'Đây là ước tính, không phải đơn ăn điều trị. Không tự cập nhật mục tiêu khi cân nặng thay đổi hoặc tự cộng kcal từ bước chân/giấc ngủ.',
+        ),
+        const Text(
+          'Chỉ lưu kcal và mục tiêu ba chất sau xác nhận. Các đầu vào lần tính không được lưu thêm hoặc gửi cho AI.',
+        ),
+      ],
     ),
     ExpansionTile(
       tilePadding: EdgeInsets.zero,

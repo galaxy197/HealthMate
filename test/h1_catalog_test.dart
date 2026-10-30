@@ -148,6 +148,7 @@ void main() {
           await tester.ensureVisible(
             find.byKey(const ValueKey('portion-unit')),
           );
+          await tester.pumpAndSettle();
           await tester.tap(find.byKey(const ValueKey('portion-unit')));
           await tester.pumpAndSettle();
           final amount = find.byKey(const ValueKey('meal-grams'));

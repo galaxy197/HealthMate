@@ -8,6 +8,8 @@ import '../data/food_image_picker.dart';
 
 import '../data/firebase_food_scanner_service.dart';
 import '../data/food_scanner_service.dart';
+import '../../premium/providers/premium_providers.dart';
+import '../../premium/models/premium_models.dart';
 
 final foodImagePickerProvider = Provider<FoodImagePicker>(
   (ref) => DeviceFoodImagePicker(),
@@ -15,6 +17,7 @@ final foodImagePickerProvider = Provider<FoodImagePicker>(
 
 final foodScannerServiceProvider = Provider<FoodScannerService>(
   (ref) => _CheckedFoodScannerService(
+    reserve: () => ref.read(premiumQuotaProvider)(PremiumAiFeature.scan),
     check: () {
       if (!ref.read(appFeatureFlagsProvider).foodScannerEnabled) {
         return const AiAccess(
@@ -28,17 +31,30 @@ final foodScannerServiceProvider = Provider<FoodScannerService>(
 );
 
 class _CheckedFoodScannerService implements FoodScannerService {
-  _CheckedFoodScannerService({required this.check});
+  _CheckedFoodScannerService({required this.check, required this.reserve});
   final AiAccess Function() check;
+  final Future<void> Function() reserve;
   FoodScannerService? _delegate;
 
   @override
   Future<AiFoodSuggestion> analyze({
     required Uint8List bytes,
     required String mimeType,
-  }) {
+  }) async {
     final access = check();
     if (!access.allowed) throw FoodScannerFailure(access.message);
+    if (bytes.isEmpty ||
+        bytes.length > FoodScannerConfig.maxImageBytes ||
+        !['image/jpeg', 'image/png', 'image/webp'].contains(mimeType)) {
+      throw const FoodScannerFailure('Ảnh chưa hợp lệ hoặc quá lớn.');
+    }
+    try {
+      await reserve();
+    } on PremiumFailure catch (error) {
+      throw FoodScannerFailure(error.message, code: 'demo-quota');
+    }
+    final current = check();
+    if (!current.allowed) throw FoodScannerFailure(current.message);
     return (_delegate ??= FirebaseFoodScannerService()).analyze(
       bytes: bytes,
       mimeType: mimeType,
