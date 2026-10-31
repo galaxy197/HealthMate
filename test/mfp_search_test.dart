@@ -12,12 +12,16 @@ import 'support/fake_nutrition_repository.dart';
 class PendingSearch extends FakeFoodSearchService {
   final pending = <String, Completer<List<FoodSearchResult>>>{};
   @override
-  Future<List<FoodSearchResult>> search({
+  Future<FoodSearchOutcome> search({
     required String query,
     required List<FoodCatalogItem> firestoreCatalog,
     int limit = 25,
-  }) =>
-      pending.putIfAbsent(query, Completer<List<FoodSearchResult>>.new).future;
+    FoodSearchRequest? request,
+    void Function(FoodSearchOutcome)? onProgress,
+  }) => pending
+      .putIfAbsent(query, Completer<List<FoodSearchResult>>.new)
+      .future
+      .then(FoodSearchOutcome.new);
   void complete(String query, FoodCatalogItem food) => pending[query]!.complete(
     [FoodSearchResult(food: food, source: FoodResultSource.firestore)],
   );

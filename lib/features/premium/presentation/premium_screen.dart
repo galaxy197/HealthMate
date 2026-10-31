@@ -135,16 +135,15 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 12),
-                    const Text('Quét ảnh món ăn: Miễn phí 3 · Premium 20'),
+                    const Text('Quét ảnh AI: đang chờ cấu hình dịch vụ'),
                     const SizedBox(height: 8),
-                    const Text('Câu hỏi AI: Miễn phí 5 · Premium 50'),
+                    const Text(
+                      'Chat AI: dịch vụ xác nhận hạn mức. Gói demo chỉ tăng lượt khi dịch vụ đã bật hỗ trợ.',
+                    ),
                     const SizedBox(height: 12),
                     if (ready) ...[
                       Text(
-                        'Hôm nay còn ${usage.value!.remaining(PremiumAiFeature.scan, active)} lượt quét ảnh',
-                      ),
-                      Text(
-                        'Hôm nay còn ${usage.value!.remaining(PremiumAiFeature.chat, active)} câu hỏi AI',
+                        'Dịch vụ đã ghi nhận ${usage.value!.chats} lượt chat hôm nay',
                       ),
                     ] else if (membership.isLoading || usage.isLoading)
                       const LinearProgressIndicator(),
@@ -186,7 +185,7 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                 Padding(
                   padding: EdgeInsets.all(12),
                   child: Text(
-                    'Chụp hoặc chọn ảnh rồi gửi phân tích tính 1 lượt; hủy chọn ảnh không tính. Quét mã vạch và tra cứu nhật ký không dùng lượt AI. Yêu cầu đã gửi vẫn tính lượt nếu dịch vụ lỗi hoặc bạn dừng. Lượt được đặt lại lúc 00:00 giờ Việt Nam. Premium không thay đổi hạn mức của nhà cung cấp AI.',
+                    'Một lượt chat dùng cùng mã yêu cầu cho bước lập kế hoạch và trả lời. Gửi lại cùng mã không trừ thêm lượt và không tự gọi AI lần nữa nếu kết quả chưa rõ. Yêu cầu đã gửi có thể vẫn tính khi lỗi hoặc bạn dừng. Đặt lại lúc 00:00 giờ Việt Nam. Quét mã vạch và tra cứu nhật ký không dùng lượt AI.',
                   ),
                 ),
               ],
@@ -197,7 +196,7 @@ class _PremiumScreenState extends ConsumerState<PremiumScreen> {
                 Padding(
                   padding: EdgeInsets.all(12),
                   child: Text(
-                    'HealthMate lưu mã tài khoản, gói, thời hạn và số tiền mô phỏng để admin tổng hợp báo cáo. Không thu thập thẻ hay tài khoản ngân hàng. Bản demo hiện giữ các bản ghi giao dịch và hạn mức sau khi xóa tài khoản; các bản ghi này không chứa nhật ký sức khỏe.',
+                    'HealthMate lưu mã tài khoản, gói, thời hạn và số tiền mô phỏng để admin tổng hợp báo cáo. Không thu thập thẻ hay tài khoản ngân hàng. Luồng xóa tài khoản dọn giao dịch demo và hạn mức; mã tài khoản/trạng thái xóa và audit quản trị vẫn được giữ.',
                   ),
                 ),
               ],

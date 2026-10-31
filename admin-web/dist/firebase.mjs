@@ -1,10 +1,10 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js';
 import { getAuth, connectAuthEmulator, setPersistence, browserSessionPersistence, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js';
-import { getFirestore, connectFirestoreEmulator, doc, collection, getDocFromServer, getDocsFromServer, getCountFromServer, onSnapshot, query, where, orderBy, limit, startAfter, runTransaction, serverTimestamp, documentId } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
+import { getFirestore, connectFirestoreEmulator, doc, collection, getDocFromServer, getDocsFromServer, getCountFromServer, onSnapshot, query, where, orderBy, limit, startAfter, runTransaction, serverTimestamp, documentId, Timestamp } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-app-check.js';
 import { changedFields, entityVersion } from './validation.mjs';
-import { adminLists, collectAdminRows } from './list-model.mjs';
 import {supportId,supportText,supportStatuses,validateSupportThread} from './support-model.mjs';
+import {createAdminPageReader,collectRange} from './server-paging.mjs';
 
 export async function connect(config) {
   if (!config?.firebase?.projectId) throw Error('Chưa cấu hình Firebase cho web admin.');
@@ -38,15 +38,22 @@ export async function connect(config) {
     if (!uid || !auth.currentUser.emailVerified) throw Error('Cần đăng nhập bằng tài khoản đã xác minh email.');
     return () => { if(auth.currentUser?.uid !== uid || sessionEpoch !== epoch || accessEpoch !== access)throw Error('Phiên đăng nhập hoặc quyền quản trị đã thay đổi.'); };
   }
-  async function all(kind, check, onProgress) {
-    if(![...adminLists,'account_controls'].includes(kind))throw Error('Danh sách không được hỗ trợ.');
-    return collectAdminRows(async cursor => {
-      check();
-      const q = query(collection(db,kind), orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(200));
-      const result = await getDocsFromServer(q);
-      check();
-      return {rows:result.docs.map(s => ({...s.data(),id:s.id})), cursor:result.docs.at(-1), hasMore:result.size === 200};
-    }, {isCurrent: () => {check();return true;},onProgress});
+  const readPage=createAdminPageReader({
+    async fetchDocuments({kind,cursor,pageSize,idFrom,idTo,start,lower,upper}) {
+      const clauses=start ? [where('occurredAt','>=',new Date(lower)),where('occurredAt','<',new Date(upper)),orderBy('occurredAt','desc'),orderBy(documentId(),'desc'),
+        ...(cursor?[startAfter(new Timestamp(cursor.seconds,cursor.nanoseconds),cursor.id)]:[])] :
+        [...(idFrom?[where(documentId(),'>=',idFrom)]:[]),...(idTo?[where(documentId(),'<=',idTo)]:[]),orderBy(documentId()),...(cursor?[startAfter(cursor.id)]:[])];
+      const result=await getDocsFromServer(query(collection(db,kind),...clauses,limit(pageSize)));
+      return result.docs.map(s=>({...s.data(),id:s.id}));
+    },
+    async enrichAccount(uid) {
+      const [role,control]=await Promise.all([getDocFromServer(doc(db,'admin_roles',uid)),getDocFromServer(doc(db,'account_controls',uid))]);
+      return {adminRole:role.exists()?role.data():null,control:control.exists()?control.data():null};
+    },
+  });
+  function guarded(options={}) {
+    const verify=session();
+    return {...options,isCurrent:()=>{verify();return options.isCurrent?.()??true;}};
   }
   return {
     emulator: Boolean(config.emulators), projectId: config.firebase.projectId,
@@ -66,25 +73,8 @@ export async function connect(config) {
         onData(enabled);
       }, error => {accessEpoch++;onError(error);});
     },
-    async list(kind, {isCurrent = () => true, onProgress} = {}) {
-      const verify = session();
-      const check = () => {verify();if(!isCurrent())throw Error('Đã chuyển trang; phiên tải cũ đã hủy.');};
-      const data = await all(kind,check,onProgress);
-      if (kind === 'user_directory') {
-        const controls = new Map((await all('account_controls',check)).map(r => [r.id,r]));
-        // Only check roles for known directory IDs; no role listing or granting.
-        for(let at=0;at<data.length;at+=20) {
-          check();
-          await Promise.all(data.slice(at,at+20).map(async row => {
-            const role = await getDocFromServer(doc(db,'admin_roles',row.id));
-            check();row.adminRole = role.exists() ? role.data() : null;row.control = controls.get(row.id) ?? null;
-          }));
-        }
-      }
-      check();
-      return data.sort(kind === 'admin_audit' ? (a,b)=>(b.at?.toMillis?.()??0)-(a.at?.toMillis?.()??0)||a.id.localeCompare(b.id) :
-        (a,b)=>String(a.name??a.displayName??a.email??a.id).localeCompare(String(b.name??b.displayName??b.email??b.id),'vi')||a.id.localeCompare(b.id));
-    },
+    listPage: (kind,options={})=>readPage(kind,guarded({...options,pageSize:25})),
+    exportRange: (kind,options={})=>collectRange(readPage,kind,guarded(options)),
     newSupportMessageId() { return doc(collection(db,'support_tickets')).id; },
     async supportThread(id) {
       supportId(id);const check=session();

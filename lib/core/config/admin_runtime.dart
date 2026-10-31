@@ -174,6 +174,10 @@ final adminDirectorySyncProvider = FutureProvider<void>((ref) async {
       access!.suspended) {
     return;
   }
+  if (await ref.watch(accountDeletionJobProvider.future) != null ||
+      !ref.mounted) {
+    return;
+  }
   await ref
       .watch(adminRuntimeRepositoryProvider)
       .syncDirectory(

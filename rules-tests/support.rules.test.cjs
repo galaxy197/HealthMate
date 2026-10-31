@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const {before,beforeEach,after,test}=require('node:test');
 const {initializeTestEnvironment,assertFails,assertSucceeds}=require('@firebase/rules-unit-testing');
-const {doc,collection,getDoc,getDocs,setDoc,updateDoc,deleteDoc,query,where,writeBatch,runTransaction,serverTimestamp}=require('firebase/firestore');
+const {doc,collection,getDoc,getDocs,setDoc,updateDoc,deleteDoc,query,where,writeBatch,runTransaction,serverTimestamp,Timestamp}=require('firebase/firestore');
 let env;
 const id='AbCdEfGhIjKlMnOpQrSt',m1='ZbCdEfGhIjKlMnOpQrSt',m2='XbCdEfGhIjKlMnOpQrSt';
 before(async()=>{const [host,port]=(process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8092').split(':');env=await initializeTestEnvironment({projectId:'demo-healthmate-support-rules',firestore:{host,port:Number(port),rules:fs.readFileSync(path.join(__dirname,'..','firestore.rules'),'utf8')}});});
@@ -11,7 +11,12 @@ const db=uid=>env.authenticatedContext(uid,{email_verified:true}).firestore();
 const ticket=d=>doc(d,'support_tickets',id);
 const message=(d,msg=m1)=>doc(ticket(d),'messages',msg);
 const payload=(uid='alice')=>({uid,type:'bug',title:'Không lưu được bữa ăn',description:'Đã chọn món nhưng bấm lưu báo lỗi.',status:'open',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),messageCount:0,lastMessageId:'',updatedBy:uid,deleting:false});
-const create=(d,patch={})=>setDoc(ticket(d),{...payload(),...patch});
+const dayStart=()=>{const at=new Date(Date.now()+7*3600000);return Timestamp.fromMillis(Date.UTC(at.getUTCFullYear(),at.getUTCMonth(),at.getUTCDate())-7*3600000);};
+const create=(d,patch={})=>{
+ const batch=writeBatch(d);batch.set(ticket(d),{...payload(),...patch});
+ batch.set(doc(d,'support_usage/alice'),{schemaVersion:1,dayStart:dayStart(),count:1,lastCreatedAt:serverTimestamp(),lastTicketId:id,updatedAt:serverTimestamp()});
+ return batch.commit();
+};
 function reply(d,{uid='admin',role='admin',msg=m1,count=1,text='Đã tiếp nhận, bạn vui lòng thử lại.',patch={},parent={}}={}){
  const batch=writeBatch(d);batch.set(message(d,msg),{authorUid:uid,role,text,sequence:count,createdAt:serverTimestamp(),...patch});
  batch.update(ticket(d),{messageCount:count,lastMessageId:msg,updatedAt:serverTimestamp(),updatedBy:uid,...(role==='customer'?{status:'open'}:{}),...parent});return batch.commit();

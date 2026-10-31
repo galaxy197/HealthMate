@@ -11,9 +11,10 @@ import '../models/personalization_answers.dart';
 import 'health_profile_repository.dart';
 
 class FirebaseHealthProfileRepository implements HealthProfileRepository {
-  FirebaseHealthProfileRepository(this._firestore);
+  FirebaseHealthProfileRepository(this._firestore, {this.onMetricQueryRead});
 
   final FirebaseFirestore _firestore;
+  final void Function(BodyMetricQueryRead read)? onMetricQueryRead;
 
   DocumentReference<Map<String, dynamic>> _profile(String uid) =>
       _firestore.collection('users').doc(uid);
@@ -151,20 +152,76 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
   });
 
   @override
-  Stream<List<BodyMetric>> watchBodyMetrics(String uid) async* {
+  Stream<List<BodyMetric>> watchBodyMetrics(String uid) =>
+      watchBodyMetricPage(uid).map((page) => page.metrics);
+
+  @override
+  Stream<BodyMetricPage> watchBodyMetricPage(
+    String uid, {
+    BodyMetricCursor? after,
+    int pageSize = 25,
+  }) async* {
+    if (pageSize < 1 || pageSize > 100) {
+      throw const ProfileFailure('Mỗi trang chỉ tải từ 1 đến 100 lần cân.');
+    }
     try {
-      await for (final snapshot in _metrics(
-        uid,
-      ).orderBy('measuredAt', descending: true).snapshots()) {
-        yield [
-          for (final document in snapshot.docs)
-            _metricFromData(document.id, document.data()),
-        ];
+      Query<Map<String, dynamic>> query = _metrics(uid)
+          .orderBy('measuredAt', descending: true)
+          .orderBy(FieldPath.documentId, descending: true);
+      if (after != null) {
+        query = query.startAfter([
+          Timestamp.fromDate(after.measuredAt),
+          after.id,
+        ]);
+      }
+      await for (final snapshot
+          in query
+              .limit(pageSize + 1)
+              .snapshots(includeMetadataChanges: true)) {
+        onMetricQueryRead?.call(
+          BodyMetricQueryRead(
+            branch: 'history-page',
+            documentCount: snapshot.docs.length,
+            fromCache: snapshot.metadata.isFromCache,
+          ),
+        );
+        yield BodyMetricPage(
+          metrics: [
+            for (final document in snapshot.docs.take(pageSize))
+              _metricFromData(document.id, document.data()),
+          ],
+          hasMore: snapshot.docs.length > pageSize,
+        );
       }
     } on FirebaseException catch (error) {
       throw ProfileFailure.fromCode(error.code);
     } catch (_) {
       throw ProfileFailure.fromCode('unknown');
+    }
+  }
+
+  @override
+  Stream<List<BodyMetric>> watchFirstBodyMetric(String uid) async* {
+    try {
+      await for (final snapshot
+          in _metrics(uid)
+              .orderBy('measuredAt')
+              .orderBy(FieldPath.documentId)
+              .limit(1)
+              .snapshots(includeMetadataChanges: true)) {
+        onMetricQueryRead?.call(
+          BodyMetricQueryRead(
+            branch: 'first',
+            documentCount: snapshot.docs.length,
+            fromCache: snapshot.metadata.isFromCache,
+          ),
+        );
+        yield [
+          for (final doc in snapshot.docs) _metricFromData(doc.id, doc.data()),
+        ];
+      }
+    } on FirebaseException catch (error) {
+      throw ProfileFailure.fromCode(error.code);
     }
   }
 
@@ -182,7 +239,14 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
               )
               .orderBy('measuredAt', descending: true)
               .limit(1)
-              .snapshots()) {
+              .snapshots(includeMetadataChanges: true)) {
+        onMetricQueryRead?.call(
+          BodyMetricQueryRead(
+            branch: 'latest',
+            documentCount: snapshot.docs.length,
+            fromCache: snapshot.metadata.isFromCache,
+          ),
+        );
         yield [
           for (final doc in snapshot.docs) _metricFromData(doc.id, doc.data()),
         ];
@@ -207,6 +271,13 @@ class FirebaseHealthProfileRepository implements HealthProfileRepository {
           .where('measuredAt', isLessThan: Timestamp.fromDate(end)),
       start,
       end,
+    );
+    onMetricQueryRead?.call(
+      BodyMetricQueryRead(
+        branch: 'range',
+        documentCount: snapshot.docs.length,
+        fromCache: false,
+      ),
     );
     return [
       for (final doc in snapshot.docs) _metricFromData(doc.id, doc.data()),

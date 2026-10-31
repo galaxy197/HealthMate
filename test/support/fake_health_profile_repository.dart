@@ -190,13 +190,71 @@ class FakeHealthProfileRepository implements HealthProfileRepository {
   Stream<List<BodyMetric>> watchBodyMetrics(String uid) =>
       Stream.multi((controller) {
         fullMetricWatchCalls++;
-        controller.add(List.unmodifiable(_metrics));
+        controller.add(List.unmodifiable(_metrics.take(25)));
         final subscription = _metricChanges.stream.listen(
-          controller.add,
+          (values) => controller.add(List.unmodifiable(values.take(25))),
           onError: controller.addError,
           onDone: controller.close,
         );
         controller.onCancel = subscription.cancel;
+      });
+
+  @override
+  Stream<BodyMetricPage> watchBodyMetricPage(
+    String uid, {
+    BodyMetricCursor? after,
+    int pageSize = 25,
+  }) => Stream.multi((c) {
+    void emit() {
+      final values = [..._metrics]
+        ..sort((a, b) {
+          final date = b.measuredAt.compareTo(a.measuredAt);
+          return date == 0 ? b.id.compareTo(a.id) : date;
+        });
+      final page = values
+          .where(
+            (m) =>
+                after == null ||
+                m.measuredAt.isBefore(after.measuredAt) ||
+                (m.measuredAt == after.measuredAt &&
+                    m.id.compareTo(after.id) < 0),
+          )
+          .take(pageSize + 1)
+          .toList();
+      c.add(
+        BodyMetricPage(
+          metrics: page.take(pageSize).toList(),
+          hasMore: page.length > pageSize,
+        ),
+      );
+    }
+
+    emit();
+    final sub = _metricChanges.stream.listen(
+      (_) => emit(),
+      onError: c.addError,
+    );
+    c.onCancel = sub.cancel;
+  });
+
+  @override
+  Stream<List<BodyMetric>> watchFirstBodyMetric(String uid) =>
+      Stream.multi((c) {
+        void emit() {
+          final values = [..._metrics]
+            ..sort((a, b) {
+              final date = a.measuredAt.compareTo(b.measuredAt);
+              return date == 0 ? a.id.compareTo(b.id) : date;
+            });
+          c.add(values.take(1).toList());
+        }
+
+        emit();
+        final sub = _metricChanges.stream.listen(
+          (_) => emit(),
+          onError: c.addError,
+        );
+        c.onCancel = sub.cancel;
       });
 
   @override

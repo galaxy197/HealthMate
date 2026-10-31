@@ -9,6 +9,10 @@
   "ai": { "binding": "AI" },
   "observability": { "enabled": false },
   "vars": {
+    // Candidate remains disabled until scoped server identity and Rules/client
+    // rollout have been provisioned and verified. Secrets never belong here.
+    "AI_GATEWAY_ENABLED": "false",
+    "AI_GATEWAY_PREMIUM_DEMO": "false",
     "FIREBASE_PROJECT_ID": "healthmate-app-20261013",
     "FIREBASE_PROJECT_NUMBER": "471712188542",
     "FIREBASE_ANDROID_APP_ID": "1:471712188542:android:9aa12bdbac4605511eb02f"

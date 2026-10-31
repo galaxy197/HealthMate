@@ -72,6 +72,7 @@ class FirebaseAuthRepository implements AuthRepository {
           );
         }
         _requireCurrentUser(expectedUid);
+        await user.getIdToken(true);
       });
 
   @override
@@ -129,6 +130,8 @@ class FirebaseAuthRepository implements AuthRepository {
       password: password,
     );
     await user.reauthenticateWithCredential(credential);
+    _requireCurrentUser(expectedUid);
+    await user.getIdToken(true);
   });
 
   @override

@@ -16,17 +16,21 @@ class FakeFoodSearchService extends UnifiedFoodSearchService {
         usdaService: UsdaApiService(),
       );
   @override
-  Future<List<FoodSearchResult>> search({
+  Future<FoodSearchOutcome> search({
     required String query,
     required List<FoodCatalogItem> firestoreCatalog,
     int limit = 25,
-  }) async => searchFoodCatalog(firestoreCatalog, query)
-      .take(limit)
-      .map(
-        (food) =>
-            FoodSearchResult(food: food, source: FoodResultSource.firestore),
-      )
-      .toList();
+    FoodSearchRequest? request,
+    void Function(FoodSearchOutcome)? onProgress,
+  }) async => FoodSearchOutcome(
+    searchFoodCatalog(firestoreCatalog, query)
+        .take(limit)
+        .map(
+          (food) =>
+              FoodSearchResult(food: food, source: FoodResultSource.firestore),
+        )
+        .toList(),
+  );
 }
 
 Widget testFoodScope(Widget child) => ProviderScope(

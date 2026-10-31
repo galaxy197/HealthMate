@@ -1,60 +1,72 @@
-import {demoRevenue, revenueExport, vietnamDateKey} from './revenue-model.mjs';
+import {demoRevenue,revenueExport,vietnamDateKey,dateBoundary} from './revenue-model.mjs';
 import {buildXlsx} from './xlsx-export.mjs';
-const loads = new WeakMap();
+const loads=new WeakMap();
 
-export async function revenuePage({host, api, h, button, isCurrent}) {
-  const revision = (loads.get(host) ?? 0) + 1;
-  loads.set(host, revision);
-  const current = () => isCurrent() && loads.get(host) === revision;
-  host.replaceChildren(h('p',{class:'loading'},'Đang tải giao dịch mô phỏng…'));
-  try {
-    const [transactions,accounts] = await Promise.all([
-      api.list('demo_premium_transactions',{isCurrent:current}),
-      api.list('demo_premium_accounts',{isCurrent:current}),
-    ]);
-    if (!current()) return;
-    const today = vietnamDateKey(new Date());
-    const start = h('input',{type:'date',value:`${today.slice(0,7)}-01`,'aria-label':'Từ ngày'});
-    const end = h('input',{type:'date',value:today,'aria-label':'Đến ngày'});
-    const results = h('div',{id:'revenue-results'});
-    function render() {
-      if (!current()) return;
-      try {
-        const report = demoRevenue(transactions, accounts, {start:start.value,end:end.value});
-        const money = n => `${n.toLocaleString('vi-VN')}đ`;
-        const stats = h('div',{class:'stats'});
-        for (const [label,value] of [['Doanh thu mô phỏng trong kỳ',money(report.amountVnd)],
-          ['Giao dịch demo trong kỳ',String(report.count)],['Khách mua trong kỳ',String(report.buyers)],
-          ['Gói demo còn hạn hiện tại',String(report.activeAccounts)]]) {
-          stats.append(h('section',{class:'stat'},h('div',{class:'stat-label'},label),h('div',{class:'stat-number'},value)));
-        }
-        const exportButton = button('Xuất Excel mô phỏng',() => {
-          if (!current()) return;
-          const url = URL.createObjectURL(new Blob([buildXlsx(revenueExport(report))],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
-          const link = h('a',{href:url,download:`healthmate-doanh-thu-demo-${start.value}-${end.value}.xlsx`});
-          link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
-        });
-        const daily = h('table',{},h('thead',{},h('tr',{},...['Ngày (VN)','Giao dịch demo','Doanh thu mô phỏng'].map(title=>h('th',{},title)))),
-          h('tbody',{},...report.days.map(day=>h('tr',{},h('td',{},day.day),h('td',{},String(day.transactions)),h('td',{},money(day.amountVnd))))));
-        // Revenue totals include the complete selected period. Detail rendering
-        // is bounded; export retains all rows validated by the list loader.
-        const detail = h('table',{},h('thead',{},h('tr',{},...['Giao dịch','UID','Thời điểm (VN)','Mô phỏng (VND)'].map(title=>h('th',{},title)))),
-          h('tbody',{},...report.transactions.slice(0,100).map(row=>h('tr',{},
-            h('td',{},row.id),h('td',{},row.uid),h('td',{},new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date(row.at))),h('td',{},money(row.amountVnd))))));
-        results.replaceChildren(stats,h('section',{class:'panel'},exportButton,
-          report.count === 0 ? h('p',{class:'muted'},'Chưa có giao dịch mô phỏng trong khoảng này.') : null,
-          h('h2',{},'Tổng hợp theo ngày'),h('div',{class:'table-wrap'},daily)),
-          h('section',{class:'panel'},h('h2',{},'Giao dịch demo'),
-            h('p',{class:'muted'},`Hiển thị tối đa 100 giao dịch mới nhất. Tổng hợp và Excel tính đủ ${report.count} giao dịch trong kỳ.`),h('div',{class:'table-wrap'},detail)));
-      } catch(error) { results.replaceChildren(h('p',{class:'error',role:'alert'},error.message)); }
-    }
-    const toolbar = h('div',{class:'toolbar'},h('label',{class:'field'},'Từ ngày',start),h('label',{class:'field'},'Đến ngày',end),button('Xem báo cáo',render),
-      button('Tải lại',() => revenuePage({host,api,h,button,isCurrent})));
-    host.replaceChildren(h('p',{class:'notice local'},'DEMO · KHÔNG THU TIỀN. Báo cáo chỉ cộng giao dịch mua mô phỏng 20.000đ/30 ngày. Không phải tiền thực nhận, lợi nhuận hoặc báo cáo quyết toán.'),
-      h('section',{class:'panel'},toolbar),results);
-    render();
-  } catch(error) {
-    if (current()) host.replaceChildren(h('p',{class:'error'},'Chưa tải đủ dữ liệu doanh thu mô phỏng. Kiểm tra quyền admin, mạng và Rules; không hiển thị tổng thiếu.'),
-      button('Thử lại',() => revenuePage({host,api,h,button,isCurrent})));
+export async function revenuePage({host,api,h,button,isCurrent}) {
+  const revision=(loads.get(host)??0)+1;loads.set(host,revision);
+  const current=()=>isCurrent()&&loads.get(host)===revision;
+  const today=vietnamDateKey(new Date());
+  let epoch=0,detailTurn=0,reportTurn=0,pageNumber=1,range,report;
+  let cursors=[null];
+  const money=n=>`${n.toLocaleString('vi-VN')}đ`;
+  const start=h('input',{type:'date',value:`${today.slice(0,7)}-01`,'aria-label':'Từ ngày',onChange:invalidate});
+  const end=h('input',{type:'date',value:today,'aria-label':'Đến ngày',onChange:invalidate});
+  const summary=h('div',{id:'revenue-summary'}),details=h('div',{id:'revenue-results'});
+  function invalidate(){epoch++;report=null;summary.replaceChildren();details.replaceChildren(h('p',{class:'muted'},'Chọn Xem giao dịch để tải khoảng ngày mới.'));}
+  function selectedRange(){
+    const lower=dateBoundary(start.value),upper=dateBoundary(end.value)+86400000;
+    if(upper<=lower||upper-lower>366*86400000)throw Error('Chọn khoảng báo cáo từ 1 đến 366 ngày.');
+    return {start:start.value,end:end.value};
   }
+  async function load(cursor=null,number=1,newRange=false){
+    if(!current())return;
+    let active=()=>false;
+    try{
+      if(newRange||!range){range=selectedRange();epoch++;report=null;cursors=[null];summary.replaceChildren();}
+      const token=epoch,turn=++detailTurn;
+      active=()=>current()&&token===epoch&&turn===detailTurn;
+      details.replaceChildren(h('p',{class:'loading'},'Đang tải trang giao dịch…'));
+      const result=await api.listPage('demo_premium_transactions',{...range,cursor,isCurrent:active});if(!active())return;
+      pageNumber=number;if(result.hasMore)cursors[number]=result.cursor;
+      const page=demoRevenue(result.rows,[],range);
+      const table=h('table',{},h('thead',{},h('tr',{},...['Giao dịch','UID','Thời điểm (VN)','Mô phỏng (VND)'].map(title=>h('th',{},title)))),
+        h('tbody',{},...page.transactions.map(row=>h('tr',{},h('td',{},row.id),h('td',{},row.uid),
+          h('td',{},new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Ho_Chi_Minh'}).format(new Date(row.at))),h('td',{},money(row.amountVnd))))));
+      details.replaceChildren(h('section',{class:'panel'},h('h2',{},'Giao dịch demo'),h('p',{class:'muted'},'25 mục mỗi trang, mới nhất trước. Trang này không phải tổng doanh thu của kỳ.'),
+        !result.rows.length?h('p',{class:'empty'},number===1?'Chưa có giao dịch mô phỏng trong khoảng này.':'Đã hết giao dịch trong lần tải này.'):null,
+        h('div',{class:'table-wrap'},table),h('div',{class:'table-foot'},h('span',{},`Trang ${pageNumber} · ${result.rows.length} giao dịch`),h('div',{class:'pagination'},
+          h('button',{type:'button',class:'button secondary',disabled:number===1,onClick:()=>load(cursors[number-2],number-1)},'Trước'),
+          h('button',{type:'button',class:'button secondary',disabled:!result.hasMore,onClick:()=>load(cursors[number],number+1)},'Sau')))));
+    }catch(e){if(current()&&(active()||newRange))details.replaceChildren(h('p',{class:'error',role:'alert'},e.message));}
+  }
+  async function summarize(){
+    if(!current())return;
+    let active=current;
+    try{
+      const selected=selectedRange();
+      if(!range||JSON.stringify(range)!==JSON.stringify(selected)){await load(null,1,true);if(!current()||JSON.stringify(range)!==JSON.stringify(selected)||start.value!==selected.start||end.value!==selected.end)return;}
+      const token=epoch,turn=++reportTurn;active=()=>current()&&token===epoch&&turn===reportTurn;
+      report=null;summary.replaceChildren(h('p',{class:'loading'},'Đang tải đủ giao dịch trong kỳ, tối đa 5.000 mục…'));
+      const all=await api.exportRange('demo_premium_transactions',{...range,isCurrent:active});if(!active())return;
+      report=demoRevenue(all,[],range);
+      const captured=report,stats=h('div',{class:'stats'});
+      for(const [label,value] of [['Doanh thu mô phỏng trong kỳ',money(report.amountVnd)],['Giao dịch demo trong kỳ',String(report.count)],['Khách mua trong kỳ',String(report.buyers)]])
+        stats.append(h('section',{class:'stat'},h('div',{class:'stat-label'},label),h('div',{class:'stat-number'},value)));
+      const daily=h('table',{},h('thead',{},h('tr',{},...['Ngày (VN)','Giao dịch demo','Doanh thu mô phỏng'].map(title=>h('th',{},title)))),
+        h('tbody',{},...report.days.map(day=>h('tr',{},h('td',{},day.day),h('td',{},String(day.transactions)),h('td',{},money(day.amountVnd))))));
+      const exportButton=button('Xuất Excel mô phỏng',()=>{
+        if(!active()||report!==captured)return;
+        const bytes=buildXlsx(revenueExport(captured));if(!active())return;
+        const url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+        const link=h('a',{href:url,download:`healthmate-doanh-thu-demo-${range.start}-${range.end}.xlsx`});link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      });
+      summary.replaceChildren(stats,h('section',{class:'panel'},h('h2',{},'Tổng hợp đầy đủ kỳ đã chọn'),h('p',{class:'muted'},`${report.count} giao dịch đã tải đủ. Dữ liệu có thể thay đổi trong lúc phân trang; tải lại trước khi đối soát.`),exportButton,h('div',{class:'table-wrap'},daily)));
+    }catch(e){if(current()&&(active()||!range))summary.replaceChildren(h('p',{class:'error',role:'alert'},e.message));}
+  }
+  host.replaceChildren(h('p',{class:'notice local'},'DEMO · KHÔNG THU TIỀN. Chỉ cộng giao dịch mô phỏng 20.000đ/30 ngày, không phải tiền thực nhận.'),
+    h('section',{class:'panel'},h('div',{class:'toolbar'},h('label',{class:'field'},'Từ ngày',start),h('label',{class:'field'},'Đến ngày',end),
+      button('Xem giao dịch',()=>load(null,1,true)),button('Tổng hợp kỳ',summarize),button('Hủy tổng hợp',()=>{reportTurn++;report=null;summary.replaceChildren(h('p',{class:'muted'},'Đã hủy tổng hợp.'));}),button('Tải lại',()=>revenuePage({host,api,h,button,isCurrent}))),
+      h('p',{class:'muted'},'Tổng hợp và Excel tải riêng tối đa 5.000 giao dịch của kỳ. Vượt giới hạn phải chọn khoảng ngày nhỏ hơn; không xuất thiếu âm thầm.')),
+    summary,details);
+  await load(null,1,true);
 }

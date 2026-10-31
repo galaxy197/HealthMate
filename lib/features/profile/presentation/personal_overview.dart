@@ -37,7 +37,11 @@ class PersonalOverview extends ConsumerWidget {
     final water = ref.watch(waterLogsProvider(day));
     final steps = ref.watch(stepHistoryProvider);
     final sleep = ref.watch(sleepHistoryProvider);
-    final weight = ref.watch(bodyMetricsProvider);
+    final weight = ref
+        .watch(bodyMetricPageProvider(null))
+        .whenData((page) => page.metrics);
+    final firstWeight = ref.watch(firstBodyMetricProvider);
+    final latestWeight = ref.watch(latestBodyMetricProvider(today));
     final reviews = ref.watch(
       dayReviewsProvider(
         ReportRange(DateTime(today.year, today.month, today.day + 1), 1),
@@ -58,7 +62,9 @@ class PersonalOverview extends ConsumerWidget {
         ? <BodyMetric>[]
         : [...?weight.value];
     recordedWeights.sort((a, b) => b.measuredAt.compareTo(a.measuredAt));
-    final measured = recordedWeights.firstOrNull;
+    final measured = latestWeight.isLoading || latestWeight.hasError
+        ? null
+        : latestWeight.value?.firstOrNull;
     final step = !steps.hasError && !steps.isLoading
         ? steps.value?.where((s) => s.day == day).firstOrNull
         : null;
@@ -70,7 +76,7 @@ class PersonalOverview extends ConsumerWidget {
         title: 'Cân nặng',
         art: 'weight',
         value: measured == null ? '—' : number.format(measured.weightKg),
-        subtitle: weight.hasError
+        subtitle: latestWeight.hasError
             ? 'Chưa tải được lần cân'
             : measured == null
             ? 'Chưa có lần cân'
@@ -204,9 +210,19 @@ class PersonalOverview extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Flexible(
                   child: WeightGoalTrack(
-                    metrics: weight.isLoading || weight.hasError
+                    metrics:
+                        firstWeight.isLoading ||
+                            firstWeight.hasError ||
+                            latestWeight.isLoading ||
+                            latestWeight.hasError
                         ? []
-                        : weight.value ?? [],
+                        : <String, BodyMetric>{
+                            for (final item in [
+                              ...?firstWeight.value,
+                              ...?latestWeight.value,
+                            ])
+                              item.id: item,
+                          }.values.toList(),
                     target: user?.targetWeightKg,
                   ),
                 ),

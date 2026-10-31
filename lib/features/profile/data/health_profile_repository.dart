@@ -21,7 +21,17 @@ abstract interface class HealthProfileRepository {
     required OnboardingDraft draft,
   });
 
+  /// The first 25 newest measurements; never an unbounded history query.
   Stream<List<BodyMetric>> watchBodyMetrics(String uid);
+
+  Stream<BodyMetricPage> watchBodyMetricPage(
+    String uid, {
+    BodyMetricCursor? after,
+    int pageSize = 25,
+  });
+
+  /// One first-ever record for goal baseline, independently of history pages.
+  Stream<List<BodyMetric>> watchFirstBodyMetric(String uid);
 
   Stream<List<BodyMetric>> watchLatestBodyMetric(String uid, DateTime day);
 

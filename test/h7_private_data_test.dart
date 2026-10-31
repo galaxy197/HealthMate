@@ -67,6 +67,9 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           authRepositoryProvider.overrideWithValue(auth),
+          accountDataRepositoryProvider.overrideWithValue(
+            FakeAccountDataRepository(),
+          ),
           healthProfileRepositoryProvider.overrideWithValue(profile),
         ],
       );
@@ -84,12 +87,16 @@ void main() {
       final metrics = container.listen(bodyMetricsProvider, (_, _) {});
       addTearDown(metrics.close);
       container.read(profileBootstrapProvider.future);
+      await container.read(accountDeletionJobProvider.future);
+      await Future<void>.delayed(Duration.zero);
       expect(profile.ensureCalls, 1);
       auth.emitUser(
         const AuthUser(emailVerified: true, uid: 'B', email: 'b@example.com'),
       );
       await changed.future.timeout(const Duration(seconds: 2));
       container.read(profileBootstrapProvider.future);
+      await container.read(accountDeletionJobProvider.future);
+      await Future<void>.delayed(Duration.zero);
       expect(profile.ensureCalls, 2);
       profile.pending!.complete();
       await container
@@ -372,7 +379,7 @@ void main() {
   );
 
   testWidgets(
-    'account deletion retains Auth and drafts on data/local cleanup failures; retry cleans only its UID',
+    'account deletion stops local writers before server cleanup and preserves Auth for retry',
     (tester) async {
       final local = FakePrivateLocalData();
       final auth = FakeAuthRepository(user: FakeAuthRepository.testUser);
@@ -387,7 +394,7 @@ void main() {
       final store = container.read(mealDraftStoreProvider);
       await store.put(uid, saved('delete-retry').copyForTestNow());
       await store.put('B', saved('keep-b').copyForTestNow());
-      accountData.failure = const AccountDataFailure();
+      accountData.requestFailure = const AccountDataFailure();
       expect(
         await container
             .read(accountSecurityControllerProvider.notifier)
@@ -396,7 +403,7 @@ void main() {
       );
       expect((await store.list(uid)).single.operationId, 'delete-retry');
       expect(auth.deleteUserCalls, 0);
-      accountData.failure = null;
+      accountData.requestFailure = null;
       local.failClear = true;
       expect(
         await container
@@ -414,6 +421,16 @@ void main() {
       );
       expect((await store.list(uid)).single.operationId, 'delete-retry');
       local.failClear = false;
+      accountData.failure = const AccountDataFailure();
+      expect(
+        await container
+            .read(accountSecurityControllerProvider.notifier)
+            .deleteAccount('password'),
+        false,
+      );
+      expect(await store.list(uid), isEmpty);
+      expect(auth.deleteUserCalls, 0);
+      accountData.failure = null;
       expect(
         await container
             .read(accountSecurityControllerProvider.notifier)

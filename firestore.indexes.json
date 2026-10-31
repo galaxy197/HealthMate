@@ -1,6 +1,22 @@
 {
   "indexes": [
     {
+      "collectionGroup": "meal_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "queryPartition", "order": "ASCENDING" },
+        { "fieldPath": "dateKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "meal_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "queryPartition", "order": "ASCENDING" },
+        { "fieldPath": "consumedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "support_tickets",
       "queryScope": "COLLECTION",
       "fields": [

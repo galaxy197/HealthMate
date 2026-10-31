@@ -21,6 +21,13 @@ abstract final class PremiumDemoPlan {
 
   static String dayId(DateTime now) =>
       '${dayStart(now).millisecondsSinceEpoch}';
+
+  static String gatewayDayId(DateTime now) {
+    final vietnam = now.toUtc().add(const Duration(hours: 7));
+    return '${vietnam.year.toString().padLeft(4, '0')}-'
+        '${vietnam.month.toString().padLeft(2, '0')}-'
+        '${vietnam.day.toString().padLeft(2, '0')}';
+  }
 }
 
 class PremiumMembership {

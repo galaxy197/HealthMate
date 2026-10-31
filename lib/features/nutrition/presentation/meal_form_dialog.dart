@@ -1,8 +1,9 @@
-import '../models/food_catalog_search.dart';
 import '../models/food_diet.dart';
 import '../models/food_avoidance.dart';
 import 'food_diet_filter.dart';
-import 'dart:async';
+import 'meal_form_controller.dart';
+import 'meal_search_controller.dart';
+import 'meal_entry_sources.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/help_details.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,11 +18,12 @@ import 'quick_add_dialog.dart';
 import '../../food_library/presentation/food_portion_dialog.dart';
 import '../../food_library/models/food_library_models.dart';
 import '../../food_library/presentation/food_nutrition_text.dart';
+import '../../food_library/presentation/meal_food_sources.dart';
 import '../../food_scanner/presentation/barcode_scanner_screen.dart';
 import '../../../core/config/app_feature_flags.dart';
 import '../../food_scanner/data/food_camera_service.dart';
 import '../../food_scanner/presentation/food_scanner_dialog.dart';
-import '../../food_library/presentation/meal_food_sources.dart';
+import '../../auth/providers/auth_providers.dart';
 
 enum MealEntryMode { manual, photo, favorites }
 
@@ -96,35 +98,44 @@ class MealFormDialog extends ConsumerStatefulWidget {
 
 class _MealFormDialogState extends ConsumerState<MealFormDialog>
     with ConfirmedSave<MealDraft, MealFormDialog> {
-  late MealType _type;
+  late final MealFormController _form;
+  late final MealSearchController _foodSearch;
+  String? _ownerUid;
+  bool _ownerResolved = false;
+  MealType get _type => _form.type;
+  set _type(MealType value) => _form.type = value;
   late FoodDietPreference _diet;
   List<FoodCatalogItem> get _eligibleCatalog => widget.catalog
       .where((food) => _diet.allows(food) && widget.avoidance.allows(food))
       .toList();
-  late DateTime _consumedAt;
-  late List<MealItemSnapshot> _items;
+  DateTime get _consumedAt => _form.consumedAt;
+  set _consumedAt(DateTime value) => _form.consumedAt = value;
+  List<MealItemSnapshot> get _items => _form.items;
   late final TextEditingController _searchController;
   String? _error;
-  static const _foodPageSize = 12;
-  int _visibleFoodCount = _foodPageSize;
-  int? _storedOffset;
-  String? _localStatus;
-  int _localRevision = 0;
+  set _storedOffset(int? value) => _form.timezoneOffsetOverride = value;
+  String? get _localStatus => _form.localStatus;
   bool _discarding = false;
   late MealEntryMode _entryMode;
   bool _photoVisited = false;
   bool _favoritesVisited = false;
-  bool _scannerAiUsed = false;
+  set _scannerAiUsed(bool value) => _form.scannerAiUsed = value;
   String? _scanSearch;
 
   void _switchEntryMode(MealEntryMode mode) {
     if (saving || _discarding) return;
     FocusManager.instance.primaryFocus?.unfocus();
+    if (mode != MealEntryMode.manual) _cancelFoodWork();
     setState(() {
       _entryMode = mode;
       _photoVisited |= mode == MealEntryMode.photo;
       _favoritesVisited |= mode == MealEntryMode.favorites;
     });
+    if (mode == MealEntryMode.manual &&
+        widget.sourcesBuilder == null &&
+        _scanSearch == null) {
+      _onSearchChanged();
+    }
   }
 
   void _acceptScan(FoodScanChoice choice) {
@@ -149,12 +160,41 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
     _switchEntryMode(MealEntryMode.manual);
   }
 
-  // Unified search state
-  List<FoodSearchResult> _searchResults = [];
-  bool _isSearching = false;
-  String? _searchError;
-  Timer? _searchDebounce;
-  int _searchGeneration = 0;
+  bool _searchVisible = true;
+  void _cancelFoodWork() => _foodSearch.cancel();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (_searchVisible && !visible) _cancelFoodWork();
+    final resumed = !_searchVisible && visible;
+    _searchVisible = visible;
+    if (resumed && widget.sourcesBuilder == null && _scanSearch == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _searchVisible) _onSearchChanged();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MealFormDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _form.onDraftChanged = widget.onDraftChanged;
+    _form.minimumSchemaVersion =
+        widget.initialDraft?.minimumSchemaVersion ??
+        widget.meal?.schemaVersion ??
+        2;
+    _form.source =
+        widget.initialDraft?.source ??
+        (widget.aiAssisted || widget.meal?.source == MealSource.aiAssisted
+            ? MealSource.aiAssisted
+            : MealSource.manual);
+    if (oldWidget.avoidance.label != widget.avoidance.label ||
+        oldWidget.catalog != widget.catalog) {
+      _onSearchChanged();
+    }
+  }
 
   Widget _dietFilter() => FoodDietFilter(
     value: _diet,
@@ -183,22 +223,7 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
     }
   }
 
-  MealDraft get _draft => MealDraft(
-    minimumSchemaVersion:
-        widget.initialDraft?.minimumSchemaVersion ??
-        widget.meal?.schemaVersion ??
-        2,
-    type: _type,
-    consumedAt: _consumedAt,
-    items: List.unmodifiable(_items),
-    timezoneOffsetOverride: _storedOffset,
-    source: _scannerAiUsed
-        ? MealSource.aiAssisted
-        : widget.initialDraft?.source ??
-              (widget.aiAssisted || widget.meal?.source == MealSource.aiAssisted
-                  ? MealSource.aiAssisted
-                  : MealSource.manual),
-  );
+  MealDraft get _draft => _form.draft;
 
   void _changeMeal(VoidCallback change) {
     if (_discarding) return;
@@ -206,24 +231,7 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
     _persistLocal();
   }
 
-  Future<void> _persistLocal() async {
-    if (widget.onDraftChanged == null) return;
-    final revision = ++_localRevision;
-    setState(() => _localStatus = 'Đang giữ nháp…');
-    try {
-      await widget.onDraftChanged!(_draft);
-      if (mounted && revision == _localRevision) {
-        setState(() => _localStatus = 'Đã giữ nháp trên thiết bị');
-      }
-    } catch (_) {
-      if (mounted && revision == _localRevision) {
-        setState(
-          () => _localStatus =
-              'Chưa giữ được nháp trên thiết bị. Đừng đóng ứng dụng; thử thay đổi lại hoặc lưu khi có mạng.',
-        );
-      }
-    }
-  }
+  Future<void> _persistLocal() => _form.persistLocal();
 
   @override
   void initState() {
@@ -236,23 +244,69 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
         : MealEntryMode.manual;
     _photoVisited = _entryMode == MealEntryMode.photo;
     _favoritesVisited = _entryMode == MealEntryMode.favorites;
-    _consumedAt =
-        widget.meal?.consumedAt ?? widget.initialConsumedAt ?? DateTime.now();
-    _type = widget.meal?.type ?? widget.initialType ?? _typeFor(_consumedAt);
-    _items = [...?widget.meal?.items, ...widget.initialItems];
-    if (widget.initialDraft case final restored?) {
-      _consumedAt = restored.consumedAt;
-      _type = restored.type;
-      _items = [...restored.items];
-      _storedOffset = restored.timezoneOffsetMinutes;
-    }
-    _searchResults = _eligibleCatalog
-        .map(
-          (food) =>
-              FoodSearchResult(food: food, source: FoodResultSource.firestore),
-        )
-        .toList();
+    final initialAt =
+        widget.initialDraft?.consumedAt ??
+        widget.meal?.consumedAt ??
+        widget.initialConsumedAt ??
+        DateTime.now();
+    final initialSession = ref.read(authSessionProvider);
+    _ownerResolved = !initialSession.isLoading && !initialSession.hasError;
+    _ownerUid = initialSession.value?.uid;
+    _form = MealFormController(
+      type:
+          widget.initialDraft?.type ??
+          widget.meal?.type ??
+          widget.initialType ??
+          _typeFor(initialAt),
+      consumedAt: initialAt,
+      items:
+          widget.initialDraft?.items ??
+          [...?widget.meal?.items, ...widget.initialItems],
+      minimumSchemaVersion:
+          widget.initialDraft?.minimumSchemaVersion ??
+          widget.meal?.schemaVersion ??
+          2,
+      timezoneOffsetOverride: widget.initialDraft?.timezoneOffsetMinutes,
+      source:
+          widget.initialDraft?.source ??
+          (widget.aiAssisted || widget.meal?.source == MealSource.aiAssisted
+              ? MealSource.aiAssisted
+              : MealSource.manual),
+      onDraftChanged: widget.onDraftChanged,
+      onChanged: () {
+        if (mounted) setState(() {});
+      },
+      isCurrent: () =>
+          mounted &&
+          _ownerResolved &&
+          ref.read(authSessionProvider).value?.uid == _ownerUid,
+    );
     _searchController = TextEditingController(text: widget.initialSearch);
+    _foodSearch = MealSearchController(
+      service: () => ref.read(unifiedFoodSearchProvider),
+      catalog: () => _eligibleCatalog,
+      query: () => _searchController.text,
+      currentUid: () => ref.read(authSessionProvider).value?.uid,
+      isActive: () =>
+          mounted && _searchVisible && _entryMode == MealEntryMode.manual,
+      canSearch: () =>
+          widget.sourcesBuilder == null &&
+          _scanSearch == null &&
+          _searchVisible &&
+          _entryMode == MealEntryMode.manual,
+      allows: (food) => _diet.allows(food) && widget.avoidance.allows(food),
+      onChanged: () {
+        if (mounted) setState(() {});
+      },
+      initialResults: _eligibleCatalog
+          .map(
+            (food) => FoodSearchResult(
+              food: food,
+              source: FoodResultSource.firestore,
+            ),
+          )
+          .toList(),
+    );
     _searchController.addListener(_onSearchChanged);
     if ((widget.initialDraft == null ? widget.suggestedFood : null)
         case final food?) {
@@ -283,8 +337,8 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
-    _searchGeneration++;
+    _foodSearch.dispose();
+    _form.dispose();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
@@ -297,102 +351,25 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
     _ => MealType.dinner,
   };
 
-  Future<void> _performUnifiedSearch() async {
-    final query = _searchController.text.trim();
-    final generation = ++_searchGeneration;
-    if (query.isEmpty) {
-      setState(() {
-        _searchResults = _eligibleCatalog
-            .map(
-              (food) => FoodSearchResult(
-                food: food,
-                source: FoodResultSource.firestore,
-              ),
-            )
-            .toList();
-        _isSearching = false;
-        _searchError = null;
-      });
+  Future<void> _performUnifiedSearch() => _foodSearch.search();
+
+  void _onSearchChanged() => _foodSearch.changed();
+
+  Future<void> _selectSearchResult(FoodSearchResult result) async {
+    if (_foodSearch.state.pendingDetailId != null || saving || _discarding) {
       return;
     }
-
-    setState(() {
-      _searchResults = searchFoodCatalog(_eligibleCatalog, query)
-          .map(
-            (food) => FoodSearchResult(
-              food: food,
-              source: FoodResultSource.firestore,
-            ),
-          )
-          .toList();
-      _isSearching = true;
-      _searchError = null;
-    });
-
-    try {
-      final searchService = ref.read(unifiedFoodSearchProvider);
-      final results = await searchService.search(
-        query: query,
-        firestoreCatalog: _eligibleCatalog,
-        limit: 50,
-      );
-
-      if (mounted &&
-          generation == _searchGeneration &&
-          _searchController.text.trim() == query) {
-        setState(() {
-          _searchResults = results
-              .where(
-                (r) => _diet.allows(r.food) && widget.avoidance.allows(r.food),
-              )
-              .toList();
-          _isSearching = false;
-          _visibleFoodCount = _foodPageSize;
-        });
-      }
-    } catch (_) {
-      if (mounted &&
-          generation == _searchGeneration &&
-          _searchController.text.trim() == query) {
-        setState(() {
-          _searchError =
-              'Chưa tìm thêm được món. Bạn có thể dùng kết quả trong danh mục hoặc thử lại.';
-          _isSearching = false;
-        });
-      }
+    if (!result.requiresDetail) return _add(result.food);
+    final uid = ref.read(authSessionProvider).value?.uid;
+    final food = await _foodSearch.resolve(result);
+    if (food != null &&
+        mounted &&
+        _entryMode == MealEntryMode.manual &&
+        ref.read(authSessionProvider).value?.uid == uid) {
+      await _add(food);
     }
   }
 
-  void _onSearchChanged() {
-    _searchDebounce?.cancel();
-    _searchGeneration++;
-    if (!mounted) return;
-    final query = _searchController.text.trim();
-    setState(() {
-      _visibleFoodCount = _foodPageSize;
-      _searchResults = searchFoodCatalog(_eligibleCatalog, query)
-          .map(
-            (food) => FoodSearchResult(
-              food: food,
-              source: FoodResultSource.firestore,
-            ),
-          )
-          .toList();
-      _isSearching = query.isNotEmpty;
-      _searchError = null;
-    });
-    if (query.isEmpty) return;
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) _performUnifiedSearch();
-    });
-  }
-
-  Widget _dataSourceBadge(FoodResultSource source) => Text(switch (source) {
-    FoodResultSource.firestore => 'Danh mục',
-    FoodResultSource.cache => 'Đã lưu trên máy',
-    FoodResultSource.usdaApi => 'USDA',
-    FoodResultSource.user => 'Món riêng',
-  }, style: Theme.of(context).textTheme.bodySmall);
   Future<void> _openBarcodeScanner() async {
     if (saving || _discarding) return;
     if (_items.length >= NutritionValidation.maxItemsPerMeal) {
@@ -435,6 +412,7 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
       askFoodGrams(context, initial: initial, food: food);
 
   Future<void> _add(FoodCatalogItem food) async {
+    final uid = ref.read(authSessionProvider).value?.uid;
     if (!food.hasNutritionData) {
       setState(
         () => _error =
@@ -450,7 +428,12 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
       initial: food.defaultServingGrams,
       food: food,
     );
-    if (grams == null || !mounted) return;
+    if (grams == null ||
+        !mounted ||
+        ref.read(authSessionProvider).value?.uid != uid) {
+      return;
+    }
+    if (!_diet.allows(food) || !widget.avoidance.allows(food)) return;
     _changeMeal(() {
       _items.add(MealItemSnapshot.fromCatalog(food, grams));
       _error = null;
@@ -581,22 +564,12 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
   Future<void> _submit() async {
     if (saving || _discarding) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    if (_consumedAt.isAfter(DateTime.now())) {
-      setState(() => _error = 'Thời điểm dùng bữa không thể ở tương lai.');
-      return;
-    }
-    if (_items.length > NutritionValidation.maxItemsPerMeal) {
-      setState(
-        () => _error =
-            'Mỗi bản ghi tối đa 5 món. Bạn có thể thêm bản ghi khác cùng bữa.',
-      );
+    final entryError = _form.entryError(DateTime.now());
+    if (entryError != null) {
+      setState(() => _error = entryError);
       return;
     }
     FocusScope.of(context).unfocus();
-    if (_items.isEmpty) {
-      setState(() => _error = 'Hãy chọn ít nhất một món ăn.');
-      return;
-    }
     if (widget.avoidance.isActive) {
       final flagged = widget.avoidance.flaggedSnapshots(_items, widget.catalog);
       if (flagged.isNotEmpty) {
@@ -622,27 +595,33 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
         if (confirm != true || !mounted) return;
       }
     }
-    try {
-      for (final item in _items) {
-        item.withQuantity(item.quantity);
-      }
-    } on FormatException {
-      setState(
-        () => _error =
-            'Snapshot món bị thiếu hoặc hỏng. Hãy bỏ món và thêm lại sau khi xác nhận nguồn.',
-      );
+    final snapshotError = _form.snapshotError();
+    if (snapshotError != null) {
+      setState(() => _error = snapshotError);
       return;
     }
-    final draft = _draft;
-    if (draft.totals.kcal > NutritionValidation.maxMealKcal) {
-      setState(() => _error = 'Tổng năng lượng vượt giới hạn hợp lệ.');
-      return;
-    }
-    await saveDraft(draft, widget.onSave);
+    await saveDraft(
+      _draft,
+      widget.onSave == null
+          ? null
+          : (draft) => _form.submit(draft, widget.onSave!),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authSessionProvider, (previous, next) {
+      if (!_ownerResolved && !next.isLoading && !next.hasError) {
+        // Initial stream resolution establishes ownership, not an account switch.
+        _ownerResolved = true;
+        _ownerUid = next.value?.uid;
+        if (widget.onDraftChanged != null) _persistLocal();
+        _onSearchChanged();
+        return;
+      }
+      if (previous?.value?.uid == next.value?.uid) return;
+      _foodSearch.clear();
+    });
     final theme = Theme.of(context);
     final locale = MaterialLocalizations.of(context);
     final totals = sumNutritionTotals(_items.map((i) => i.nutrition));
@@ -910,22 +889,28 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
                         Text('Đang tránh: ${widget.avoidance.label}'),
                       const SizedBox(height: 12),
                       if (_scanSearch != null)
-                        MealFoodSources(
-                          key: ValueKey('scan-search-$_scanSearch'),
-                          initialSearch: _scanSearch!,
-                          diet: _diet,
-                          avoidance: widget.avoidance,
-                          onCatalog: _add,
-                          onRecent: _addRecent,
-                          onCustom: _addCustomFood,
+                        TickerMode(
+                          enabled: _entryMode == MealEntryMode.manual,
+                          child: MealFoodSources(
+                            key: ValueKey('scan-search-$_scanSearch'),
+                            initialSearch: _scanSearch!,
+                            diet: _diet,
+                            avoidance: widget.avoidance,
+                            onCatalog: _add,
+                            onRecent: _addRecent,
+                            onCustom: _addCustomFood,
+                          ),
                         )
                       else if (widget.sourcesBuilder != null)
-                        widget.sourcesBuilder!(
-                          _add,
-                          _addRecent,
-                          _addCustomFood,
-                          _diet,
-                          widget.avoidance,
+                        TickerMode(
+                          enabled: _entryMode == MealEntryMode.manual,
+                          child: widget.sourcesBuilder!(
+                            _add,
+                            _addRecent,
+                            _addCustomFood,
+                            _diet,
+                            widget.avoidance,
+                          ),
                         )
                       else ...[
                         if (widget.recentItems.isNotEmpty) ...[
@@ -952,116 +937,14 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
                           ),
                           const SizedBox(height: 24),
                         ],
-                        Text(
-                          'Tìm món trong danh mục',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          key: const ValueKey('food-search'),
-                          controller: _searchController,
-                          decoration: const InputDecoration(
-                            hintText: 'Ví dụ: phở bò, com tam, trứng…',
-                            prefixIcon: Icon(Icons.search_rounded),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          key: const ValueKey('add-custom-food'),
-                          onPressed: _addCustomFood,
-                          icon: const Icon(Icons.edit_note_rounded),
-                          label: const Text('Nhập món ngoài danh mục'),
-                        ),
-                        const SizedBox(height: 8),
-                        // Loading state
-                        if (_isSearching && _searchResults.isEmpty) ...[
-                          const LinearProgressIndicator(),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text('Đang tìm kiếm từ nhiều nguồn...'),
-                          ),
-                        ]
-                        // Error state
-                        else if (_searchError != null &&
-                            _searchResults.isEmpty) ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Column(
-                              children: [
-                                Text(
-                                  _searchError!,
-                                  style: TextStyle(
-                                    color: theme.colorScheme.error,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextButton.icon(
-                                  onPressed: _performUnifiedSearch,
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Thử lại'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ]
-                        // No results
-                        else if (_searchResults.isEmpty) ...[
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              'Không tìm thấy món phù hợp trong tất cả nguồn dữ liệu.',
-                            ),
-                          ),
-                        ]
-                        // Results with source badges
-                        else ...[
-                          if (_searchError != null) ...[
-                            Text(_searchError!),
-                            TextButton(
-                              onPressed: _performUnifiedSearch,
-                              child: const Text('Thử lại'),
-                            ),
-                          ],
-                          ..._searchResults
-                              .take(_visibleFoodCount)
-                              .map(
-                                (result) => ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(result.food.name),
-                                      _dataSourceBadge(result.source),
-                                    ],
-                                  ),
-                                  subtitle: Text(
-                                    result.food.hasNutritionData
-                                        ? '${result.food.nutritionPer100g.kcal.toStringAsFixed(0)} kcal / 100 g'
-                                              '${result.food.isEstimated ? ' · Ước tính' : ''} · ${result.food.sourceLabel}'
-                                        : 'Món thiếu dữ liệu dinh dưỡng; chưa thể thêm vào bữa.',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: IconButton.filledTonal(
-                                    onPressed: result.food.hasNutritionData
-                                        ? () => _add(result.food)
-                                        : null,
-                                    tooltip: 'Thêm ${result.food.name}',
-                                    icon: const Icon(Icons.add_rounded),
-                                  ),
-                                ),
-                              ),
-                          if (_searchResults.length > _visibleFoodCount)
-                            TextButton.icon(
-                              key: const ValueKey('more-catalog-foods'),
-                              onPressed: () => setState(() {
-                                _visibleFoodCount += _foodPageSize;
-                              }),
-                              icon: const Icon(Icons.expand_more_rounded),
-                              label: const Text('Xem thêm món'),
-                            ),
-                        ],
+                        ...MealCatalogSource(
+                          state: _foodSearch.state,
+                          searchController: _searchController,
+                          onRetry: _performUnifiedSearch,
+                          onCustom: _addCustomFood,
+                          onSelect: _selectSearchResult,
+                          onMore: _foodSearch.showMore,
+                        ).buildChildren(context),
                       ],
                       const HelpDetails(
                         title: 'Lưu ý khi ghi bữa',
@@ -1101,36 +984,19 @@ class _MealFormDialogState extends ConsumerState<MealFormDialog>
               else
                 const SizedBox.shrink(),
               if (_favoritesVisited)
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: ListView(
-                      padding: const EdgeInsets.all(24),
-                      children: [
-                        Text(
-                          'Món yêu thích',
-                          style: theme.textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 12),
-                        _dietFilter(),
-                        const SizedBox(height: 12),
-                        MealFoodSources(
-                          favoritesOnly: true,
-                          diet: _diet,
-                          avoidance: widget.avoidance,
-                          onCatalog: (food) async {
-                            final before = _items.length;
-                            await _add(food);
-                            if (mounted && _items.length > before) {
-                              _switchEntryMode(MealEntryMode.manual);
-                            }
-                          },
-                          onRecent: _addRecent,
-                          onCustom: _addCustomFood,
-                        ),
-                      ],
-                    ),
-                  ),
+                MealFavoritesSource(
+                  filter: _dietFilter(),
+                  diet: _diet,
+                  avoidance: widget.avoidance,
+                  onCatalog: (food) async {
+                    final before = _items.length;
+                    await _add(food);
+                    if (mounted && _items.length > before) {
+                      _switchEntryMode(MealEntryMode.manual);
+                    }
+                  },
+                  onRecent: _addRecent,
+                  onCustom: _addCustomFood,
                 )
               else
                 const SizedBox.shrink(),

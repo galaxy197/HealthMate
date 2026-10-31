@@ -3,18 +3,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function owns(uid) {
+      return verifiedOwner(uid) && accountAllowed(uid);
+    }
+
+    function verifiedOwner(uid) {
       return request.auth != null && request.auth.token.email_verified == true
-        && request.auth.uid == uid && accountAllowed(uid);
+        && request.auth.uid == uid;
+    }
+
+    function deleting(uid) {
+      return exists(/databases/$(database)/documents/account_deletions/$(uid));
+    }
+
+    function productWriteAllowed(uid) {
+      // Also deny a product write bundled with the first deletion marker.
+      return !existsAfter(/databases/$(database)/documents/account_deletions/$(uid));
+    }
+
+    function ownsWrite(uid) {
+      let control = get(/databases/$(database)/documents/account_controls/$(uid));
+      let identity=request.auth;
+      // One after-state lookup suffices for writes; do not also read the same
+      // tombstone's before-state through owns/accountAllowed in this hot path.
+      return [identity.token.email_verified,
+        identity.uid == uid,
+        !existsAfter(/databases/$(database)/documents/account_deletions/$(uid)),
+        control == null || control.data.status == 'active'].hasOnly([true]);
+    }
+
+    function cleanup(uid) {
+      // A suspended owner can remove data after requesting deletion, without
+      // regaining normal product permissions or the ability to reset the marker.
+      return verifiedOwner(uid) && deleting(uid);
     }
 
     function accountAllowed(uid) {
       let control = get(/databases/$(database)/documents/account_controls/$(uid));
-      return control == null || control.data.status == 'active';
+      return !deleting(uid) && (control == null || control.data.status == 'active');
     }
 
     function admin() {
       return request.auth != null
         && request.auth.token.email_verified == true
+        && accountAllowed(request.auth.uid)
+        && productWriteAllowed(request.auth.uid)
         && exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid))
         && get(/databases/$(database)/documents/admin_roles/$(request.auth.uid)).data.enabled == true;
     }
@@ -172,6 +204,10 @@ service cloud.firestore {
     function validExtraVectors(v,n) { return v.split('\\|').size()==n && v.matches('^\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\](\\|\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\]){0,5}$'); }
 
 
+    // Per-mass ceilings apply only to gram entries. Non-mass entries retain
+    // the existing storage ceilings; fiber is not added to carbohydrates.
+    // A fixed list of booleans avoids the deeply nested AND expression cost
+    // at the five/six-item limit. Missing fields still fail closed.
     function validMealItem(i) {
       let extra=i.size()-9;
       let g=i.grams;
@@ -179,11 +215,21 @@ service cloud.firestore {
       let p=i.proteinG;
       let c=i.carbsG;
       let f=i.fatG;
-      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
-        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
-        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
-        && g>0 && g<=2000 && math.abs(k-5000)<=5000
-        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500;
+      let m=(g<1000?g:1000)*0.5;
+      let e=m*10;
+      return [
+        (extra==0 || (math.abs(i.fiberG-m)<=m && extra==(i.get('fiberIncomplete',false)?2:1))),
+        i.foodId.matches('(?s)^.{1,100}$'),
+        i.name.matches('(?s)^.{1,100}$'),
+        i.sourceLabel.matches('(?s)^.{0,160}$'),
+        i.isEstimated is bool,
+        g>0,
+        g<=2000,
+        math.abs(k-e)<=e,
+        math.abs(p-m)<=m,
+        math.abs(c-m)<=m,
+        math.abs(f-m)<=m
+      ].hasOnly([true]);
     }
 
     function validMealItems(items) {
@@ -193,31 +239,6 @@ service cloud.firestore {
         && (items.size() < 3 || validMealItem(items[2]))
         && (items.size() < 4 || validMealItem(items[3]))
         && (items.size() < 5 || validMealItem(items[4]));
-    }
-
-    function validMeal() {
-      let data = request.resource.data;
-      let v=data.schemaVersion;
-      let k=data.totalKcal;
-      let p=data.totalProteinG;
-      let c=data.totalCarbsG;
-      let f=data.totalFatG;
-      let complete=p!=null && c!=null && f!=null;
-      let items=data.items;
-      // Every allowed key is read below, so a missing required key fails.
-      return data.size()==13
-        && data.mealType.matches('^(breakfast|lunch|dinner|snack)$')
-        && data.consumedAt <= request.time + duration.value(5, 'm')
-        && validDateKeyAndTimezone(data, data.consumedAt)
-        && (v==5 ? validEnrichedItems(items) : v==2 ? validMealItems(items) : validFlexibleItems(items,complete))
-        && math.abs(k-10000)<=10000
-        && (p==null ? v>=3 : math.abs(p-1000)<=1000)
-        && (c==null ? v>=3 : math.abs(c-1000)<=1000)
-        && (f==null ? v>=3 : math.abs(f-1000)<=1000)
-        && data.source in ['manual', 'ai_assisted']
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp
-        && v is int && v in [2,3,4,5];
     }
 
     // abs(x-midpoint)<=midpoint is the same closed numeric interval as
@@ -234,16 +255,24 @@ service cloud.firestore {
       let f=i.fatG==null?0:i.fatG;
       let g=i.grams;
       let q=i.get('quantity',0);
-      let valid=keys.hasOnly(fields)
-        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
-        && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
-        && math.abs(k-5000)<=5000
-        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
-        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
-          : (g>0 && g<=2000 && !keys.hasAny(['quantity','quantityUnit'])));
+      let m=(g!=null && g<1000?g:1000)*0.5;
+      let e=m*10;
+      let valid=[
+        keys.hasOnly(fields),
+        i.foodId.matches('(?s)^.{1,100}$'),
+        i.name.matches('(?s)^.{1,100}$'),
+        i.sourceLabel.matches('(?s)^.{1,160}$'),
+        i.isEstimated is bool,
+        math.abs(k-e)<=e,
+        math.abs(p-m)<=m,
+        math.abs(c-m)<=m,
+        math.abs(f-m)<=m,
+        (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && q>0 && q<=2000)
+          : (g>0 && g<=2000 && !keys.hasAny(['quantity','quantityUnit'])))
+      ].hasOnly([true]);
       return {'valid':valid,'k':k,'p':p,'c':c,'f':f};
     }
-    function compactItemInfo(i,fields) {
+    function compactItemInfo(i,fields,fiber) {
       let k=i.kcal;
       // Null contributes only to a validation subtotal; the persisted value
       // stays null and clients retain incomplete nutrient coverage.
@@ -251,33 +280,59 @@ service cloud.firestore {
       let c=i.get('carbsG',0);
       let f=i.get('fatG',0);
       let q=i.quantity;
-      let valid=i.keys().hasOnly(fields)
-        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
-        && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
-        && math.abs(k-5000)<=5000
-        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
-        && q>0 && q<=2000 && i.quantityUnit.matches('^(g|ml|serving|entry)$');
+      let m=(i.quantityUnit=='g' && q<1000?q:1000)*0.5;
+      let e=m*10;
+      let valid=[
+        fiber==null || math.abs(fiber-m)<=m,
+        i.keys().hasOnly(fields),
+        i.foodId.matches('(?s)^.{1,100}$'),
+        i.name.matches('(?s)^.{1,100}$'),
+        i.sourceLabel.matches('(?s)^.{1,160}$'),
+        i.isEstimated is bool,
+        math.abs(k-e)<=e,
+        math.abs(p-m)<=m,
+        math.abs(c-m)<=m,
+        math.abs(f-m)<=m,
+        q>0,
+        q<=2000,
+        i.quantityUnit.matches('^(g|ml|serving|entry)$')
+      ].hasOnly([true]);
       return {'valid':valid,'k':k,'p':p,'c':c,'f':f};
     }
     function validEnrichedItem(i) {
-      let extra=i.size()-11;
+      let count=i.size();
       let p=i.proteinG;
       let c=i.carbsG;
       let f=i.fatG;
-      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
-        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
-        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
-        && i.quantity>0 && i.quantity<=2000 && i.quantityUnit.matches('^(g|ml|serving|entry)$')
-        && math.abs(i.kcal-5000)<=5000
-        && (p==null || math.abs(p-500)<=500) && (c==null || math.abs(c-500)<=500)
-        && (f==null || math.abs(f-500)<=500)
-        && validExtraVector(i.nutrientVectorV1);
+      let q=i.quantity;
+      let unit=i.quantityUnit;
+      let m=(unit=='g' && q<1000?q:1000)*0.5;
+      let e=m*10;
+      return [
+        (count==11 || (math.abs(i.fiberG-m)<=m
+          && (count==12 || (count==13 && i.fiberIncomplete)))),
+        i.foodId.matches('(?s)^.{1,100}$'),
+        i.name.matches('(?s)^.{1,100}$'),
+        i.sourceLabel.matches('(?s)^.{0,160}$'),
+        i.isEstimated is bool,
+        q>0,
+        q<=2000,
+        unit.matches('^(g|ml|serving|entry)$'),
+        math.abs(i.kcal-e)<=e,
+        (p==null || math.abs(p-m)<=m),
+        (c==null || math.abs(c-m)<=m),
+        (f==null || math.abs(f-m)<=m),
+        i.nutrientVectorV1.matches('^$|^\\[(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,2}|1[0-9]{3})(\\.[0-9]{1,6})?|2000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,3})(\\.[0-9]{1,6})?|10000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?),(null|(0|[1-9][0-9]{0,4})(\\.[0-9]{1,6})?|100000(\\.0{1,6})?)\\]$')
+      ].hasOnly([true]);
     }
     function validEnrichedItems(items) {
       let n=items.size();
-      return items is list && n>0 && n<=5 && validEnrichedItem(items[0])
-        && (n<2 || validEnrichedItem(items[1])) && (n<3 || validEnrichedItem(items[2]))
-        && (n<4 || validEnrichedItem(items[3])) && (n<5 || validEnrichedItem(items[4]));
+      // Index 0 and the row field accesses fail closed for empty/non-list data.
+      return n==5 ? [validEnrichedItem(items[0]),validEnrichedItem(items[1]),
+        validEnrichedItem(items[2]),validEnrichedItem(items[3]),validEnrichedItem(items[4])].hasOnly([true])
+        : [n<5, validEnrichedItem(items[0]),
+        n<2 || validEnrichedItem(items[1]), n<3 || validEnrichedItem(items[2]),
+        n<4 || validEnrichedItem(items[3]), n<5 || validEnrichedItem(items[4])].hasOnly([true]);
     }
     function fullFlexibleItem(i) {
       let g=i.grams;
@@ -286,13 +341,21 @@ service cloud.firestore {
       let p=i.proteinG;
       let c=i.carbsG;
       let f=i.fatG;
-      return (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
-        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
-        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
-        && math.abs(k-5000)<=5000
-        && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
-        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
-          : (g>0 && g<=2000));
+      let m=(g!=null && g<1000?g:1000)*0.5;
+      let e=m*10;
+      return [
+        (extra==0 || (math.abs(i.fiberG-m)<=m && extra==(i.get('fiberIncomplete',false)?2:1))),
+        i.foodId.matches('(?s)^.{1,100}$'),
+        i.name.matches('(?s)^.{1,100}$'),
+        i.sourceLabel.matches('(?s)^.{0,160}$'),
+        i.isEstimated is bool,
+        math.abs(k-e)<=e,
+        math.abs(p-m)<=m,
+        math.abs(c-m)<=m,
+        math.abs(f-m)<=m,
+        (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
+          : (g>0 && g<=2000))
+      ].hasOnly([true]);
     }
     function validFlexibleItem(i) {
       let g=i.grams;
@@ -301,32 +364,43 @@ service cloud.firestore {
       let p=i.proteinG;
       let c=i.carbsG;
       let f=i.fatG;
-      let valid=(extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
-        && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
-        && i.sourceLabel.matches('(?s)^.{0,160}$') && i.isEstimated is bool
-        && math.abs(k-5000)<=5000
-        && (p==null || math.abs(p-500)<=500) && (c==null || math.abs(c-500)<=500) && (f==null || math.abs(f-500)<=500)
-        && (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
-          : (g>0 && g<=2000));
+      let m=(g!=null && g<1000?g:1000)*0.5;
+      let e=m*10;
+      let valid=[
+        (extra==0 || (math.abs(i.fiberG-m)<=m && extra==(i.get('fiberIncomplete',false)?2:1))),
+        i.foodId.matches('(?s)^.{1,100}$'),
+        i.name.matches('(?s)^.{1,100}$'),
+        i.sourceLabel.matches('(?s)^.{0,160}$'),
+        i.isEstimated is bool,
+        math.abs(k-e)<=e,
+        (p==null || math.abs(p-m)<=m),
+        (c==null || math.abs(c-m)<=m),
+        (f==null || math.abs(f-m)<=m),
+        (g==null ? (i.quantityUnit.matches('^(ml|serving|entry)$') && i.quantity>0 && i.quantity<=2000)
+          : (g>0 && g<=2000))
+      ].hasOnly([true]);
       return valid;
     }
     function validFlexibleItems(items,complete) {
       let n=items.size();
       return items is list && n>0 && n<=5 && (complete
-        ? (fullFlexibleItem(items[0]) && (n<2 || fullFlexibleItem(items[1])) && (n<3 || fullFlexibleItem(items[2])) && (n<4 || fullFlexibleItem(items[3])) && (n<5 || fullFlexibleItem(items[4])))
-        : (validFlexibleItem(items[0]) && (n<2 || validFlexibleItem(items[1])) && (n<3 || validFlexibleItem(items[2])) && (n<4 || validFlexibleItem(items[3])) && (n<5 || validFlexibleItem(items[4]))));
+        ? [fullFlexibleItem(items[0]), n<2 || fullFlexibleItem(items[1]),
+          n<3 || fullFlexibleItem(items[2]), n<4 || fullFlexibleItem(items[3]),
+          n<5 || fullFlexibleItem(items[4])].hasOnly([true])
+        : [validFlexibleItem(items[0]), n<2 || validFlexibleItem(items[1]),
+          n<3 || validFlexibleItem(items[2]), n<4 || validFlexibleItem(items[3]),
+          n<5 || validFlexibleItem(items[4])].hasOnly([true]));
     }
 
     function validDateKeyAndTimezone(data, recordedAt) {
       let localTime = recordedAt + duration.value(data.timezoneOffsetMinutes, 'm');
       let parts = data.dateKey.split('-');
-      return data.dateKey.matches(
+      return [data.dateKey.matches(
           '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
-        )
-        && data.timezoneOffsetMinutes is int
-        && data.timezoneOffsetMinutes >= -720
-        && data.timezoneOffsetMinutes <= 840
-        && localTime.date() == timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+        ),
+        data.timezoneOffsetMinutes is int,
+        math.abs(data.timezoneOffsetMinutes - 60) <= 780,
+        localTime.date() == timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]))].hasOnly([true]);
     }
 
     function validWaterLog() {
@@ -425,6 +499,48 @@ service cloud.firestore {
         && d.createdAt is timestamp && d.updatedAt is timestamp;
     }
 
+    match /account_deletions/{uid} {
+      function validDeletionJob() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['uid','schemaVersion','executor','state',
+            'checkpoint','requestedAt','updatedAt'])
+          && d.uid == uid && d.schemaVersion == 1 && d.executor == 'client'
+          && d.state in ['requested','cleaning','auth_pending']
+          && d.checkpoint is int && d.checkpoint >= 0 && d.checkpoint <= 5
+          && d.requestedAt is timestamp && d.updatedAt == request.time;
+      }
+      function recentIdentity() {
+        let authMillis = request.auth.token.auth_time * 1000;
+        return request.auth.token.auth_time is int
+          && authMillis <= request.time.toMillis() + 30000
+          && authMillis >= request.time.toMillis() - 300000;
+      }
+      function forwardOnlyJob() {
+        let before = resource.data;
+        let after = request.resource.data;
+        return (before.state == 'requested' && after.state == 'cleaning'
+            && before.checkpoint == 0 && after.checkpoint == 0)
+          || (before.state == 'cleaning' && (
+            (after.state == 'cleaning' && after.checkpoint >= before.checkpoint
+              && after.checkpoint <= before.checkpoint + 1)
+            || (after.state == 'auth_pending' && after.checkpoint == 5
+              && before.checkpoint >= 4)))
+          || (before.state == 'auth_pending' && after.state == 'auth_pending'
+            && before.checkpoint == 5 && after.checkpoint == 5);
+      }
+      // The UID and request timestamp are retained independently of users/{uid}.
+      // A client checkpoint is resumability metadata, never server verification.
+      allow get: if verifiedOwner(uid);
+      allow list, delete: if false;
+      allow create: if verifiedOwner(uid) && recentIdentity() && validDeletionJob()
+        && request.resource.data.state == 'requested'
+        && request.resource.data.checkpoint == 0
+        && request.resource.data.requestedAt == request.time;
+      allow update: if verifiedOwner(uid) && validDeletionJob() && forwardOnlyJob()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['state','checkpoint','updatedAt']);
+    }
+
     // Support is explicitly submitted to admins; health journals remain private.
     function validSupportTicket(d) {
       return d.keys().hasAll(['uid','type','title','description','status','createdAt','updatedAt','messageCount','lastMessageId','updatedBy','deleting'])
@@ -437,8 +553,41 @@ service cloud.firestore {
         && d.messageCount is int && d.messageCount >= 0 && d.messageCount <= 100
         && d.lastMessageId is string && d.updatedBy == request.auth.uid && d.deleting is bool;
     }
+    // New-ticket policy v1. Replies/reopening an existing thread do not consume
+    // this allowance. These named values are mirrored in SupportPolicy.
+    function supportDailyTicketLimit() { return 3; }
+    function supportCreateInterval() { return duration.value(60,'s'); }
+    function supportDayStart() {
+      return (request.time + duration.value(7,'h')).date() - duration.value(7,'h');
+    }
+    function supportCreationReserved(uid,ticketId) {
+      let usage=getAfter(/databases/$(database)/documents/support_usage/$(uid)).data;
+      return usage.lastTicketId==ticketId && usage.lastCreatedAt==request.time
+        && usage.updatedAt==request.time && usage.dayStart==supportDayStart();
+    }
+    match /support_usage/{uid} {
+      function validUsage() {
+        let d=request.resource.data;
+        let ticket=/databases/$(database)/documents/support_tickets/$(d.lastTicketId);
+        let created=getAfter(ticket).data;
+        return d.keys().hasOnly(['schemaVersion','dayStart','count','lastCreatedAt','lastTicketId','updatedAt'])
+          && d.schemaVersion==1 && d.dayStart==supportDayStart()
+          && d.count is int && d.count>=1 && d.count<=supportDailyTicketLimit()
+          && d.lastCreatedAt==request.time && d.updatedAt==request.time
+          && d.lastTicketId.matches('^[a-zA-Z0-9]{20}$')
+          && !exists(ticket) && created.uid==uid && created.createdAt==request.time;
+      }
+      allow read: if owns(uid) || cleanup(uid);
+      allow create: if ownsWrite(uid) && validUsage() && request.resource.data.count==1;
+      allow update: if ownsWrite(uid) && validUsage()
+        && request.time>=resource.data.lastCreatedAt+supportCreateInterval()
+        && (request.resource.data.dayStart==resource.data.dayStart
+          ? request.resource.data.count==resource.data.count+1
+          : (resource.data.dayStart<supportDayStart() && request.resource.data.count==1));
+      allow delete: if cleanup(uid);
+    }
     match /support_tickets/{ticketId} {
-      function supportAccess() { return owns(resource.data.uid) || admin(); }
+      function supportAccess() { return owns(resource.data.uid) || cleanup(resource.data.uid) || admin(); }
       function supportReply() {
         let d = request.resource.data;
         let message = getAfter(/databases/$(database)/documents/support_tickets/$(ticketId)/messages/$(d.lastMessageId)).data;
@@ -450,28 +599,31 @@ service cloud.firestore {
           && ((message.role == 'admin' && admin()) || (message.role == 'customer' && owns(d.uid) && d.status == 'open'));
       }
       allow get: if admin() || (request.auth != null && request.auth.token.email_verified == true
-        && accountAllowed(request.auth.uid) && (resource == null || owns(resource.data.uid)));
+        && (accountAllowed(request.auth.uid) || cleanup(request.auth.uid))
+        && (resource == null || owns(resource.data.uid) || cleanup(resource.data.uid)));
       allow list: if supportAccess();
-      allow create: if owns(request.resource.data.uid) && ticketId.matches('[a-zA-Z0-9]{20}')
+      allow create: if ownsWrite(request.resource.data.uid) && ticketId.matches('[a-zA-Z0-9]{20}')
+        && supportCreationReserved(request.resource.data.uid,ticketId)
         && validSupportTicket(request.resource.data) && request.resource.data.createdAt == request.time
         && request.resource.data.messageCount == 0 && request.resource.data.lastMessageId == ''
         && request.resource.data.status == 'open' && request.resource.data.deleting == false;
-      allow update: if supportAccess() && resource.data.deleting == false && validSupportTicket(request.resource.data)
+      allow update: if resource.data.deleting == false && validSupportTicket(request.resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','updatedBy','messageCount','lastMessageId','deleting'])
-        && ((owns(resource.data.uid) && request.resource.data.deleting == true
+        && (((ownsWrite(resource.data.uid) || cleanup(resource.data.uid)) && request.resource.data.deleting == true
             && request.resource.data.status == resource.data.status
             && request.resource.data.messageCount == resource.data.messageCount && request.resource.data.lastMessageId == resource.data.lastMessageId)
-          || (request.resource.data.deleting == false && ((admin() && request.resource.data.messageCount == resource.data.messageCount && request.resource.data.lastMessageId == resource.data.lastMessageId)
+          || (productWriteAllowed(resource.data.uid) && supportAccess() && request.resource.data.deleting == false && ((admin() && request.resource.data.messageCount == resource.data.messageCount && request.resource.data.lastMessageId == resource.data.lastMessageId)
             || supportReply())));
-      allow delete: if owns(resource.data.uid) && resource.data.deleting == true;
+      allow delete: if (owns(resource.data.uid) || cleanup(resource.data.uid)) && resource.data.deleting == true;
       match /messages/{messageId} {
         function supportParent() { return get(/databases/$(database)/documents/support_tickets/$(ticketId)).data; }
-        allow read: if owns(supportParent().uid) || admin();
+        allow read: if owns(supportParent().uid) || cleanup(supportParent().uid) || admin();
         allow create: if validSupportMessage();
         function validSupportMessage() {
           let d = request.resource.data;
           let parent = getAfter(/databases/$(database)/documents/support_tickets/$(ticketId)).data;
           return messageId.matches('[a-zA-Z0-9]{20}')
+            && productWriteAllowed(parent.uid)
             && d.keys().hasAll(['authorUid','role','text','sequence','createdAt'])
             && d.keys().hasOnly(['authorUid','role','text','sequence','createdAt'])
             && d.authorUid == request.auth.uid && d.createdAt == request.time
@@ -481,7 +633,7 @@ service cloud.firestore {
             && ((d.role == 'customer' && owns(parent.uid)) || (d.role == 'admin' && admin()));
         }
         allow update: if false;
-        allow delete: if owns(supportParent().uid) && supportParent().deleting == true;
+        allow delete: if (owns(supportParent().uid) || cleanup(supportParent().uid)) && supportParent().deleting == true;
       }
     }
 
@@ -508,8 +660,8 @@ service cloud.firestore {
       return scan ? (premium ? 20 : 3) : (premium ? 50 : 5);
     }
     match /demo_premium_accounts/{uid} {
-      allow read: if owns(uid) || admin();
-      allow create, update: if owns(uid)
+      allow read: if owns(uid) || cleanup(uid) || admin();
+      allow create, update: if ownsWrite(uid)
         && request.resource.data.keys().hasOnly(['mode','planId','startedAt','expiresAt','transactionId','updatedAt'])
         && validDemoPeriod(request.resource.data)
         && request.resource.data.updatedAt == request.time
@@ -522,24 +674,29 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/demo_premium_transactions/$(request.resource.data.transactionId)).data.occurredAt == request.time
         && demoPurchaseAccount(uid,request.resource.data.transactionId,
           getAfter(/databases/$(database)/documents/demo_premium_transactions/$(request.resource.data.transactionId)).data);
-      allow delete: if false;
+      allow delete: if cleanup(uid);
     }
     match /demo_premium_transactions/{id} {
       allow get: if admin() || (request.auth != null && request.auth.token.email_verified == true
-        && accountAllowed(request.auth.uid) && (resource == null || resource.data.uid == request.auth.uid));
-      allow list: if admin() || (request.auth != null && owns(resource.data.uid));
-      allow create: if owns(request.resource.data.uid) && id.matches('[a-zA-Z0-9]{20}')
+        && (accountAllowed(request.auth.uid) || cleanup(request.auth.uid))
+        && (resource == null || resource.data.uid == request.auth.uid));
+      allow list: if admin() || (request.auth != null && (owns(resource.data.uid) || cleanup(resource.data.uid)));
+      allow create: if ownsWrite(request.resource.data.uid) && id.matches('[a-zA-Z0-9]{20}')
         && request.resource.data.keys().hasOnly(['mode','planId','startedAt','expiresAt','uid','amountVnd','currency','status','source','occurredAt'])
         && validDemoPeriod(request.resource.data)
         && request.resource.data.amountVnd == 20000 && request.resource.data.amountVnd is int
         && request.resource.data.currency == 'VND' && request.resource.data.status == 'simulated_paid'
         && request.resource.data.source == 'demo_checkout' && request.resource.data.occurredAt == request.time
         && demoPurchaseAccount(request.auth.uid,id,request.resource.data);
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if cleanup(resource.data.uid);
+    }
+    match /demo_ai_usage/{uid} {
+      allow read, delete: if cleanup(uid);
     }
     match /demo_ai_usage/{uid}/days/{day} {
-      allow read: if owns(uid);
-      allow create, update: if owns(uid)
+      allow read: if owns(uid) || cleanup(uid);
+      allow create, update: if ownsWrite(uid)
         && request.resource.data.keys().hasOnly(['mode','dayStart','scans','chats','updatedAt'])
         && request.resource.data.mode == 'demo' && request.resource.data.updatedAt == request.time
         && request.resource.data.dayStart == (request.time + duration.value(7,'h')).date() - duration.value(7,'h')
@@ -556,7 +713,27 @@ service cloud.firestore {
               (!exists(/databases/$(database)/documents/demo_ai_usage/$(uid)/days/$(day)) || request.resource.data.chats == resource.data.chats))
           || (request.resource.data.chats <= demoQuota(uid,false) &&
               (!exists(/databases/$(database)/documents/demo_ai_usage/$(uid)/days/$(day)) || request.resource.data.scans == resource.data.scans)));
-      allow delete: if false;
+      allow delete: if cleanup(uid);
+    }
+
+    // Gateway counters/reservations are authoritative server data. Client
+    // premium/demo counters never authorize inference. Owners can only inspect
+    // their own metadata, or clean it after the independent deletion marker.
+    match /ai_gateway_usage/{uid} {
+      allow read: if owns(uid) || cleanup(uid);
+      allow delete: if cleanup(uid);
+      match /days/{day} {
+        allow read: if owns(uid) || cleanup(uid);
+        allow delete: if cleanup(uid);
+      }
+    }
+    match /ai_gateway_reservations/{uid} {
+      allow read: if owns(uid) || cleanup(uid);
+      allow delete: if cleanup(uid);
+      match /requests/{requestId} {
+        allow read: if owns(uid) || cleanup(uid);
+        allow delete: if cleanup(uid);
+      }
     }
 
     match /food_catalog/{foodId} {
@@ -575,28 +752,28 @@ service cloud.firestore {
     }
 
     match /user_directory/{uid} {
-      allow read: if admin() || owns(uid);
-      allow create, update: if owns(uid)
+      allow read: if admin() || owns(uid) || cleanup(uid);
+      allow create, update: if ownsWrite(uid)
         && request.resource.data.keys().hasOnly(['displayName','email','createdAt','updatedAt'])
         && request.resource.data.displayName == get(/databases/$(database)/documents/users/$(uid)).data.displayName
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.createdAt is timestamp && request.resource.data.updatedAt == request.time
         && ((!exists(/databases/$(database)/documents/user_directory/$(uid)) && request.resource.data.createdAt==request.time)
           || request.resource.data.createdAt==resource.data.createdAt);
-      allow delete: if request.auth != null && request.auth.uid == uid;
+      allow delete: if owns(uid) || cleanup(uid);
     }
 
     match /account_controls/{uid} {
       allow get: if admin() || (request.auth != null && request.auth.uid == uid);
       allow list: if admin();
-      allow create, update: if admin() && request.auth.uid != uid
+      allow create, update: if admin() && productWriteAllowed(uid) && request.auth.uid != uid
         && !exists(/databases/$(database)/documents/admin_roles/$(uid))
         && exists(/databases/$(database)/documents/user_directory/$(uid))
         && request.resource.data.keys().hasOnly(['status','reason','updatedAt','updatedBy','lastAdminOperationId'])
         && request.resource.data.status in ['active','suspended']
         && request.resource.data.reason is string && request.resource.data.reason.size()>0 && request.resource.data.reason.size()<=200
         && audited('account_controls',uid,request.resource.data.keys().toSet());
-      allow delete: if false;
+      allow delete: if cleanup(uid);
     }
 
     match /app_config/{id} {
@@ -626,16 +803,16 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if owns(uid);
+      allow read: if owns(uid) || cleanup(uid);
 
-      allow create: if owns(uid)
+      allow create: if ownsWrite(uid)
         && validProfile()
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time
         && (request.resource.data.onboardingCompletedAt == null
           || request.resource.data.onboardingCompletedAt == request.time);
 
-      allow update: if owns(uid)
+      allow update: if ownsWrite(uid)
         && validProfile()
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
@@ -657,11 +834,18 @@ service cloud.firestore {
           'schemaVersion', 'personalization'
         ]);
 
-      allow delete: if owns(uid);
+      allow delete: if owns(uid) || cleanup(uid);
+
+      match /data_migrations/{migrationId} {
+        // Only the privileged migration process can certify a partition. An
+        // owner cannot reset the marker to regain the old write contract.
+        allow read: if owns(uid) || cleanup(uid);
+        allow delete: if cleanup(uid);
+      }
 
       match /wellness_state/{stateId} {
         allow read, delete: if owns(uid) && stateId=='sleep';
-        allow create: if owns(uid) && stateId=='sleep'
+        allow create: if ownsWrite(uid) && stateId=='sleep'
           && request.resource.data.keys().hasOnly(['startedAt','schemaVersion'])
           && request.resource.data.startedAt==request.time
           && request.resource.data.schemaVersion==1;
@@ -678,7 +862,7 @@ service cloud.firestore {
             && d.schemaVersion==1 && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
-        allow create,update: if owns(uid) && validPreferences();
+        allow create,update: if ownsWrite(uid) && validPreferences();
       }
 
       match /energy_adjustments/{day} {
@@ -702,7 +886,7 @@ service cloud.firestore {
             && d.source=='walking_net_v1' && d.schemaVersion==1 && d.confirmedAt==request.time;
         }
         allow read,delete: if owns(uid);
-        allow create,update: if owns(uid) && validAdjustment();
+        allow create,update: if ownsWrite(uid) && validAdjustment();
       }
 
       match /sleep_logs/{sleepId} {
@@ -716,8 +900,8 @@ service cloud.firestore {
             && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
-        allow create: if owns(uid) && validSleep() && request.resource.data.createdAt==request.time;
-        allow update: if owns(uid) && validSleep() && request.resource.data.createdAt==resource.data.createdAt;
+        allow create: if ownsWrite(uid) && validSleep() && request.resource.data.createdAt==request.time;
+        allow update: if ownsWrite(uid) && validSleep() && request.resource.data.createdAt==resource.data.createdAt;
       }
 
       match /step_logs/{day} {
@@ -733,10 +917,15 @@ service cloud.firestore {
             && d.source=='device_step_counter' && d.schemaVersion==1 && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
-        allow create,update: if owns(uid) && validSteps();
+        allow create,update: if ownsWrite(uid) && validSteps();
       }
 
       match /meal_plans/{planId} {
+        function validPlanLink() {
+          let link=request.resource.data.get('loggedMealId',null);
+          let recorded=existsAfter(/databases/$(database)/documents/users/$(uid)/meal_logs/$('plan-'+planId));
+          return link==null ? !recorded : (link=='plan-'+planId && recorded);
+        }
         function validPlan() {
           let d=request.resource.data;
           return d.keys().hasOnly(['dateKey','mealType','items','createdAt','updatedAt',
@@ -748,26 +937,30 @@ service cloud.firestore {
             && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
-        allow create: if owns(uid) && validPlan() && request.resource.data.createdAt==request.time
-          && request.resource.data.get('loggedMealId',null)==null;
-        allow update: if owns(uid) && validPlan()
-          && request.resource.data.createdAt==resource.data.createdAt
-          && (resource.data.get('loggedMealId',null)==null
-            || (request.resource.data.items==resource.data.items
-              && request.resource.data.get('loggedMealId',null)==resource.data.loggedMealId))
-          && (request.resource.data.get('loggedMealId',null)==null
-            || existsAfter(/databases/$(database)/documents/users/$(uid)/meal_logs/$(request.resource.data.loggedMealId)));
+        allow create: if ownsWrite(uid) && request.resource.data.createdAt==request.time
+            && request.resource.data.get('loggedMealId',null)==null
+            && !existsAfter(/databases/$(database)/documents/users/$(uid)/meal_logs/$('plan-'+planId))
+            && validPlan();
+        // Link-only writes cannot change any snapshot field. Avoid validating
+        // the same five rows twice in one atomic plan+meal request (1000 limit).
+        allow update: if ownsWrite(uid) && validPlanLink() && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['loggedMealId','updatedAt'])
+          ? request.resource.data.updatedAt==request.time
+          : (validPlan() && request.resource.data.createdAt==resource.data.createdAt
+            && (resource.data.get('loggedMealId',null)==null
+              || request.resource.data.items==resource.data.items
+              || !existsAfter(/databases/$(database)/documents/users/$(uid)/meal_logs/$('plan-'+planId)))));
       }
 
       match /body_metrics/{metricId} {
         allow read: if owns(uid);
 
-        allow create: if owns(uid)
+        allow create: if ownsWrite(uid)
           && validMetric()
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
 
-        allow update: if owns(uid)
+        allow update: if ownsWrite(uid)
           && validMetric()
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.updatedAt == request.time
@@ -779,32 +972,67 @@ service cloud.firestore {
       }
 
       match /meal_logs/{mealId} {
+        function validMealWrite(updating) {
+          let d=request.resource.data;
+          let v=d.schemaVersion;
+          let k=d.totalKcal;
+          let p=d.totalProteinG;
+          let c=d.totalCarbsG;
+          let f=d.totalFatG;
+          let items=d.items;
+          let q=d.get('queryPartition',null);
+          let marker=get(/databases/$(database)/documents/users/$(uid)/data_migrations/meal_date_key_v1);
+          let created=d.createdAt;
+          return [ownsWrite(uid),
+            d.size()==(q==null?13:14),
+            marker==null ? (q in [null,'current']
+              || (updating && q=='legacy' && resource.data.queryPartition=='legacy'))
+              : (marker.data.state in ['partitioned','complete']
+                && (q=='current' || (updating && q=='legacy'
+                  && resource.data.queryPartition=='legacy' && marker.data.state=='partitioned'))),
+            updating ? (v>=resource.data.get('schemaVersion',1)
+              && created is timestamp && created==resource.data.createdAt)
+              : created==request.time,
+            d.updatedAt==request.time,
+            d.mealType.matches('^(breakfast|lunch|dinner|snack)$'),
+            d.consumedAt <= request.time + duration.value(5, 'm'),
+            validDateKeyAndTimezone(d, d.consumedAt),
+            (v==5 ? validEnrichedItems(items) : v==2 ? validMealItems(items) : validFlexibleItems(items,p!=null && c!=null && f!=null)),
+            math.abs(k-10000)<=10000,
+            (p==null ? v>=3 : math.abs(p-1000)<=1000),
+            (c==null ? v>=3 : math.abs(c-1000)<=1000),
+            (f==null ? v>=3 : math.abs(f-1000)<=1000),
+            d.source.matches('^(manual|ai_assisted)$'),
+            v is int,
+            v in [2,3,4,5],
+            updating || !reservedPlanMeal() || getAfter(pairedPlan()).data.get('loggedMealId',null)==mealId
+          ].hasOnly([true]);
+        }
+        function reservedPlanMeal() {
+          return mealId.matches('^plan-[0-9]{4}-[0-9]{2}-[0-9]{2}-(breakfast|lunch|dinner|snack)$');
+        }
+        function pairedPlan() {
+          return /databases/$(database)/documents/users/$(uid)/meal_plans/$(mealId.replace('^plan-',''));
+        }
         allow read: if owns(uid);
 
-        allow create: if owns(uid)
-          && request.resource.data.createdAt == request.time
-          && request.resource.data.updatedAt == request.time
-          && validMeal();
+        allow create: if validMealWrite(false);
+        allow update: if resource!=null && validMealWrite(true);
 
-        allow update: if owns(uid)
-          && request.resource.data.schemaVersion>=resource.data.get('schemaVersion',1)
-          && request.resource.data.createdAt == resource.data.createdAt
-          && request.resource.data.updatedAt == request.time
-          // validMeal fixes all 13 keys; immutable createdAt is checked above.
-          && validMeal();
-
-        allow delete: if owns(uid);
+          allow delete: if owns(uid) && (!reservedPlanMeal()
+            || !existsAfter(pairedPlan())
+            || getAfter(pairedPlan()).data.get('loggedMealId',null)!=mealId);
       }
 
       match /water_logs/{logId} {
         allow read: if owns(uid);
 
-        allow create: if owns(uid)
+        allow create: if ownsWrite(uid)
           && validWaterLog()
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
 
-        allow update: if owns(uid)
+        allow update: if ownsWrite(uid)
           && validWaterLog()
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.updatedAt == request.time
@@ -819,12 +1047,12 @@ service cloud.firestore {
       match /activity_logs/{logId} {
         allow read: if owns(uid);
 
-        allow create: if owns(uid)
+        allow create: if ownsWrite(uid)
           && validActivityLog()
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
 
-        allow update: if owns(uid)
+        allow update: if ownsWrite(uid)
           && validActivityLog()
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.updatedAt == request.time
@@ -850,10 +1078,10 @@ service cloud.firestore {
             && (d.alternateNames.size()<4 || alias(d.alternateNames[3]))
             && (d.alternateNames.size()<5 || alias(d.alternateNames[4]))
             && d.servingBasis=='per_100g'
-            && d.kcalPer100g is number && d.kcalPer100g>=0 && d.kcalPer100g<=10000
-            && d.proteinGPer100g is number && d.proteinGPer100g>=0 && d.proteinGPer100g<=1000
-            && d.carbsGPer100g is number && d.carbsGPer100g>=0 && d.carbsGPer100g<=1000
-            && d.fatGPer100g is number && d.fatGPer100g>=0 && d.fatGPer100g<=1000
+            && d.kcalPer100g is number && d.kcalPer100g>=0 && d.kcalPer100g<=1000
+            && d.proteinGPer100g is number && d.proteinGPer100g>=0 && d.proteinGPer100g<=100
+            && d.carbsGPer100g is number && d.carbsGPer100g>=0 && d.carbsGPer100g<=100
+            && d.fatGPer100g is number && d.fatGPer100g>=0 && d.fatGPer100g<=100
             && d.defaultServingGrams is number && d.defaultServingGrams>0 && d.defaultServingGrams<=2000
             && ((d.servingLabel==null && d.servingGrams==null) || (d.servingLabel is string && d.servingLabel.size()>0 && d.servingLabel.size()<=40 && d.servingGrams is number && d.servingGrams>0 && d.servingGrams<=2000))
             && d.sourceLabel is string && d.sourceLabel.size()>0 && d.sourceLabel.size()<=160
@@ -862,8 +1090,8 @@ service cloud.firestore {
             && d.createdAt is timestamp && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
-        allow create: if owns(uid) && validFood() && request.resource.data.createdAt==request.time;
-        allow update: if owns(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validFood() && request.resource.data.createdAt==resource.data.createdAt;
+        allow create: if ownsWrite(uid) && validFood() && request.resource.data.createdAt==request.time;
+        allow update: if ownsWrite(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validFood() && request.resource.data.createdAt==resource.data.createdAt;
       }
 
       match /recipes/{recipeId} {
@@ -876,12 +1104,22 @@ service cloud.firestore {
           let p=item.proteinG;
           let c=item.carbsG;
           let f=item.fatG;
-          return (extra==0 || (math.abs(item.fiberG-500)<=500 && (extra==1 || (extra==2 && item.fiberIncomplete==true))))
-            && item.foodId.matches('(?s)^.{1,100}$') && !item.foodId.matches('^recipe:.*')
-            && item.name.matches('(?s)^.{1,100}$')
-            && grams>0 && grams<=2000 && math.abs(kcal-5000)<=5000
-            && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500
-            && item.sourceLabel.matches('(?s)^.{1,160}$') && item.isEstimated is bool;
+          let m=(grams<1000?grams:1000)*0.5;
+      let e=m*10;
+      return [
+        (extra==0 || (math.abs(item.fiberG-m)<=m && extra==(item.get('fiberIncomplete',false)?2:1))),
+        item.foodId.matches('(?s)^.{1,100}$'),
+        !item.foodId.matches('^recipe:.*'),
+        item.name.matches('(?s)^.{1,100}$'),
+        grams>0,
+        grams<=2000,
+        math.abs(kcal-e)<=e,
+        math.abs(p-m)<=m,
+        math.abs(c-m)<=m,
+        math.abs(f-m)<=m,
+        item.sourceLabel.matches('(?s)^.{1,160}$'),
+        item.isEstimated is bool
+      ].hasOnly([true]);
         }
         function validRecipe() {
           let d=request.resource.data;
@@ -900,8 +1138,8 @@ service cloud.firestore {
             && (d.schemaVersion!=3 || validExtraVectors(d.nutrientVectorsV1,items.size()));
         }
         allow read,delete: if owns(uid);
-        allow create: if owns(uid) && validRecipe() && request.resource.data.createdAt==request.time;
-        allow update: if owns(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validRecipe() && request.resource.data.createdAt==resource.data.createdAt;
+        allow create: if ownsWrite(uid) && validRecipe() && request.resource.data.createdAt==request.time;
+        allow update: if ownsWrite(uid) && request.resource.data.schemaVersion>=resource.data.schemaVersion && validRecipe() && request.resource.data.createdAt==resource.data.createdAt;
       }
 
       match /day_reviews/{dateKey} {
@@ -917,8 +1155,8 @@ service cloud.firestore {
             && d.createdAt is timestamp && d.updatedAt==request.time && d.schemaVersion is int && d.schemaVersion==1;
         }
         allow read,delete: if owns(uid);
-        allow create: if owns(uid) && request.resource.data.createdAt==request.time && validReview();
-        allow update: if owns(uid) && request.resource.data.createdAt==resource.data.createdAt && validReview();
+        allow create: if ownsWrite(uid) && request.resource.data.createdAt==request.time && validReview();
+        allow update: if ownsWrite(uid) && request.resource.data.createdAt==resource.data.createdAt && validReview();
       }
 
       match /meal_templates/{templateId} {
@@ -934,25 +1172,25 @@ service cloud.firestore {
           let c=n>2?flexibleItemInfo(items[2],fields):z;
           let d=n>3?flexibleItemInfo(items[3],fields):z;
           let e=n>4?flexibleItemInfo(items[4],fields):z;
-          return a.valid && b.valid && c.valid && d.valid && e.valid
-            && a.k+b.k+c.k+d.k+e.k<=20000
-            && a.p+b.p+c.p+d.p+e.p<=2000
-            && a.c+b.c+c.c+d.c+e.c<=2000
-            && a.f+b.f+c.f+d.f+e.f<=2000;
+          return [a.valid,b.valid,c.valid,d.valid,e.valid,
+            a.k+b.k+c.k+d.k+e.k<=20000,
+            a.p+b.p+c.p+d.p+e.p<=2000,
+            a.c+b.c+c.c+d.c+e.c<=2000,
+            a.f+b.f+c.f+d.f+e.f<=2000].hasOnly([true]);
         }
-        function compactTemplate(items,n) {
+        function compactTemplate(items,fibers,n) {
           let fields=['foodId','name','kcal','proteinG','carbsG','fatG','sourceLabel','isEstimated','quantity','quantityUnit'];
                     let z={'valid':true,'k':0,'p':0,'c':0,'f':0};
-          let a=compactItemInfo(items[0],fields);
-          let b=n>1?compactItemInfo(items[1],fields):z;
-          let c=n>2?compactItemInfo(items[2],fields):z;
-          let d=n>3?compactItemInfo(items[3],fields):z;
-          let e=n>4?compactItemInfo(items[4],fields):z;
-          return a.valid && b.valid && c.valid && d.valid && e.valid
-            && a.k+b.k+c.k+d.k+e.k<=20000
-            && a.p+b.p+c.p+d.p+e.p<=2000
-            && a.c+b.c+c.c+d.c+e.c<=2000
-            && a.f+b.f+c.f+d.f+e.f<=2000;
+          let a=compactItemInfo(items[0],fields,fibers[0]);
+          let b=n>1?compactItemInfo(items[1],fields,fibers[1]):z;
+          let c=n>2?compactItemInfo(items[2],fields,fibers[2]):z;
+          let d=n>3?compactItemInfo(items[3],fields,fibers[3]):z;
+          let e=n>4?compactItemInfo(items[4],fields,fibers[4]):z;
+          return [a.valid,b.valid,c.valid,d.valid,e.valid,
+            a.k+b.k+c.k+d.k+e.k<=20000,
+            a.p+b.p+c.p+d.p+e.p<=2000,
+            a.c+b.c+c.c+d.c+e.c<=2000,
+            a.f+b.f+c.f+d.f+e.f<=2000].hasOnly([true]);
         }
         function item(i) {
       let extra=i.size()-9-(i.keys().hasAny(['nutrientVectorV1'])?1:0);
@@ -961,19 +1199,22 @@ service cloud.firestore {
           let p=i.proteinG;
           let c=i.carbsG;
           let f=i.fatG;
-          return validExtraVector(i.get('nutrientVectorV1','')) && (extra==0 || (math.abs(i.fiberG-500)<=500 && (extra==1 || (extra==2 && i.fiberIncomplete==true))))
-            && i.foodId.matches('(?s)^.{1,100}$') && i.name.matches('(?s)^.{1,100}$')
-            && i.sourceLabel.matches('(?s)^.{1,160}$') && i.isEstimated is bool
-            && g>0 && g<=2000 && math.abs(k-5000)<=5000
-            && math.abs(p-500)<=500 && math.abs(c-500)<=500 && math.abs(f-500)<=500;
-        }
-        function fiberValue(v) {
-          return v==null || math.abs(v-500)<=500;
-        }
-        function validFiberValues(values,n) {
-          return values.size()==n && fiberValue(values[0])
-            && (n<2 || fiberValue(values[1])) && (n<3 || fiberValue(values[2]))
-            && (n<4 || fiberValue(values[3])) && (n<5 || fiberValue(values[4]));
+          let m=(g<1000?g:1000)*0.5;
+      let e=m*10;
+      return [
+        validExtraVector(i.get('nutrientVectorV1','')),
+        (extra==0 || (math.abs(i.fiberG-m)<=m && extra==(i.get('fiberIncomplete',false)?2:1))),
+        i.foodId.matches('(?s)^.{1,100}$'),
+        i.name.matches('(?s)^.{1,100}$'),
+        i.sourceLabel.matches('(?s)^.{1,160}$'),
+        i.isEstimated is bool,
+        g>0,
+        g<=2000,
+        math.abs(k-e)<=e,
+        math.abs(p-m)<=m,
+        math.abs(c-m)<=m,
+        math.abs(f-m)<=m
+      ].hasOnly([true]);
         }
         function compactShape(d,n) {
           let count=d.size()-(d.schemaVersion==4?1:0);
@@ -986,21 +1227,25 @@ service cloud.firestore {
           let v=d.schemaVersion;
           let items=d.items;
           let n=items.size();
-          return (updating ? (d.createdAt==resource.data.createdAt && v>=resource.data.schemaVersion) : d.createdAt==request.time)
-            && (v>=3?compactShape(d,n):d.size()==5)
-            && d.name.matches('(?s)^.{2,80}$')
-            && v in [1,2,3,4] && d.updatedAt==request.time
-            && n<=5 && (v<3 || validFiberValues(d.fiberValues,n))
-            && (v!=4 || validExtraVectors(d.nutrientVectorsV1,n))
-            && (v>=3 ? compactTemplate(items,n) : v==2 ? flexibleTemplate(items,n) : (item(items[0]) && (n<2 || item(items[1]))
+          return [
+            (updating ? (d.createdAt==resource.data.createdAt && v>=resource.data.schemaVersion) : d.createdAt==request.time),
+            (v>=3?compactShape(d,n):d.size()==5),
+            d.name.matches('(?s)^.{2,80}$'),
+            v in [1,2,3,4],
+            d.updatedAt==request.time,
+            n<=5,
+            (v<3 || d.fiberValues.size()==n),
+            (v!=4 || validExtraVectors(d.nutrientVectorsV1,n)),
+            (v>=3 ? compactTemplate(items,d.fiberValues,n) : v==2 ? flexibleTemplate(items,n) : (item(items[0]) && (n<2 || item(items[1]))
             && (n<3 || item(items[2])) && (n<4 || item(items[3]))
             && (n<5 || item(items[4]))
             && sum(items,'kcal',n)<=20000
-            && sum(items,'proteinG',n)<=2000 && sum(items,'carbsG',n)<=2000 && sum(items,'fatG',n)<=2000));
+            && sum(items,'proteinG',n)<=2000 && sum(items,'carbsG',n)<=2000 && sum(items,'fatG',n)<=2000))
+          ].hasOnly([true]);
         }
         allow read,delete: if owns(uid);
-        allow create: if owns(uid) && validTemplate(false);
-        allow update: if owns(uid) && validTemplate(true);
+        allow create: if ownsWrite(uid) && validTemplate(false);
+        allow update: if ownsWrite(uid) && validTemplate(true);
       }
 
       match /favorite_foods/{favoriteId} {
@@ -1014,11 +1259,11 @@ service cloud.firestore {
             && d.createdAt is timestamp && d.updatedAt==request.time;
         }
         allow read,delete: if owns(uid);
-        allow create: if owns(uid) && validFavorite() && request.resource.data.createdAt==request.time
+        allow create: if ownsWrite(uid) && validFavorite() && request.resource.data.createdAt==request.time
           && ((request.resource.data.sourceKind=='catalog' && exists(/databases/$(database)/documents/food_catalog/$(request.resource.data.sourceId)))
             || (request.resource.data.sourceKind=='custom' && exists(/databases/$(database)/documents/users/$(uid)/custom_foods/$(request.resource.data.sourceId)))
             || (request.resource.data.sourceKind=='recipe' && exists(/databases/$(database)/documents/users/$(uid)/recipes/$(request.resource.data.sourceId))));
-        allow update: if owns(uid) && validFavorite() && request.resource.data.createdAt==resource.data.createdAt
+        allow update: if ownsWrite(uid) && validFavorite() && request.resource.data.createdAt==resource.data.createdAt
           && request.resource.data.sourceId==resource.data.sourceId && request.resource.data.sourceKind==resource.data.sourceKind;
       }
 
@@ -1037,16 +1282,16 @@ service cloud.firestore {
             && d.createdAt is timestamp && d.updatedAt == request.time;
         }
         allow read, delete: if owns(uid);
-        allow create: if owns(uid) && validTarget() && request.resource.data.createdAt == request.time;
-        allow update: if owns(uid) && validTarget() && request.resource.data.createdAt == resource.data.createdAt;
+        allow create: if ownsWrite(uid) && validTarget() && request.resource.data.createdAt == request.time;
+        allow update: if ownsWrite(uid) && validTarget() && request.resource.data.createdAt == resource.data.createdAt;
       }
 
       match /goals/{goalId} {
         allow read, delete: if owns(uid);
-        allow create: if owns(uid) && validGoal()
+        allow create: if ownsWrite(uid) && validGoal()
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
-        allow update: if owns(uid) && validGoal()
+        allow update: if ownsWrite(uid) && validGoal()
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.updatedAt == request.time
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -1056,11 +1301,11 @@ service cloud.firestore {
 
       match /daily_quests/{dateKey} {
         allow read, delete: if owns(uid);
-        allow create: if owns(uid) && validQuest(dateKey)
+        allow create: if ownsWrite(uid) && validQuest(dateKey)
           && request.resource.data.status == 'available'
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
-        allow update: if owns(uid) && validQuest(dateKey)
+        allow update: if ownsWrite(uid) && validQuest(dateKey)
           && resource.data.status == 'available'
           && request.resource.data.status in ['completed','skipped']
           && request.resource.data.updatedAt == request.time
@@ -1088,10 +1333,10 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/users/$(uid)/chat_sessions/$(sessionId)/messages/$(d.lastTurnId + '_a')).data.sequence == d.messageCount - 1;
         }
         allow read, delete: if owns(uid);
-        allow create: if owns(uid) && validSession()
+        allow create: if ownsWrite(uid) && validSession()
           && request.resource.data.messageCount == 2
           && request.resource.data.createdAt == request.time;
-        allow update: if owns(uid) && validSession()
+        allow update: if ownsWrite(uid) && validSession()
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.messageCount == resource.data.messageCount + 2
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -1117,7 +1362,7 @@ service cloud.firestore {
               && d.createdAt == request.time && d.schemaVersion == 1;
           }
           allow read, delete: if owns(uid);
-          allow create: if owns(uid) && validMessage();
+          allow create: if ownsWrite(uid) && validMessage();
           allow update: if false;
         }
       }
@@ -1125,8 +1370,12 @@ service cloud.firestore {
       // Account deletion may remove present and future private subcollections.
       // Owners may enumerate their own private data for cleanup; this grants no
       // create/update access to otherwise undefined paths.
-      match /{privateDocument=**} {
-        allow read, delete: if owns(uid);
+      match /{privateCollection}/{privateDocument=**} {
+        allow read: if owns(uid) || cleanup(uid);
+        // meal_logs has an explicit atomic unlink guard above. The fallback
+        // must not bypass it. Account cleanup removes meal_plans first.
+        allow delete: if cleanup(uid) || (owns(uid)
+          && !(privateCollection in ['meal_logs','data_migrations']));
       }
     }
   }

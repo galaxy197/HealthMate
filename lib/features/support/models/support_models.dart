@@ -6,6 +6,44 @@ enum SupportType {
   final String label;
 }
 
+/// New ticket allowance only. Existing-thread replies do not consume it.
+abstract final class SupportPolicy {
+  static const dailyTicketLimit = 3;
+  static const createInterval = Duration(seconds: 60);
+  static const pageSize = 25;
+  static int usedToday({
+    required DateTime instant,
+    required DateTime previousDayStart,
+    required int previousCount,
+  }) =>
+      previousDayStart.isAtSameMomentAs(dayStart(instant)) ? previousCount : 0;
+
+  static DateTime dayStart(DateTime instant) {
+    final vietnam = instant.toUtc().add(const Duration(hours: 7));
+    return DateTime.utc(
+      vietnam.year,
+      vietnam.month,
+      vietnam.day,
+    ).subtract(const Duration(hours: 7));
+  }
+}
+
+class SupportTicketCursor {
+  const SupportTicketCursor({
+    required this.seconds,
+    required this.nanoseconds,
+    required this.id,
+  });
+  final int seconds, nanoseconds;
+  final String id;
+}
+
+class SupportTicketPage {
+  const SupportTicketPage({required this.tickets, this.nextCursor});
+  final List<SupportTicket> tickets;
+  final SupportTicketCursor? nextCursor;
+}
+
 enum SupportStatus {
   open('Đã tiếp nhận'),
   inProgress('Đang xử lý'),

@@ -37,6 +37,13 @@ AiAccess aiAccessFor(String? uid, UserProfile? profile, {DateTime? today}) {
 }
 
 final aiAccessProvider = Provider<AiAccess>((ref) {
+  final deletion = ref.watch(accountDeletionJobProvider);
+  if (deletion.isLoading || deletion.hasError || deletion.value != null) {
+    return const AiAccess(
+      allowed: false,
+      message: 'Chưa xác nhận được quyền sử dụng AI cho tài khoản này.',
+    );
+  }
   if (ref.watch(adminControlsEnabledProvider)) {
     final access = ref.watch(appAccountAccessProvider);
     final config = ref.watch(adminAppConfigProvider);

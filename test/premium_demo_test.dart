@@ -176,7 +176,10 @@ void main() {
     (tester) async {
       final repository = DemoRepository();
       await open(tester, repository);
-      expect(find.text('Hôm nay còn 1 lượt quét ảnh'), findsOneWidget);
+      expect(
+        find.text('Dịch vụ đã ghi nhận 3 lượt chat hôm nay'),
+        findsOneWidget,
+      );
       await buy(tester);
       await tester.tap(find.text('Hủy'));
       await tester.pumpAndSettle();
@@ -186,7 +189,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.purchases, 1);
       expect(find.text('Premium đang hoạt động'), findsOneWidget);
-      expect(find.text('Hôm nay còn 18 lượt quét ảnh'), findsOneWidget);
+      expect(
+        find.text('Dịch vụ đã ghi nhận 3 lượt chat hôm nay'),
+        findsOneWidget,
+      );
       expect(
         tester
             .widget<FilledButton>(

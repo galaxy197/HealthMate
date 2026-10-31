@@ -43,8 +43,8 @@ final premiumUsageProvider = StreamProvider.autoDispose<PremiumDailyUsage>((
   );
 });
 
-/// Returns a no-op for existing builds. No Firebase is touched unless the
-/// explicitly labelled demo edition is enabled.
+/// Compatibility preflight only. The gateway reserves quota atomically with its
+/// own identity; client counters are never evidence that an AI call is allowed.
 final premiumQuotaProvider = Provider<Future<void> Function(PremiumAiFeature)>((
   ref,
 ) {
@@ -55,7 +55,7 @@ final premiumQuotaProvider = Provider<Future<void> Function(PremiumAiFeature)>((
     if (uid == null) {
       throw const PremiumFailure('Hãy đăng nhập trước khi dùng AI.');
     }
-    await ref.read(premiumRepositoryProvider).consume(uid, feature);
+    // Do not reserve a second client-side counter before the server request.
     if (!ref.mounted || ref.read(authSessionProvider).value?.uid != uid) {
       throw const PremiumFailure('Phiên đăng nhập đã thay đổi.');
     }

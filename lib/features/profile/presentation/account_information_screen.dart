@@ -93,7 +93,11 @@ class AccountInformationScreen extends StatelessWidget {
       ),
       _InformationSection(
         'Xóa dữ liệu',
-        'Bạn có thể xóa tài khoản trong màn Cá nhân. Ứng dụng xóa dữ liệu HealthMate trước rồi mới xóa tài khoản đăng nhập.',
+        'Bạn có thể yêu cầu xóa tại Cá nhân hoặc màn tài khoản bị khóa. Trạng thái xóa chặn ghi mới trước khi dọn hồ sơ, nhật ký, hội thoại, góp ý và dữ liệu Premium mô phỏng. Bản hiện tại cần giữ ứng dụng mở và có mạng để hoàn tất; khi gián đoạn, đăng nhập lại để tiếp tục. Nếu xóa đăng nhập thất bại, tài khoản vẫn ở trạng thái chờ xóa, không mở lại quyền sử dụng.',
+      ),
+      _InformationSection(
+        'Dữ liệu còn giữ sau yêu cầu xóa',
+        'HealthMate giữ UID, thời điểm và tiến độ xóa để ngăn token hoặc ghi offline tạo lại dữ liệu. Không tự xóa metadata này trong bản demo. Nhật ký quản trị bất biến và quyền quản trị được giữ, giới hạn truy cập quản trị; nội dung danh mục dùng chung có thể vẫn tồn tại. Cần quản trị viên xử lý phần này theo chính sách lưu giữ. Không coi giao dịch Premium mô phỏng là chứng từ tài chính bắt buộc giữ. Ảnh thư viện, tệp đã xuất, dữ liệu dịch vụ AI đã xử lý và cache của thiết bị khác không được bảo đảm xóa từ máy này.',
       ),
       _InformationSection(
         'Báo lỗi và góp ý',

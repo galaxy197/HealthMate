@@ -100,10 +100,14 @@ class AssistantConversation {
     required this.history,
     required this.today,
     required this.selectedDate,
+    this.requestId,
   });
   final String question;
   final List<ChatMessage> history;
   final DateTime today, selectedDate;
+
+  /// Stable across plan/answer and retries of the same turn; never a UID.
+  final String? requestId;
   Map<String, Object?> body(String phase) {
     if (question.trim().isEmpty ||
         question.length > ChatLimits.inputCharacters) {

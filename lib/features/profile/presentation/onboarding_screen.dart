@@ -32,7 +32,8 @@ class OnboardingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileState = ref.watch(userProfileProvider);
-    final metricsState = ref.watch(bodyMetricsProvider);
+    final today = localDateOnly(ref.watch(localClockProvider));
+    final metricsState = ref.watch(latestBodyMetricProvider(today));
     return Scaffold(
       body: SafeArea(
         child: profileState.when(
@@ -67,7 +68,7 @@ class OnboardingScreen extends ConsumerWidget {
               error: (error, _) => _OnboardingStatus(
                 title: 'Chưa thể tải cân nặng',
                 message: _messageFor(error),
-                onRetry: () => ref.invalidate(bodyMetricsProvider),
+                onRetry: () => ref.invalidate(latestBodyMetricProvider(today)),
               ),
               data: (metrics) => _OnboardingForm(
                 key: ValueKey('onboarding-${profile.uid}'),

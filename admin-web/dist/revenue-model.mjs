@@ -10,7 +10,9 @@ export function dateBoundary(key) {
 }
 function millis(value) {
   const result = value?.toMillis?.();
-  if (!Number.isSafeInteger(result)) throw Error('Giao dịch chưa có thời gian được xác nhận.');
+  // Firestore timestamps retain nanoseconds, so toMillis may be fractional.
+  // Never round a receipt timestamp to make it look like an invalid/missing one.
+  if (!Number.isFinite(result) || Math.abs(result)>8640000000000000) throw Error('Giao dịch chưa có thời gian được xác nhận.');
   return result;
 }
 export function demoRevenue(transactions, accounts, {start, end, now = new Date()} = {}) {

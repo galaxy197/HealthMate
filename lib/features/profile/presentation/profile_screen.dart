@@ -27,11 +27,20 @@ import 'personal_overview.dart';
 import '../../data_export/presentation/journal_export_dialog.dart';
 import '../../premium/providers/premium_providers.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  String? _pageUid;
+  final _cursors = <BodyMetricCursor?>[null];
+  int _page = 0;
+
+  @override
+  Widget build(BuildContext context) {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final selectedMode = ref.watch(themeModeProvider);
@@ -40,7 +49,17 @@ class ProfileScreen extends ConsumerWidget {
     final accountAction = ref.watch(accountSecurityControllerProvider);
     final profileAction = ref.watch(profileControllerProvider);
     final profileState = ref.watch(userProfileProvider);
-    final metricState = ref.watch(bodyMetricsProvider);
+    if (_pageUid != user?.uid) {
+      _pageUid = user?.uid;
+      _cursors.clear();
+      _cursors.add(null);
+      _page = 0;
+    }
+    final pageCursor = _cursors[_page];
+    final pageState = ref.watch(bodyMetricPageProvider(pageCursor));
+    final metricState = pageState.whenData((page) => page.metrics);
+    final today = localDateOnly(ref.watch(localClockProvider));
+    final latest = ref.watch(latestBodyMetricProvider(today));
     final profile = profileState.value;
     final metrics = metricState.value ?? const <BodyMetric>[];
     final accountAnchor = GlobalKey();
@@ -169,9 +188,12 @@ class ProfileScreen extends ConsumerWidget {
           onRetry: () => _retryProfile(ref),
         ),
         const SizedBox(height: AppSpacing.md),
-        if (profile != null && metrics.isNotEmpty)
-          _BmiCard(profile: profile, latestMetric: metrics.first),
-        if (profile != null && metrics.isNotEmpty)
+        if (profile != null &&
+            !latest.isLoading &&
+            !latest.hasError &&
+            latest.value?.isNotEmpty == true)
+          _BmiCard(profile: profile, latestMetric: latest.value!.first),
+        if (profile != null && latest.value?.isNotEmpty == true)
           const SizedBox(height: AppSpacing.md),
         _MetricsCard(
           state: metricState,
@@ -179,7 +201,25 @@ class ProfileScreen extends ConsumerWidget {
           onAdd: profile == null ? null : () => _editMetric(context, ref),
           onEdit: (metric) => _editMetric(context, ref, metric: metric),
           onDelete: (metric) => _deleteMetric(context, ref, metric),
-          onRetry: () => ref.invalidate(bodyMetricsProvider),
+          onRetry: () => ref.invalidate(bodyMetricPageProvider(pageCursor)),
+          pageNumber: _page + 1,
+          onNewer: _page == 0 ? null : () => setState(() => _page--),
+          onOlder:
+              pageState.isLoading ||
+                  pageState.hasError ||
+                  pageState.value?.hasMore != true
+              ? null
+              : () {
+                  final next = pageState.value!.nextCursor;
+                  if (next == null) return;
+                  setState(() {
+                    if (_cursors.length > _page + 1) {
+                      _cursors.removeRange(_page + 1, _cursors.length);
+                    }
+                    _cursors.add(next);
+                    _page++;
+                  });
+                },
         ),
         const SizedBox(height: AppSpacing.xl),
         NutritionTargetCard(day: localDateOnly(ref.watch(localClockProvider))),
@@ -658,6 +698,9 @@ class _MetricsCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onRetry,
+    required this.pageNumber,
+    required this.onNewer,
+    required this.onOlder,
   });
 
   final AsyncValue<List<BodyMetric>> state;
@@ -666,6 +709,8 @@ class _MetricsCard extends StatelessWidget {
   final ValueChanged<BodyMetric> onEdit;
   final ValueChanged<BodyMetric> onDelete;
   final VoidCallback onRetry;
+  final int pageNumber;
+  final VoidCallback? onNewer, onOlder;
 
   @override
   Widget build(BuildContext context) {
@@ -694,6 +739,9 @@ class _MetricsCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+            Text(
+              'Trang $pageNumber · tối đa 25 lần cân. Biểu đồ dùng tối đa 12 lần trên trang này.',
+            ),
             state.when(
               loading: () => const _LoadingLine(),
               error: (error, _) =>
@@ -741,6 +789,24 @@ class _MetricsCard extends StatelessWidget {
                           ),
                       ],
                     ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('weight-history-newer'),
+                  onPressed: state.isLoading ? null : onNewer,
+                  icon: const Icon(Icons.chevron_left),
+                  label: const Text('Mới hơn'),
+                ),
+                TextButton.icon(
+                  key: const ValueKey('weight-history-older'),
+                  onPressed: state.isLoading ? null : onOlder,
+                  icon: const Icon(Icons.chevron_right),
+                  label: const Text('Cũ hơn'),
+                ),
+              ],
             ),
           ],
         ),

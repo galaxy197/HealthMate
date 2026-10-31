@@ -151,7 +151,13 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('confirm-delete-account')));
     await tester.pumpAndSettle();
 
-    expect(events, ['reauthenticate', 'delete-data', 'delete-auth']);
+    expect(events, [
+      'reauthenticate',
+      'request-deletion',
+      'delete-data',
+      'local-deleted',
+      'delete-auth',
+    ]);
     expect(data.lastUid, FakeAuthRepository.testUser.uid);
     expect(find.text('Chào mừng bạn trở lại'), findsOneWidget);
   });
@@ -186,7 +192,7 @@ void main() {
     expect(auth.deleteUserCalls, 0);
     expect(find.text('Không gian cá nhân'), findsOneWidget);
     expect(
-      find.textContaining('Một phần dữ liệu có thể đã được xóa'),
+      find.textContaining('một phần dữ liệu có thể đã xóa'),
       findsOneWidget,
     );
   });
@@ -220,10 +226,7 @@ void main() {
 
     expect(data.deleteCalls, 1);
     expect(auth.deleteUserCalls, 1);
-    expect(
-      find.textContaining('Dữ liệu HealthMate đã được xóa'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Dữ liệu ứng dụng đã dọn'), findsOneWidget);
     expect(find.text('Không gian cá nhân'), findsOneWidget);
   });
 

@@ -30,7 +30,7 @@ class QuestScreen extends ConsumerWidget {
     DateTime today, {
     TrackingGoal? goal,
   }) async {
-    final metrics = ref.read(bodyMetricsProvider).value;
+    final metrics = ref.read(latestBodyMetricProvider(today)).value;
     final uid = ref.read(authSessionProvider).value?.uid;
     final id = goal?.id ?? ref.read(goalsRepositoryProvider).newGoalId();
     await showDialog<GoalDraft>(
@@ -97,7 +97,7 @@ class QuestScreen extends ConsumerWidget {
     final meals = ref.watch(mealLogsProvider(today));
     final water = ref.watch(waterLogsProvider(key));
     final activity = ref.watch(activityLogsProvider(key));
-    final metrics = ref.watch(bodyMetricsProvider);
+    final metrics = ref.watch(latestBodyMetricProvider(today));
     final sources = [meals, water, activity, metrics];
     final theme = Theme.of(context);
     AsyncValue<Object?> sourceFor(GoalType type) => switch (type) {
@@ -117,7 +117,7 @@ class QuestScreen extends ConsumerWidget {
       if (activity.hasError || activity.isLoading) {
         ref.invalidate(activityLogsProvider(key));
       }
-      if (metrics.hasError) ref.invalidate(bodyMetricsProvider);
+      if (metrics.hasError) ref.invalidate(latestBodyMetricProvider(today));
     }
 
     return FeaturePage(

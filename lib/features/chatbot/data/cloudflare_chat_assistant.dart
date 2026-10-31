@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/assistant_request.dart';
 import '../models/chat_models.dart';
@@ -31,6 +32,9 @@ class CloudflareChatAssistant implements ChatAssistant {
   }) {
     final controller = StreamController<String>();
     final client = clientFactory();
+    // Controllers pass their stable turn ID. Standalone callers get an opaque
+    // request ID shared by both phases, never derived from account/health data.
+    final requestId = conversation.requestId ?? _newRequestId();
     var cancelled = false;
     controller.onCancel = () {
       cancelled = true;
@@ -53,6 +57,9 @@ class CloudflareChatAssistant implements ChatAssistant {
           'Địa chỉ API chatbot chưa được cấu hình hợp lệ.',
         );
       }
+      if (!RegExp(r'^[A-Za-z0-9_-]{16,80}$').hasMatch(requestId)) {
+        throw const ChatFailure('Mã yêu cầu AI chưa hợp lệ.');
+      }
       final tokens = await credentials(uid);
       check();
       if (tokens.idToken.isEmpty || tokens.appCheckToken.isEmpty) {
@@ -66,6 +73,7 @@ class CloudflareChatAssistant implements ChatAssistant {
           'content-type': 'application/json',
           'authorization': 'Bearer ${tokens.idToken}',
           'x-firebase-appcheck': tokens.appCheckToken,
+          'x-healthmate-request-id': requestId,
         })
         ..body = jsonEncode(body);
       final response = await client
@@ -79,6 +87,8 @@ class CloudflareChatAssistant implements ChatAssistant {
             'Chưa xác thực được tài khoản hoặc App Check. Hãy đăng nhập lại.',
           429 =>
             'AI đã chạm hạn mức miễn phí hoặc giới hạn yêu cầu. Hãy thử lại sau; bạn vẫn có thể tra cứu nhật ký.',
+          409 =>
+            'Lượt AI này đã được gửi hoặc chưa xác định kết quả. Không gửi lại tự động để tránh tính thêm lượt; hãy kiểm tra nhật ký trò chuyện.',
           400 ||
           413 => 'Câu hỏi hoặc ngữ cảnh quá dài/chưa hợp lệ. Hãy hỏi ngắn hơn.',
           _ =>
@@ -155,6 +165,16 @@ class CloudflareChatAssistant implements ChatAssistant {
     unawaited(run());
     return controller.stream;
   }
+}
+
+String _newRequestId() {
+  final random = Random.secure();
+  return List.generate(
+    24,
+    (_) =>
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[random
+            .nextInt(62)],
+  ).join();
 }
 
 Future<String> boundedBody(Stream<List<int>> stream, int limit) async {

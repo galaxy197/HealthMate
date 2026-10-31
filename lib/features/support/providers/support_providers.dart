@@ -19,6 +19,18 @@ final supportTicketsProvider = StreamProvider.autoDispose<List<SupportTicket>>((
     ref.watch(supportRepositoryProvider).watchTickets(uid),
   );
 });
+final supportTicketPageProvider = StreamProvider.autoDispose
+    .family<SupportTicketPage, SupportTicketCursor?>((ref, cursor) {
+      final uid = ref.watch(authSessionProvider).value?.uid;
+      if (uid == null) {
+        return Stream.value(const SupportTicketPage(tickets: []));
+      }
+      return subscriptionStream(
+        ref
+            .watch(supportRepositoryProvider)
+            .watchTicketPage(uid, after: cursor),
+      );
+    });
 final supportTicketProvider = StreamProvider.autoDispose
     .family<SupportTicket?, String>((ref, id) {
       final uid = ref.watch(authSessionProvider).value?.uid;

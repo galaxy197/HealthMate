@@ -16,37 +16,76 @@ class BarcodeProductDetailSheet extends StatefulWidget {
 }
 
 class _BarcodeProductDetailSheetState extends State<BarcodeProductDetailSheet> {
-  late final TextEditingController _gramsController;
-  double? _currentGrams = 100;
+  late final TextEditingController _quantityController;
+  double? _quantity = 100;
   String? _quantityError;
+  late BarcodeNutritionBasis _basis;
+  String get _unit => _basis == BarcodeNutritionBasis.per100ml ? 'ml' : 'g';
+  double? get _serving => _basis == BarcodeNutritionBasis.per100ml
+      ? widget.product.servingSizeMl
+      : widget.product.servingSizeG;
 
   @override
   void initState() {
     super.initState();
+    _basis = widget.product.basis;
     // Default serving size hoặc 100g
-    final serving = widget.product.servingSizeG;
-    _currentGrams =
+    final serving = _basis == BarcodeNutritionBasis.unconfirmed
+        ? null
+        : _serving;
+    _quantity =
         serving != null && NutritionValidation.grams(serving.toString()) == null
         ? serving
         : 100;
-    _gramsController = TextEditingController(text: _currentGrams.toString());
+    _quantityController = TextEditingController(text: _quantity.toString());
   }
 
   @override
   void dispose() {
-    _gramsController.dispose();
+    _quantityController.dispose();
     super.dispose();
   }
 
   NutritionTotals? get _scaledNutrition {
-    if (_currentGrams == null || widget.product.nutrition == null) return null;
-    return widget.product.nutrition!.scale(_currentGrams! / 100);
+    if (_quantity == null ||
+        widget.product.nutrition == null ||
+        _basis == BarcodeNutritionBasis.unconfirmed) {
+      return null;
+    }
+    try {
+      return _selection.toSnapshot().nutrition;
+    } on FormatException {
+      return null;
+    }
   }
 
-  void _updateGrams(String value) {
+  BarcodeMealSelection get _selection => BarcodeMealSelection(
+    product: widget.product,
+    quantity: _quantity!,
+    confirmedBasis: _basis,
+  );
+
+  void _changeBasis(BarcodeNutritionBasis? value) {
+    if (value == null) return;
     setState(() {
-      _quantityError = NutritionValidation.grams(value);
-      _currentGrams = _quantityError == null
+      _basis = value;
+      final serving = _serving;
+      _quantity =
+          serving != null && serving.isFinite && serving > 0 && serving <= 2000
+          ? serving
+          : 100;
+      _quantityController.text = foodNumber(_quantity!);
+      _quantityError = null;
+    });
+  }
+
+  void _updateQuantity(String value) {
+    setState(() {
+      final amount = NutritionValidation.parseDecimal(value);
+      _quantityError = amount == null || amount <= 0 || amount > 2000
+          ? 'Nhập lượng từ trên 0 đến 2.000 $_unit.'
+          : null;
+      _quantity = _quantityError == null
           ? NutritionValidation.parseDecimal(value)
           : null;
     });
@@ -54,10 +93,7 @@ class _BarcodeProductDetailSheetState extends State<BarcodeProductDetailSheet> {
 
   void _confirm() {
     try {
-      final selection = BarcodeMealSelection(
-        product: widget.product,
-        grams: _currentGrams!,
-      );
+      final selection = _selection;
       selection.toSnapshot();
       Navigator.pop(context, selection);
     } on FormatException catch (error) {
@@ -77,9 +113,16 @@ class _BarcodeProductDetailSheetState extends State<BarcodeProductDetailSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            24 +
+                MediaQuery.viewInsetsOf(context).bottom +
+                MediaQuery.viewPaddingOf(context).bottom,
+          ),
           decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor,
+            color: theme.colorScheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: ListView(
@@ -132,16 +175,17 @@ class _BarcodeProductDetailSheetState extends State<BarcodeProductDetailSheet> {
               const SizedBox(height: 8),
 
               // Barcode & Source
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Chip(
-                    label: Text(widget.product.barcode),
-                    avatar: const Icon(Icons.qr_code, size: 16),
+                  _ProductMetadata(
+                    icon: Icons.qr_code,
+                    text: widget.product.barcode,
                   ),
-                  const SizedBox(width: 8),
-                  Chip(
-                    label: Text(widget.product.source),
-                    avatar: const Icon(Icons.source, size: 16),
+                  const SizedBox(height: 8),
+                  _ProductMetadata(
+                    icon: Icons.source,
+                    text: widget.product.source,
                   ),
                 ],
               ),
@@ -150,35 +194,62 @@ class _BarcodeProductDetailSheetState extends State<BarcodeProductDetailSheet> {
               // Serving size input
               Text('Điều chỉnh khẩu phần', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
+              if (widget.product.basis ==
+                  BarcodeNutritionBasis.unconfirmed) ...[
+                const Text('Nhãn dùng gram hay mililít?'),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<BarcodeNutritionBasis>(
+                  key: const ValueKey('barcode-basis'),
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Đơn vị trên nhãn',
+                  ),
+                  hint: const Text('Chọn đơn vị'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: BarcodeNutritionBasis.per100g,
+                      child: Text('100 g'),
+                    ),
+                    DropdownMenuItem(
+                      value: BarcodeNutritionBasis.per100ml,
+                      child: Text('100 ml'),
+                    ),
+                  ],
+                  onChanged: _changeBasis,
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (_basis != BarcodeNutritionBasis.unconfirmed)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
                       key: const ValueKey('barcode-grams'),
-                      controller: _gramsController,
+                      controller: _quantityController,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
                       decoration: InputDecoration(
-                        labelText: 'Khối lượng (g)',
-                        suffixText: 'g',
+                        labelText: _unit == 'g'
+                            ? 'Khối lượng (g)'
+                            : 'Thể tích (ml)',
+                        suffixText: _unit,
                         errorText: _quantityError,
+                        errorMaxLines: 3,
                       ),
-                      onChanged: _updateGrams,
+                      onChanged: _updateQuantity,
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  if (widget.product.servingSizeG != null)
-                    TextButton(
-                      onPressed: () {
-                        final serving = widget.product.servingSizeG!;
-                        _gramsController.text = serving.toString();
-                        _updateGrams(serving.toString());
-                      },
-                      child: const Text('Khẩu phần gốc'),
-                    ),
-                ],
-              ),
+                    if (_serving != null)
+                      TextButton(
+                        onPressed: () {
+                          final serving = _serving!;
+                          _quantityController.text = serving.toString();
+                          _updateQuantity(serving.toString());
+                        },
+                        child: const Text('Khẩu phần gốc'),
+                      ),
+                  ],
+                ),
               const SizedBox(height: 24),
 
               // Nutrition info
@@ -218,7 +289,7 @@ class _BarcodeProductDetailSheetState extends State<BarcodeProductDetailSheet> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tính cho ${foodNumber(_currentGrams!)} g · Dữ liệu tham khảo, hãy kiểm tra nhãn sản phẩm.',
+                  'Tính cho ${foodNumber(_quantity!)} $_unit · Dữ liệu tham khảo, hãy kiểm tra nhãn sản phẩm.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: Colors.grey[600],
                   ),
@@ -243,25 +314,29 @@ class _BarcodeProductDetailSheetState extends State<BarcodeProductDetailSheet> {
                     ],
                   ),
                 ),
+              if (nutrition == null &&
+                  widget.product.nutrition != null &&
+                  _quantity != null &&
+                  _basis != BarcodeNutritionBasis.unconfirmed)
+                Text(
+                  'Dữ liệu theo đơn vị hoặc khẩu phần này không hợp lệ. Hãy kiểm tra và nhập theo nhãn sản phẩm.',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
               const SizedBox(height: 32),
 
               // Action buttons
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Quét lại'),
-                    ),
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Quét lại'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: FilledButton(
-                      key: const ValueKey('barcode-confirm'),
-                      onPressed: nutrition != null ? _confirm : null,
-                      child: const Text('Thêm vào bữa ăn'),
-                    ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    key: const ValueKey('barcode-confirm'),
+                    onPressed: nutrition != null ? _confirm : null,
+                    child: const Text('Thêm vào bữa ăn'),
                   ),
                 ],
               ),
@@ -305,12 +380,32 @@ class _NutritionRow extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _ProductMetadata extends StatelessWidget {
+  const _ProductMetadata({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 20),
+      const SizedBox(width: 8),
+      Expanded(child: Text(text)),
+    ],
+  );
 }

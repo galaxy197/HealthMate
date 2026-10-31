@@ -11,10 +11,10 @@ class FirebasePremiumRepository implements PremiumRepository {
   DocumentReference<Map<String, dynamic>> _account(String uid) =>
       db.collection('demo_premium_accounts').doc(uid);
   DocumentReference<Map<String, dynamic>> _usage(String uid, DateTime day) => db
-      .collection('demo_ai_usage')
+      .collection('ai_gateway_usage')
       .doc(uid)
       .collection('days')
-      .doc(PremiumDemoPlan.dayId(day));
+      .doc(PremiumDemoPlan.gatewayDayId(day));
 
   PremiumMembership? _membership(Map<String, dynamic>? data) {
     if (data == null) return null;
@@ -35,7 +35,7 @@ class FirebasePremiumRepository implements PremiumRepository {
 
   PremiumDailyUsage _counts(Map<String, dynamic>? data) {
     if (data == null) return const PremiumDailyUsage();
-    final scans = data['scans'], chats = data['chats'];
+    final scans = data['scans'] ?? 0, chats = data['chats'];
     if (scans is! int ||
         chats is! int ||
         scans < 0 ||
@@ -122,33 +122,8 @@ class FirebasePremiumRepository implements PremiumRepository {
 
   @override
   Future<void> consume(String uid, PremiumAiFeature feature) async {
-    // A transaction serializes concurrent requests across devices. AI is only
-    // called after the reservation commits; sent requests count even on error.
-    final time = now().toUtc();
-    final usage = _usage(uid, time);
-    try {
-      await db.runTransaction((t) async {
-        final account = await t.get(_account(uid));
-        final previous = await t.get(usage);
-        final premium = _membership(account.data())?.activeAt(time) == true;
-        final counts = _counts(previous.data());
-        if (counts.remaining(feature, premium) == 0) {
-          throw PremiumFailure(
-            'Đã hết ${feature == PremiumAiFeature.scan ? 'lượt quét ảnh' : 'câu hỏi AI'} hôm nay. Xem gói và hạn mức trong Cá nhân → Premium. Lượt mới có lúc 00:00 giờ Việt Nam.',
-          );
-        }
-        t.set(usage, {
-          'mode': 'demo',
-          'dayStart': Timestamp.fromDate(PremiumDemoPlan.dayStart(time)),
-          'scans': counts.scans + (feature == PremiumAiFeature.scan ? 1 : 0),
-          'chats': counts.chats + (feature == PremiumAiFeature.chat ? 1 : 0),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      });
-    } on FirebaseException {
-      throw const PremiumFailure(
-        'Chưa xác nhận được lượt AI. Kiểm tra mạng và cấu hình hạn mức; yêu cầu AI chưa được gửi.',
-      );
-    }
+    throw const PremiumFailure(
+      'Lượt AI chỉ được cấp bởi dịch vụ khi gửi yêu cầu. Ứng dụng không tự ghi hạn mức.',
+    );
   }
 }

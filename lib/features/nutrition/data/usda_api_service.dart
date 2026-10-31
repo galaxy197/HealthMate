@@ -4,17 +4,22 @@ import 'package:http/http.dart' as http;
 
 import '../models/nutrition_models.dart';
 import '../models/extra_nutrients.dart';
+import '../models/nutrition_validation.dart';
+import 'food_search_request.dart';
 
 /// USDA FoodData Central API Service
 /// Public DEMO_KEY only; USDA applies hourly/daily limits.
-/// API Docs: https://fdc.nal.usda.gov/api-guide.html
+/// API Docs: https://fdc.nal.usda.gov/api-guide/
 class UsdaApiService {
-  UsdaApiService({http.Client? client}) : _get = client?.get ?? http.get;
-  final Future<http.Response> Function(Uri) _get;
+  UsdaApiService({http.Client? client})
+    : _client = client ?? http.Client(),
+      _ownsClient = client == null;
+  final http.Client _client;
+  final bool _ownsClient;
   static const String baseUrl = 'https://api.nal.usda.gov/fdc/v1';
 
-  // Get free API key at: https://fdc.nal.usda.gov/api-key-signup.html
-  // For demo, using DEMO_KEY (rate limited to 30 requests/hour)
+  // Public demo credential; quota is shared and may be exhausted. No secret
+  // replacement is embedded in the app. See the current USDA API guide.
   static const String apiKey = 'DEMO_KEY';
 
   /// Search foods by query
@@ -24,57 +29,119 @@ class UsdaApiService {
     int pageSize = 25,
     int pageNumber = 1,
     List<String>? dataTypes,
+    FoodSearchRequest? request,
   }) async {
     if (query.trim().isEmpty) return [];
-
+    final work = request ?? FoodSearchRequest();
     try {
       final uri = Uri.parse('$baseUrl/foods/search').replace(
         queryParameters: {
           'api_key': apiKey,
           'query': query.trim(),
-          'pageSize': pageSize.toString(),
-          'pageNumber': pageNumber.toString(),
+          'pageSize': pageSize.clamp(1, 50).toString(),
+          'pageNumber': (pageNumber < 1 ? 1 : pageNumber).toString(),
           if (dataTypes != null) 'dataType': dataTypes.join(','),
         },
       );
 
-      final response = await _get(uri).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        final foods = data['foods'] as List<dynamic>? ?? [];
-
-        return foods
-            .map((f) => UsdaSearchResult.fromJson(f as Map<String, dynamic>))
-            .toList();
-      } else if (response.statusCode == 429) {
-        throw Exception('API rate limit exceeded. Please wait and try again.');
-      } else {
-        throw Exception('USDA API error: ${response.statusCode}');
+      final response = await _load(uri, work);
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (data is! Map<String, dynamic> || data['foods'] is! List) {
+        throw const FormatException('Invalid search response');
       }
-    } catch (e) {
-      if (e.toString().contains('rate limit')) rethrow;
-      throw Exception('Network error: $e');
+      final results = <UsdaSearchResult>[];
+      for (final row in (data['foods'] as List).take(pageSize.clamp(1, 50))) {
+        if (row is! Map<String, dynamic>) {
+          throw const FormatException('Invalid row');
+        }
+        final parsed = UsdaSearchResult.fromJson(row);
+        if (parsed.fdcId <= 0 || parsed.description.trim().isEmpty) {
+          throw const FormatException('Invalid search identity');
+        }
+        results.add(parsed);
+      }
+      work.check();
+      return results;
+    } on FoodSearchFailure {
+      rethrow;
+    } on FormatException {
+      throw const FoodSearchFailure(FoodSearchFailureKind.invalidData);
+    } on TypeError {
+      throw const FoodSearchFailure(FoodSearchFailureKind.invalidData);
+    } finally {
+      if (request == null) work.finish();
     }
   }
 
   /// Get detailed food information by FDC ID
-  Future<FoodCatalogItem?> getFoodDetail(int fdcId) async {
+  Future<FoodCatalogItem?> getFoodDetail(
+    int fdcId, {
+    FoodSearchRequest? request,
+  }) async {
+    final work = request ?? FoodSearchRequest();
     try {
       final uri = Uri.parse(
         '$baseUrl/food/$fdcId',
       ).replace(queryParameters: {'api_key': apiKey});
 
-      final response = await _get(uri).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
-        return _convertToFoodCatalogItem(data);
+      final response = await _load(uri, work, allowNotFound: true);
+      if (response.statusCode == 404) return null;
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (data is! Map<String, dynamic> ||
+          data['fdcId'] != fdcId ||
+          data['description'] is! String ||
+          (data['description'] as String).trim().isEmpty ||
+          data['foodNutrients'] is! List) {
+        throw const FormatException('Invalid detail identity');
       }
-      return null;
-    } catch (e) {
-      return null;
+      final food = _convertToFoodCatalogItem(data);
+      work.check();
+      return food;
+    } on FoodSearchFailure {
+      rethrow;
+    } on FormatException {
+      throw const FoodSearchFailure(FoodSearchFailureKind.invalidData);
+    } on TypeError {
+      throw const FoodSearchFailure(FoodSearchFailureKind.invalidData);
+    } finally {
+      if (request == null) work.finish();
     }
+  }
+
+  Future<http.Response> _load(
+    Uri uri,
+    FoodSearchRequest work, {
+    bool allowNotFound = false,
+  }) async {
+    try {
+      final response = await work.run(() async {
+        final outgoing = http.AbortableRequest(
+          'GET',
+          uri,
+          abortTrigger: work.abortTrigger,
+        );
+        final stream = await _client.send(outgoing);
+        work.check();
+        return http.Response.fromStream(stream);
+      });
+      if (response.statusCode == 429) {
+        throw const FoodSearchFailure(FoodSearchFailureKind.quota);
+      }
+      if (response.statusCode != 200 &&
+          !(allowNotFound && response.statusCode == 404)) {
+        throw const FoodSearchFailure(FoodSearchFailureKind.provider);
+      }
+      return response;
+    } on FoodSearchFailure {
+      rethrow;
+    } catch (_) {
+      work.check();
+      throw const FoodSearchFailure(FoodSearchFailureKind.network);
+    }
+  }
+
+  void dispose() {
+    if (_ownsClient) _client.close();
   }
 
   /// Convert USDA food data to our FoodCatalogItem model
@@ -137,8 +204,13 @@ class UsdaApiService {
 
     // A missing energy row is not evidence of a zero-calorie food.
     if (kcal == null ||
-        kcal > 1000 ||
-        [protein, carbs, fat, fiber].any((v) => v != null && v > 100)) {
+        !NutritionValidation.validPer100g(
+          kcal: kcal,
+          protein: protein,
+          carbs: carbs,
+          fat: fat,
+          fiber: fiber,
+        )) {
       return null;
     }
 
@@ -210,9 +282,15 @@ class UsdaSearchResult {
   });
 
   factory UsdaSearchResult.fromJson(Map<String, dynamic> json) {
+    if (json['fdcId'] is! int ||
+        (json['fdcId'] as int) <= 0 ||
+        json['description'] is! String ||
+        (json['description'] as String).trim().isEmpty) {
+      throw const FormatException('Invalid search identity');
+    }
     return UsdaSearchResult(
       fdcId: json['fdcId'] as int,
-      description: json['description'] as String? ?? 'Unknown',
+      description: (json['description'] as String).trim(),
       dataType: json['dataType'] as String? ?? 'Unknown',
       brandOwner: json['brandOwner'] as String?,
     );

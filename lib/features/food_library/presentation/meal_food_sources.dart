@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/help_details.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../nutrition/data/unified_food_search_service.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../nutrition/models/food_catalog_search.dart';
 import '../../nutrition/models/food_diet.dart';
 import '../../nutrition/models/food_avoidance.dart';
@@ -61,6 +62,47 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   String? _searchError;
   Timer? _searchDebounce;
   int _searchGeneration = 0;
+  FoodSearchRequest? _searchRequest;
+  FoodSearchRequest? _detailRequest;
+  String? _pendingDetailId;
+  bool _visibleToUser = true;
+
+  void _cancelWork() {
+    _searchDebounce?.cancel();
+    _searchGeneration++;
+    _searchRequest?.cancel();
+    _searchRequest?.finish();
+    _searchRequest = null;
+    _detailRequest?.cancel();
+    _detailRequest?.finish();
+    _detailRequest = null;
+    _pendingDetailId = null;
+    _isSearching = false;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (_visibleToUser && !visible) _cancelWork();
+    final resumed = !_visibleToUser && visible;
+    _visibleToUser = visible;
+    if (resumed &&
+        _source == _FoodSource.search &&
+        _query.text.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _visibleToUser) _performUnifiedSearch();
+      });
+    }
+  }
+
+  bool _current(int generation, String query, String? uid) =>
+      mounted &&
+      _visibleToUser &&
+      _source == _FoodSource.search &&
+      generation == _searchGeneration &&
+      _query.text.trim() == query &&
+      ref.read(authSessionProvider).value?.uid == uid;
 
   List<FoodCatalogItem> get _eligibleCatalog =>
       (ref.read(foodCatalogProvider).value ?? const <FoodCatalogItem>[])
@@ -97,17 +139,15 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
-    _searchGeneration++;
+    _cancelWork();
     _query.removeListener(_onSearchChanged);
     _query.dispose();
     super.dispose();
   }
 
   void _onSearchChanged() {
-    _searchDebounce?.cancel();
-    _searchGeneration++;
-    if (!mounted) return;
+    _cancelWork();
+    if (!mounted || !_visibleToUser) return;
     if (_source != _FoodSource.search) {
       setState(() {});
       return;
@@ -132,63 +172,137 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
   }
 
   Future<void> _performUnifiedSearch() async {
+    _cancelWork();
+    if (!mounted || !_visibleToUser || _source != _FoodSource.search) return;
     final query = _query.text.trim();
-    final generation = ++_searchGeneration;
+    final generation = _searchGeneration;
+    final uid = ref.read(authSessionProvider).value?.uid;
     if (query.isEmpty) {
       setState(() {
         _searchResults = [];
-        _isSearching = false;
         _searchError = null;
       });
       return;
     }
+    final request = FoodSearchRequest();
+    _searchRequest = request;
+    void apply(FoodSearchOutcome outcome) {
+      if (!_current(generation, query, uid)) return;
+      setState(() {
+        _searchResults = outcome.results
+            .where(
+              (result) =>
+                  widget.diet.allows(result.food) &&
+                  widget.avoidance.allows(result.food),
+            )
+            .toList();
+        _isSearching = outcome.isLoading;
+        _searchError = outcome.message;
+      });
+    }
 
     setState(() {
-      _searchResults = searchFoodCatalog(_eligibleCatalog, query)
-          .map(
-            (food) => FoodSearchResult(
-              food: food,
-              source: FoodResultSource.firestore,
-            ),
-          )
-          .toList();
       _isSearching = true;
       _searchError = null;
     });
-
     try {
-      final searchService = ref.read(unifiedFoodSearchProvider);
-
-      final results = await searchService.search(
-        query: query,
-        firestoreCatalog: _eligibleCatalog,
-        limit: 50,
-      );
-
-      if (mounted &&
-          generation == _searchGeneration &&
-          _query.text.trim() == query) {
+      final outcome = await ref
+          .read(unifiedFoodSearchProvider)
+          .search(
+            query: query,
+            firestoreCatalog: _eligibleCatalog,
+            limit: 50,
+            request: request,
+            onProgress: apply,
+          );
+      apply(outcome);
+      if (_current(generation, query, uid)) setState(() => _visible = 12);
+    } on FoodSearchFailure catch (failure) {
+      if (_current(generation, query, uid) &&
+          failure.kind != FoodSearchFailureKind.cancelled) {
         setState(() {
-          _searchResults = results
-              .where(
-                (result) =>
-                    widget.diet.allows(result.food) &&
-                    widget.avoidance.allows(result.food),
-              )
-              .toList();
+          _searchError = failure.message;
           _isSearching = false;
-          _visible = 12;
         });
       }
     } catch (_) {
-      if (mounted &&
-          generation == _searchGeneration &&
-          _query.text.trim() == query) {
+      if (_current(generation, query, uid)) {
         setState(() {
           _searchError =
-              'Chưa tìm thêm được món. Bạn có thể dùng kết quả trong danh mục hoặc thử lại.';
+              'Chưa tìm thêm được món. Bạn có thể dùng kết quả hiện có hoặc thử lại.';
           _isSearching = false;
         });
+      }
+    } finally {
+      request.finish();
+      if (identical(_searchRequest, request)) _searchRequest = null;
+    }
+  }
+
+  Future<void> _selectResult(FoodSearchResult result) async {
+    if (_pendingDetailId != null) return;
+    if (!result.requiresDetail) {
+      if (result.food.hasNutritionData &&
+          widget.diet.allows(result.food) &&
+          widget.avoidance.allows(result.food)) {
+        widget.onCatalog(result.food);
+      }
+      return;
+    }
+    final generation = _searchGeneration;
+    final query = _query.text.trim();
+    final uid = ref.read(authSessionProvider).value?.uid;
+    final request = FoodSearchRequest();
+    _detailRequest = request;
+    setState(() {
+      _pendingDetailId = result.food.id;
+      _searchError = null;
+    });
+    try {
+      final outcome = await ref
+          .read(unifiedFoodSearchProvider)
+          .resolveResult(result, request: request);
+      if (!_current(generation, query, uid)) return;
+      final food = outcome.food;
+      if (!food.hasNutritionData ||
+          !widget.diet.allows(food) ||
+          !widget.avoidance.allows(food)) {
+        setState(
+          () => _searchError =
+              'Món chưa phù hợp bộ lọc hoặc chưa đủ dữ liệu. Hãy chọn món khác.',
+        );
+        return;
+      }
+      setState(() {
+        _searchResults = _searchResults
+            .map(
+              (entry) => entry.food.id == food.id
+                  ? FoodSearchResult(food: food, source: result.source)
+                  : entry,
+            )
+            .toList();
+        if (outcome.cacheWarning) {
+          _searchError = 'Đã tải món nhưng chưa lưu được vào bộ nhớ trên máy.';
+        }
+      });
+      widget.onCatalog(food);
+    } on FoodSearchFailure catch (failure) {
+      if (_current(generation, query, uid) &&
+          failure.kind != FoodSearchFailureKind.cancelled) {
+        setState(() => _searchError = failure.message);
+      }
+    } catch (_) {
+      if (_current(generation, query, uid)) {
+        setState(
+          () => _searchError =
+              'Chưa tải được dinh dưỡng món. Hãy chọn lại để thử.',
+        );
+      }
+    } finally {
+      request.finish();
+      if (identical(_detailRequest, request)) {
+        _detailRequest = null;
+        if (mounted) setState(() => _pendingDetailId = null);
       }
     }
   }
@@ -230,20 +344,37 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     FoodCatalogItem food, {
     bool removable = false,
     FoodResultSource? source,
+    FoodSearchResult? result,
   }) {
     final busy = ref.watch(favoriteFoodControllerProvider).isLoading;
     final allowed = widget.diet.allows(food) && widget.avoidance.allows(food);
+    final needsDetail = result?.requiresDetail == true;
+    final selecting = _pendingDetailId == food.id;
+    final canChoose =
+        allowed &&
+        _pendingDetailId == null &&
+        (food.hasNutritionData || needsDetail);
+    void choose() {
+      if (result != null) {
+        _selectResult(result);
+      } else {
+        widget.onCatalog(food);
+      }
+    }
+
     return ListTile(
       key: ValueKey('${removable ? 'favorite' : 'catalog'}-food-${food.id}'),
       contentPadding: EdgeInsets.zero,
-      onTap: food.hasNutritionData && allowed
-          ? () => widget.onCatalog(food)
-          : null,
+      onTap: canChoose ? choose : null,
       title: Text(food.name),
       minVerticalPadding: 12,
       subtitle: Text(
         !allowed
             ? 'Không phù hợp bộ lọc chế độ ăn/thực phẩm cần tránh hoặc chưa rõ thành phần.'
+            : needsDetail
+            ? (selecting
+                  ? 'Đang tải dinh dưỡng USDA…'
+                  : 'USDA · Chọn để tải dinh dưỡng')
             : !food.hasNutritionData
             ? 'Món thiếu dữ liệu dinh dưỡng; chưa thể thêm vào bữa.'
             : '${food.nutritionPer100g.kcal.toStringAsFixed(0)} kcal / 100 g${food.isEstimated ? ' · Ước tính' : ''}'
@@ -256,7 +387,9 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
             key: ValueKey(
               '${removable ? 'remove' : 'save'}-favorite-${food.id}',
             ),
-            onPressed: busy ? null : () => _favorite(food.id, !removable),
+            onPressed: busy || needsDetail
+                ? null
+                : () => _favorite(food.id, !removable),
             tooltip: removable
                 ? 'Bỏ yêu thích ${food.name}'
                 : 'Lưu yêu thích ${food.name}',
@@ -267,11 +400,15 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
             ),
           ),
           IconButton.filledTonal(
-            onPressed: food.hasNutritionData && allowed
-                ? () => widget.onCatalog(food)
-                : null,
+            onPressed: canChoose ? choose : null,
             tooltip: 'Thêm ${food.name}',
-            icon: const Icon(Icons.add_rounded),
+            icon: selecting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_rounded),
           ),
         ],
       ),
@@ -362,6 +499,11 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_isSearching) ...[
+          const LinearProgressIndicator(),
+          const SizedBox(height: 8),
+          const Text('Đang tìm thêm món…'),
+        ],
         if (_searchError != null) ...[
           Text(_searchError!),
           TextButton(
@@ -375,7 +517,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
         ),
         const SizedBox(height: 8),
         for (final result in _searchResults.take(_visible))
-          _catalogTile(result.food, source: result.source),
+          _catalogTile(result.food, source: result.source, result: result),
         if (_searchResults.length > _visible)
           TextButton.icon(
             key: const ValueKey('more-catalog-foods'),
@@ -533,6 +675,18 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authSessionProvider.select((session) => session.value?.uid), (
+      previous,
+      next,
+    ) {
+      if (previous != next) {
+        _cancelWork();
+        setState(() {
+          _searchResults = [];
+          _searchError = null;
+        });
+      }
+    });
     if (_source == _FoodSource.search) {
       ref.listen(foodCatalogProvider, (previous, next) {
         if (next.hasValue &&
@@ -583,6 +737,7 @@ class _MealFoodSourcesState extends ConsumerState<MealFoodSources> {
                     label: Text(source.label),
                     selected: _source == source,
                     onSelected: (_) => setState(() {
+                      _cancelWork();
                       _initialResolved = true;
                       _source = source;
                       _visible = 12;

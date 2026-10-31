@@ -11,12 +11,12 @@ import 'package:healthmate/features/profile/models/body_metric.dart';
 import 'package:healthmate/features/profile/models/profile_failure.dart';
 import 'package:healthmate/features/profile/providers/profile_providers.dart';
 import 'support/fake_auth_repository.dart';
-import 'package:healthmate/features/auth/data/account_data_repository.dart';
+import 'support/fake_account_data_repository.dart';
 import 'package:healthmate/features/profile/data/health_profile_repository.dart';
 import 'support/fake_health_profile_repository.dart';
 import 'support/test_app.dart';
 
-class PendingData implements AccountDataRepository {
+class PendingData extends FakeAccountDataRepository {
   final pending = Completer<void>();
   @override
   Future<void> deleteAllUserData(String uid) => pending.future;
@@ -38,7 +38,11 @@ class PendingMetrics implements HealthProfileRepository {
   }
 }
 
-const userB = AuthUser(emailVerified: true, uid: 'user-b', email: 'b@example.com');
+const userB = AuthUser(
+  emailVerified: true,
+  uid: 'user-b',
+  email: 'b@example.com',
+);
 Future<void> tick() => Future<void>.delayed(Duration.zero);
 
 void main() {

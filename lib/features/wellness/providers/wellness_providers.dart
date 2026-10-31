@@ -50,6 +50,18 @@ class LocalWellnessController extends AsyncNotifier<LocalWellnessState> {
     }
     try {
       final uid = user?.emailVerified == true ? user!.uid : null;
+      if (uid != null) {
+        // Never reactivate native writers before a server-confirmed deletion
+        // check, including after a process restart or on a second device.
+        final deletion = await ref.watch(accountDeletionJobProvider.future);
+        if (!ref.mounted || ref.read(authSessionProvider).value?.uid != uid) {
+          return const LocalWellnessState();
+        }
+        if (deletion != null) {
+          await device.clearAccount(uid);
+          return const LocalWellnessState();
+        }
+      }
       await device.setAccount(uid);
       if (uid == null) return const LocalWellnessState();
       return LocalWellnessState(
@@ -122,7 +134,13 @@ final wellnessBootstrapProvider = Provider<void>((ref) {
   final local = ref.watch(localWellnessProvider).value;
   final user = ref.watch(authSessionProvider).value;
   final device = ref.watch(wellnessDeviceProvider);
-  if (user == null || local?.uid != user.uid || local?.available != true) {
+  final deletion = ref.watch(accountDeletionJobProvider);
+  if (deletion.isLoading ||
+      deletion.hasError ||
+      deletion.value != null ||
+      user == null ||
+      local?.uid != user.uid ||
+      local?.available != true) {
     return;
   }
   Future<void> openJournal() async {

@@ -481,6 +481,7 @@ class ChatController extends Notifier<ChatState> {
               history: List.of(state.messages),
               today: today,
               selectedDate: date,
+              requestId: _turnId,
             ),
             uid: uid,
             isCurrent: current,

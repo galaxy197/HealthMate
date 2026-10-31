@@ -11,8 +11,9 @@ try {
     'pubspec.yaml','pubspec.lock','analysis_options.yaml','firestore.rules','firestore.indexes.json','firebase.emulators.json','.metadata')
   $files=@(@(git -c core.quotepath=false ls-files -- $paths)+@(git -c core.quotepath=false ls-files --others --exclude-standard -- $paths) | Sort-Object -Unique)
   if($LASTEXITCODE -ne 0 -or $files.Count -lt 100) {throw 'Cannot enumerate repository source.'}
+  $files=@($files | Where-Object {$_ -notmatch '(^|/)(node_modules|build|\.git)/'})
   foreach($relative in $files) {
-    if($relative -match '(^|/)(node_modules|build|\.git)/|key\.properties$|\.jks$|\.keystore$|qa-defines\.json$') {throw 'Private/generated file in source inventory.'}
+    if($relative -match 'key\.properties$|\.jks$|\.keystore$|qa-defines\.json$') {throw 'Private file in source inventory.'}
     $source=Join-Path $repo $relative
     $copy=Join-Path $target $relative
     New-Item -ItemType Directory -Path (Split-Path -Parent $copy) -Force | Out-Null

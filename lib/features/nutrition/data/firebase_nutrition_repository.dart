@@ -9,16 +9,54 @@ import '../models/nutrition_models.dart';
 import '../models/catalog_food_reader.dart';
 import '../models/food_catalog_search.dart';
 import 'nutrition_repository.dart';
+import 'meal_document.dart';
+import 'meal_query_mode.dart';
 import 'bundled_vietnamese_foods.dart';
 
 class FirebaseNutritionRepository implements NutritionRepository {
   FirebaseNutritionRepository(
     this._firestore, {
     Future<List<FoodCatalogItem>> Function()? catalogLoader,
+    this.onQueryRead,
   }) : _catalogLoader = catalogLoader ?? loadBundledVietnameseFoods;
 
   final FirebaseFirestore _firestore;
   final Future<List<FoodCatalogItem>> Function() _catalogLoader;
+
+  /// Optional aggregate-only instrumentation for emulator/diagnostics.
+  final void Function(MealQueryRead read)? onQueryRead;
+
+  Future<MealQueryMode> _queryMode(String uid) async {
+    try {
+      final marker = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('data_migrations')
+          .doc('meal_date_key_v1')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 3));
+      onQueryRead?.call(
+        MealQueryRead(
+          branch: 'migration-marker',
+          documentCount: marker.exists ? 1 : 0,
+          fromCache: false,
+        ),
+      );
+      final data = marker.data();
+      if (data?['schemaVersion'] != 1 || data?['verifiedAt'] is! Timestamp) {
+        return MealQueryMode.compatibility;
+      }
+      return switch (data?['state']) {
+        'partitioned' => MealQueryMode.partitioned,
+        'complete' => MealQueryMode.complete,
+        _ => MealQueryMode.compatibility,
+      };
+    } catch (_) {
+      // An absent/unavailable marker is never proof legacy data was migrated.
+      // Retain the old safe queries, including when viewing an offline diary.
+      return MealQueryMode.compatibility;
+    }
+  }
 
   CollectionReference<Map<String, dynamic>> _meals(String uid) =>
       _firestore.collection('users').doc(uid).collection('meal_logs');
@@ -64,19 +102,21 @@ class FirebaseNutritionRepository implements NutritionRepository {
   Stream<List<MealLog>> watchMealLogs(String uid, DateTime localDate) async* {
     final dateKey = localDateKey(localDate);
     final range = localDayRange(localDate);
-    yield* _watchMealDay(uid, dateKey, range);
+    yield* _watchMealDay(uid, dateKey, range, await _queryMode(uid));
   }
 
   Stream<List<MealLog>> _watchMealDay(
     String uid,
     String dateKey,
     LocalDayRange legacyRange,
+    MealQueryMode mode,
   ) {
     late StreamController<List<MealLog>> controller;
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? currentSub;
     StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? legacySub;
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? currentDocs;
-    List<QueryDocumentSnapshot<Map<String, dynamic>>>? legacyDocs;
+    List<QueryDocumentSnapshot<Map<String, dynamic>>>? legacyDocs =
+        mode == MealQueryMode.complete ? const [] : null;
 
     void emitWhenReady() {
       if (currentDocs == null || legacyDocs == null || controller.isClosed) {
@@ -87,7 +127,9 @@ class FirebaseNutritionRepository implements NutritionRepository {
       };
       for (final doc in legacyDocs!) {
         final data = doc.data();
-        if (data['dateKey'] is String) continue;
+        if (mode == MealQueryMode.compatibility && data['dateKey'] is String) {
+          continue;
+        }
         byId.putIfAbsent(doc.id, () => _meal(doc.id, data));
       }
       final meals = byId.values.toList(growable: false)
@@ -107,14 +149,28 @@ class FirebaseNutritionRepository implements NutritionRepository {
 
     controller = StreamController<List<MealLog>>(
       onListen: () {
-        currentSub = _meals(uid)
-            .where('dateKey', isEqualTo: dateKey)
-            .snapshots()
-            .listen((snapshot) {
-              currentDocs = snapshot.docs;
-              emitWhenReady();
-            }, onError: addError);
-        legacySub = _meals(uid)
+        Query<Map<String, dynamic>> currentQuery = _meals(
+          uid,
+        ).where('dateKey', isEqualTo: dateKey);
+        if (mode == MealQueryMode.partitioned) {
+          currentQuery = currentQuery.where(
+            'queryPartition',
+            isEqualTo: 'current',
+          );
+        }
+        currentSub = currentQuery.snapshots().listen((snapshot) {
+          currentDocs = snapshot.docs;
+          onQueryRead?.call(
+            MealQueryRead(
+              branch: 'current',
+              documentCount: snapshot.docs.length,
+              fromCache: snapshot.metadata.isFromCache,
+            ),
+          );
+          emitWhenReady();
+        }, onError: addError);
+        if (mode == MealQueryMode.complete) return;
+        Query<Map<String, dynamic>> legacyQuery = _meals(uid)
             .where(
               'consumedAt',
               isGreaterThanOrEqualTo: Timestamp.fromDate(legacyRange.start),
@@ -123,12 +179,24 @@ class FirebaseNutritionRepository implements NutritionRepository {
               'consumedAt',
               isLessThan: Timestamp.fromDate(legacyRange.end),
             )
-            .orderBy('consumedAt', descending: true)
-            .snapshots()
-            .listen((snapshot) {
-              legacyDocs = snapshot.docs;
-              emitWhenReady();
-            }, onError: addError);
+            .orderBy('consumedAt', descending: true);
+        if (mode == MealQueryMode.partitioned) {
+          legacyQuery = legacyQuery.where(
+            'queryPartition',
+            isEqualTo: 'legacy',
+          );
+        }
+        legacySub = legacyQuery.snapshots().listen((snapshot) {
+          legacyDocs = snapshot.docs;
+          onQueryRead?.call(
+            MealQueryRead(
+              branch: 'legacy',
+              documentCount: snapshot.docs.length,
+              fromCache: snapshot.metadata.isFromCache,
+            ),
+          );
+          emitWhenReady();
+        }, onError: addError);
       },
       onCancel: () async {
         await currentSub?.cancel();
@@ -164,30 +232,56 @@ class FirebaseNutritionRepository implements NutritionRepository {
     DateTime end,
   ) async {
     try {
+      final mode = await _queryMode(uid);
+      Query<Map<String, dynamic>> currentQuery = _meals(uid)
+          .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
+          .where('dateKey', isLessThan: localDateKey(end));
+      Query<Map<String, dynamic>> legacyQuery = _meals(uid)
+          .where(
+            'consumedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(start),
+          )
+          .where('consumedAt', isLessThan: Timestamp.fromDate(end));
+      if (mode == MealQueryMode.partitioned) {
+        currentQuery = currentQuery.where(
+          'queryPartition',
+          isEqualTo: 'current',
+        );
+        legacyQuery = legacyQuery.where('queryPartition', isEqualTo: 'legacy');
+      }
+      final currentFuture = readBoundedRange(currentQuery, start, end);
       final snapshots = await (
-        readBoundedRange(
-          _meals(uid)
-              .where('dateKey', isGreaterThanOrEqualTo: localDateKey(start))
-              .where('dateKey', isLessThan: localDateKey(end)),
-          start,
-          end,
-        ),
-        readBoundedRange(
-          _meals(uid)
-              .where(
-                'consumedAt',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(start),
-              )
-              .where('consumedAt', isLessThan: Timestamp.fromDate(end)),
-          start,
-          end,
-        ),
+        currentFuture,
+        mode == MealQueryMode.complete
+            ? Future<QuerySnapshot<Map<String, dynamic>>?>.value(null)
+            : readBoundedRange(legacyQuery, start, end),
       ).wait;
+      onQueryRead?.call(
+        MealQueryRead(
+          branch: 'current',
+          documentCount: snapshots.$1.docs.length,
+          fromCache: false,
+        ),
+      );
+      if (snapshots.$2 != null) {
+        onQueryRead?.call(
+          MealQueryRead(
+            branch: 'legacy',
+            documentCount: snapshots.$2!.docs.length,
+            fromCache: false,
+          ),
+        );
+      }
       final byId = <String, MealLog>{
         for (final doc in snapshots.$1.docs) doc.id: _meal(doc.id, doc.data()),
       };
-      for (final doc in snapshots.$2.docs) {
-        if (doc.data()['dateKey'] is String) continue;
+      for (final doc
+          in snapshots.$2?.docs ??
+              <QueryDocumentSnapshot<Map<String, dynamic>>>[]) {
+        if (mode == MealQueryMode.compatibility &&
+            doc.data()['dateKey'] is String) {
+          continue;
+        }
         byId.putIfAbsent(doc.id, () => _meal(doc.id, doc.data()));
       }
       return byId.values.toList()
@@ -207,7 +301,7 @@ class FirebaseNutritionRepository implements NutritionRepository {
     String? operationId,
   }) => _guard(() async {
     final ref = _meals(uid).doc(operationId);
-    final data = _mealData(draft);
+    final data = mealDocumentData(draft);
     if (operationId == null) {
       await ref.set({
         ...data,
@@ -218,9 +312,7 @@ class FirebaseNutritionRepository implements NutritionRepository {
       await _firestore.runTransaction((transaction) async {
         final previous = await transaction.get(ref);
         if (previous.exists) {
-          if (!_sameValue(data, {
-            for (final key in data.keys) key: previous.data()?[key],
-          })) {
+          if (!sameMealPayload(data, previous.data())) {
             throw const NutritionFailure(
               'Thao tác trước đã lưu nội dung khác. Hãy đóng form, tải lại bữa và chọn Sửa.',
             );
@@ -237,9 +329,7 @@ class FirebaseNutritionRepository implements NutritionRepository {
       if (!confirmed.exists ||
           confirmed.metadata.hasPendingWrites ||
           confirmed.metadata.isFromCache ||
-          !_sameValue(data, {
-            for (final key in data.keys) key: confirmed.data()?[key],
-          })) {
+          !sameMealPayload(data, confirmed.data())) {
         throw const NutritionFailure(
           'Chưa xác nhận được đúng bữa trên máy chủ; bản nháp vẫn được giữ.',
         );
@@ -255,56 +345,43 @@ class FirebaseNutritionRepository implements NutritionRepository {
     required MealDraft draft,
   }) => _guard(
     () => _meals(uid).doc(mealId).update({
-      ..._mealData(draft),
+      ...mealDocumentData(draft),
       'updatedAt': FieldValue.serverTimestamp(),
     }),
   );
 
   @override
-  Future<void> deleteMeal({required String uid, required String mealId}) =>
-      _guard(() => _meals(uid).doc(mealId).delete());
-
-  Map<String, Object?> _mealData(MealDraft draft) {
-    if (draft.minimumSchemaVersion > 5) {
-      throw const NutritionFailure(
-        'Cần phiên bản ứng dụng mới hơn để sửa bản ghi này.',
-      );
-    }
-    for (final item in draft.items) {
-      item.withQuantity(item.quantity);
-    }
-    final totals = draft.totals;
-    final enriched =
-        draft.items.any((i) => i.nutrition.extraNutrients.isNotEmpty) ||
-        draft.minimumSchemaVersion >= 5;
-    return {
-      'mealType': draft.type.name,
-      'consumedAt': Timestamp.fromDate(draft.consumedAt),
-      'dateKey': draft.dateKey,
-      'timezoneOffsetMinutes': draft.timezoneOffsetMinutes,
-      'items': [
-        for (final item in draft.items)
-          if (!enriched) item.toData() else item.toCompactData(),
-      ],
-      'totalKcal': totals.kcal,
-      'totalProteinG': totals.proteinKnown ? totals.proteinG : null,
-      'totalCarbsG': totals.carbsKnown ? totals.carbsG : null,
-      'totalFatG': totals.fatKnown ? totals.fatG : null,
-      'source': draft.source.wireValue,
-      'schemaVersion': enriched
-          ? 5
-          : draft.items.any(
-                  (i) =>
-                      i.hasFiberData || i.nutrition.extraNutrients.isNotEmpty,
-                ) ||
-                draft.minimumSchemaVersion >= 4
-          ? 4
-          : draft.items.any((i) => i.needsExtendedSchema) ||
-                draft.minimumSchemaVersion >= 3
-          ? 3
-          : 2,
-    };
-  }
+  Future<void> deleteMeal({
+    required String uid,
+    required String mealId,
+  }) => _guard(() async {
+    final meal = _meals(uid).doc(mealId);
+    // Reserved deterministic IDs identify one plan directly; never scan plans.
+    final planId =
+        RegExp(
+          r'^plan-\d{4}-\d{2}-\d{2}-(breakfast|lunch|dinner|snack)$',
+        ).hasMatch(mealId)
+        ? mealId.substring(5)
+        : null;
+    final plan = planId == null
+        ? null
+        : _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('meal_plans')
+              .doc(planId);
+    await _firestore.runTransaction((transaction) async {
+      final previous = await transaction.get(meal);
+      final planned = plan == null ? null : await transaction.get(plan);
+      if (planned?.data()?['loggedMealId'] == mealId) {
+        transaction.update(plan!, {
+          'loggedMealId': FieldValue.delete(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (previous.exists) transaction.delete(meal);
+    });
+  });
 
   MealLog _meal(String id, Map<String, dynamic> data) {
     final items = (data['items'] as List? ?? const [])
@@ -370,16 +447,4 @@ class FirebaseNutritionRepository implements NutritionRepository {
       throw NutritionFailure.fromCode('unknown');
     }
   }
-}
-
-bool _sameValue(Object? a, Object? b) {
-  if (a is Map && b is Map) {
-    return a.length == b.length &&
-        a.keys.every((key) => b.containsKey(key) && _sameValue(a[key], b[key]));
-  }
-  if (a is List && b is List) {
-    return a.length == b.length &&
-        a.indexed.every((entry) => _sameValue(entry.$2, b[entry.$1]));
-  }
-  return a == b;
 }

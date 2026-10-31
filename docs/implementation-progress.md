@@ -1,5 +1,7 @@
 # Tiến độ HealthMate
 
+Trạng thái mới nhất (31/10/2026): Gói cải thiện8/9 đã xác minh local; Gói10 chuẩn bị xong phần local, chưa nghiệm thu signed release/native. Xem mục Gói8–10 ở cuối và docs/improvement-progress.md. Các giai đoạn/mốc cũ giữ làm lịch sử.
+
 ## 27/10/2026 — Giai đoạn tùy chọn 11: giao diện gọn và dễ đọc
 
 Đã chỉnh bố cục các màn hình dinh dưỡng hằng ngày: nền tiêu đề khi cuộn, khoảng
@@ -3068,3 +3070,192 @@ Chi tiết: [premium-demo-2026-10-30.md](premium-demo-2026-10-30.md).
    và kiểm UID B; không tự làm thông báo đẩy hoặc giai đoạn khác.
 
 Chi tiết: [customer-support-2026-10-30.md](customer-support-2026-10-30.md).
+
+## 30/10/2026 — Gói cải thiện 1: barcode validation và layout
+
+1. **Phạm vi:** Gói 1 theo kế hoạch chủ dự án cung cấp; kiểm baseline Gói 0.
+   Bắt đầu `main@0e897eca3cbdb7907012197830b9d365763e4faf`, working tree sạch.
+2. **Hoàn thành local:** validator trên 100 g dùng chung barcode/USDA;
+   chặn dữ liệu sai trước snapshot, giữ unknown/zero, chuyển khoáng chất đúng
+   một lần. OFF chưa rõ cơ sở cần xác nhận g/ml; thể tích giữ ml khi lưu.
+   Barcode sheet không tràn ở 320/360/412 px × chữ 1/1,5/2.
+3. **File chính:** service/model/sheet barcode, `nutrition_validation.dart`,
+   `usda_api_service.dart`, `firestore.rules`, test barcode, Rules regression
+   mới và [improvement-progress.md](improvement-progress.md).
+4. **Kiểm thử:** 11 test Flutter mới và 3 test Rules đã thất bại trước sửa;
+   cuối 726/726 Flutter, 95/95 Rules qua, analyzer sạch (104,2s), format và
+   diff check qua. Không giảm giới hạn 5 món/6 nguyên liệu để tránh Rules budget.
+5. **Cần quyết định trước production:** phát hành client và triển khai Rules
+   candidate sau review/backup/dry-run phù hợp. Không thay schema/index hoặc
+   sửa dữ liệu cũ; snapshot sai khi cập nhật lại cần người dùng sửa chủ động.
+6. **Giới hạn:** chưa nghiệm thu native, chưa build APK/commit/push/deploy.
+   Xác nhận g/ml dựa trên nhãn do người dùng đọc; không tự suy mật độ.
+7. **Tiếp theo đề xuất:** Gói 2 — tìm USDA có giới hạn request/deadline và
+   trạng thái lỗi; chưa triển khai.
+
+## 31/10/2026 — Gói cải thiện 2: tìm USDA có giới hạn
+
+1. **Phạm vi:** chỉ Gói 2 của kế hoạch cải thiện; HEAD vẫn
+   `main@0e897eca3cbdb7907012197830b9d365763e4faf`, bảo toàn working tree Gói 1.
+2. **Đã hoàn thành local:** tìm USDA trả metadata, chỉ tải detail khi chọn;
+   dùng local/cache ngay khi online chậm/lỗi. Deadline chung 8 giây mỗi
+   thao tác tìm/tải detail, hủy khi đổi query/nguồn/bộ lọc/UID/ẩn màn hoặc
+   dispose. Retry hủy tác vụ trước; không nhân chuỗi detail. Phân biệt lỗi
+   quota, mạng, provider, JSON, timeout và kết quả partial/rỗng hợp lệ.
+3. **File chính:** `food_search_request.dart`, `food_search_cache.dart`,
+   `unified_food_search_service.dart`, `usda_api_service.dart`, database/provider
+   dinh dưỡng và cả `meal_form_dialog.dart`, `meal_food_sources.dart`; hai
+   regression suite mới và các fake/search test hiện có.
+4. **Kiểm thử:** fixture trước sửa 51 request cho 50 kết quả; sau sửa 1
+   search, không detail nếu chưa chọn, thêm đúng 1 detail cho món đã chọn.
+   Focused **49/49**, toàn bộ Flutter **753/753** qua; analyzer sạch, format
+   và diff check qua. Có fake clock, client quan sát abort và test hai UI.
+5. **Cần người dùng làm:** không cần cấu hình thêm cho source demo. Chưa
+   phát hành client/APK mới; khi chạy bản source này có thể tự test Android
+   theo quy trình của chủ dự án. Không tự deploy, push GitHub hoặc chạy
+   lại luồng native trong gói này.
+6. **Giới hạn:** `DEMO_KEY` vẫn bị hạn mức USDA theo IP, không thêm key
+   riêng. Cache SQLite đã chạy không rollback được khi hủy; HTTP abort
+   phụ thuộc transport, không thu hồi request đã tới máy chủ. Chưa xác minh
+   API USDA thật/thiết bị thật/production. Không thay Rules/schema/dependency.
+7. **Tiếp theo đề xuất:** Gói 3 — toàn vẹn kế hoạch–nhật ký; chưa thực hiện.
+
+Chi tiết giới hạn, bằng chứng và file:
+[improvement-progress.md](improvement-progress.md).
+
+## 31/10/2026 — Gói cải thiện 3: toàn vẹn kế hoạch–nhật ký
+
+1. **Giai đoạn/phạm vi:** chỉ Gói 3 của kế hoạch cải thiện. Bảo toàn thay
+   đổi Gói 1–2; không triển khai Gói 4.
+2. **Đã hoàn thành local:** xác nhận ghi meal + pointer bằng transaction;
+   xóa meal + gỡ pointer nguyên tử, cho ghi lại; xóa plan giữ lịch sử.
+   Retry cùng payload không trùng/ghi đè, khác payload bị báo xung đột.
+   Form cũ sau sửa/xóa không tái tạo dữ liệu. Nút kiểm tra liên kết khôi
+   phục pointer treo hoặc thiếu marker mà không sửa lịch sử ăn uống.
+3. **File chính:** serializer `meal_document.dart`, hai repository dinh
+   dưỡng/wellness, model và UI plan, Rules; cleanup chỉ đổi thứ tự plan
+   trước meal. Thêm Rules, SDK và widget regression tests. Không đổi schema.
+4. **Kiểm thử:** trước sửa SDK 0 qua/3 lỗi; sau sửa SDK Gói 3 **13/13**,
+   widget **4/4**, Rules focused **17/17**, Rules đầy đủ **100/100**, SDK
+   repository rộng **23/23**, Flutter mặc định **757/757**. Analyze sạch.
+   Format 29 Dart đang thay đổi và diff check qua; format toàn repo đọc
+   kiểm còn 5 lệch có sẵn ngoài phạm vi, giữ nguyên.
+5. **Cần người dùng làm:** khi phát hành cần phối hợp client và Rules mới,
+   vì client cũ ghi hai bước sẽ bị candidate Rules chặn. Chưa deploy,
+   build APK, push GitHub hoặc chạy lại Android; chủ dự án tự test thiết bị.
+6. **Giới hạn:** concurrency dùng hai Firebase app SDK cùng UID trên emulator;
+   mất ACK mô phỏng bằng bỏ kết quả đã commit, chưa cắt ACK mạng thật.
+   Chưa giải quyết vòng đời xóa tài khoản/tombstone/job của Gói 4. Những
+   lỗi setup fixture và giới hạn budget ở vòng đầu đã ghi trong báo cáo.
+7. **Gói kế tiếp đề xuất:** Gói 4 — vòng đời xóa tài khoản và chính sách
+   lưu giữ; chưa thực hiện.
+
+Chi tiết và bằng chứng: [improvement-progress.md](improvement-progress.md).
+
+## 31/10/2026 — Gói cải thiện 4: xóa tài khoản và chính sách lưu giữ
+
+1. **Giai đoạn/phạm vi:** chỉ Gói 4 của kế hoạch cải thiện; bảo toàn Gói
+   1–3 và HEAD `main@0e897eca3cbdb7907012197830b9d365763e4faf`. Trạng thái:
+   client fallback/Rules candidate đã xác minh local; chưa đủ điều kiện
+   production vì thiếu server job và chính sách retention thực thi được.
+2. **Đã hoàn thành:** server xác nhận tombstone trước cleanup; khóa mọi
+   create/update sản phẩm, giữ quyền cleanup cùng UID kể cả suspended.
+   Retry dùng cùng yêu cầu và luôn kiểm tra lại dữ liệu, không tin checkpoint
+   để bỏ qua. Dọn inventory đã biết gồm Premium demo, support, directory,
+   controls; dừng/chặn native và dọn nháp trước server cleanup/Auth. Gate
+   tiếp tục xóa sau mở lại, chặn bootstrap/directory/native/export tái ghi.
+   Báo đúng Auth chưa xóa; không tự chứng nhận `completed` hoặc xóa hết UID.
+3. **File chính:** `firebase_account_data_repository.dart`, interface/model
+   job, auth controller/repository, gate/dialog, profile/admin/wellness/export
+   providers, Rules; `AccountDeletionBlock.kt`, storage/bridge/draft native.
+   ADR inventory + retention mới, schema trong `database-design.md`, README
+   rollout; Rules/SDK/controller/gate/export/host regression tests mới.
+4. **Kiểm thử:** SDK deletion **8/8**, SDK repository hồi quy **23/23**,
+   Rules deletion **9/9**, toàn Rules **109/109**, budget plan **5/5**.
+   Flutter focused **75/75**, export **4/4**, wellness **11/11**, toàn Flutter
+   **772/772**. Analyze sạch; format 54 Dart đang đổi 0 thay đổi, diff check
+   qua. Host native contract **5/5**, compile Kotlin offline nonincremental
+   thành công; không build APK. QA sync đối chiếu hash 458 file.
+5. **Cần người dùng làm:** trước production cần provision job xóa đặc quyền,
+   inventory đệ quy/orphan, xác minh Auth/revocation, chính sách thời hạn và
+   purge audit/marker/provenance/role admin. Sau đó phối hợp Rules/client,
+   đánh giá tương thích client cũ và hỗ trợ yêu cầu dở. Chưa cấp credential,
+   thêm dịch vụ trả phí, deploy hoặc xóa tài khoản thật trong lượt này.
+6. **Vấn đề còn lại:** cleanup client chỉ chạy khi app mở/có mạng; không
+   tìm được mọi orphan mất parent/collection chưa biết. Marker UID/metadata
+   giữ không có TTL tự động; audit và dấu vết admin cần quy trình server.
+   Sau Auth delete marker vẫn `auth_pending`, chưa có server xác minh xong.
+   Không thu hồi từ xa cache offline/file export/provider data; chưa nghiệm
+   thu Android native theo lựa chọn chủ dự án. Lỗi harness/budget/compile
+   và giới hạn bằng chứng đều ghi trong báo cáo, không giảm assertions.
+7. **Gói kế tiếp đề xuất:** Gói 5 — AI policy/quota tại dịch vụ tin cậy;
+   chưa triển khai. Không commit/push, phát hành APK hay tắt máy.
+
+Chi tiết: [improvement-progress.md](improvement-progress.md),
+[account-deletion-adr.md](account-deletion-adr.md), [test-report.md](test-report.md).
+
+## 31/10/2026 — Gói cải thiện 5, 6, 7
+
+1. **Phạm vi:** ba gói kế tiếp theo yêu cầu trực tiếp; bảo toàn Gói 1–4,
+   không chuyển sang Gói 8. Đây là improvement packages, không phải MVP stages.
+2. **Đã làm:** gateway chat reserve quota/policy tin cậy, client bỏ quyền tự
+   cấp lượt và direct AI; query dinh dưỡng có chứng nhận migration, lịch sử
+   cân có cursor; admin phân trang server, export/báo cáo theo khoảng riêng.
+   Hồi quy transaction đồng thời có retry giới hạn theo cặp đã xác nhận server.
+3. **File chính:** chat-api policy/Firestore adapter/auth/entry/config;
+   Flutter assistant/Premium/scanner/knowledge/cleanup; nutrition/profile/
+   wellness repositories và UI; admin server-paging/firebase/app/revenue/
+   support; Rules/indexes; tool meal_query_migration và các regression tests.
+4. **Kiểm thử:** full Flutter780/780; Rules119/119; chat Node48/48,
+   REST emulator3/3, dry-run Worker qua; admin Node42/42, SDK7/7;
+   migration6/6. Analyze/format/diff và SDK repository cuối ghi tại
+   [test-report.md](test-report.md), evidence manifest cùng log/hash.
+5. **Cần cấu hình trước production:** identity/IAM và secrets server bằng
+   quy trình riêng, kiểm revoke/provider thật, chặn direct Firebase AI từ
+   client cũ, retention/server deletion jobs, gateway ảnh; duyệt migration
+   timezone/backup/rollout client+Rules+indexes; publish admin sau review.
+6. **Còn lại:** Gói 5 chưa production-ready; gateway mặc định tắt, scanner AI
+   ảnh tạm chưa khả dụng, barcode/nhập tay vẫn dùng. Chưa deploy/migrate/push,
+   không nâng billing. Không nghiệm thu native Android hay build APK.
+7. **Tiếp theo đề xuất:** Gói 8 — chống spam support và lịch sử ticket;
+   chưa triển khai. Chủ dự án yêu cầu tắt laptop sau khi lưu và kiểm tra xong;
+   tiến trình kiểm thử task được dừng trước khi lên lịch tắt, không ép đóng app.
+
+Chi tiết hành vi trước/sau, schema, giới hạn local/production và rollback:
+[improvement-progress.md](improvement-progress.md),
+[ai-policy-quota-adr.md](ai-policy-quota-adr.md),
+[package6-query-migration.md](package6-query-migration.md),
+[package7-admin-pagination.md](package7-admin-pagination.md).
+
+## 31/10/2026 — Gói cải thiện 8, 9, 10
+
+1. **Phạm vi/trạng thái:** Gói 8/9 candidate đã xác minh local; Gói 10 đã
+   chuẩn bị và kiểm preflight/load local, signed release/native còn bị chặn.
+   Giữ `main@0e897eca3cbdb7907012197830b9d365763e4faf`, Gói 1–7 chưa commit;
+   package/version demo `com.example.healthmate`, `1.0.0+1` theo chủ dự án.
+2. **Đã làm:** hạn mức ticket authority 3/ngày, cooldown60s, atomic counter,
+   idempotent retry và lịch sử25/trang; tách draft/submit/search/source UI;
+   rút README/lưu CHANGELOG, thêm bảng hashes và CI không deploy; release
+   guard/config/preflight/helper và bounded load probe emulator.
+3. **File chính:** support repository/models/providers/screen/Rules và tests;
+   auth cleanup inventory; meal_form_controller, meal_search_controller,
+   meal_entry_sources, meal_form_dialog và tests; README/CHANGELOG, workflow/
+   CI helpers; Gradle/config/release_preflight/build_release, tài liệu gói.
+4. **Kiểm thử:** Flutter803/803; Rules127/127; Flutter web SDK52/52;
+   admin42/42 +SDK7/7; chat48/48 +REST3/3; tools28/28; REST migration1/1;
+   analyzer sạch, format92 files0 changes, audit/diff/parse qua. Load10 workers:
+   100 queries/1.000 docs/0 errors, p95 58.452ms trên emulator admin bypass.
+   Release preflight exit1 đúng vì thiếu signing, không gọi đó là release pass.
+5. **Cần chủ dự án làm:** cung cấp private signing/certificate và nghiệm thu
+   Android tự test theo ma trận; xử lý server deletion/retention và AI trusted
+   identity/direct-route blockers trước production; duyệt rollout client+
+   Rules/indexes/migration và chi phí. Không thêm credential/billing/deploy.
+6. **Còn lại:** chưa có signed APK/hash/native acceptance, chưa chạy hosted CI;
+   Gói10 chưa thể hoàn tất nghiệm thu. Local load không đo quota/billing/capacity.
+   Ticket Rules mới cần phối hợp client; không nới để tương thích client cũ.
+7. **Tiếp theo đề xuất:** hoàn tất các blocker và nghiệm thu signed release;
+   không tự chuyển Giai đoạn11 hoặc triển khai production.
+
+Kết quả thật, lỗi trung gian và đường dẫn log:
+[test-report.md](test-report.md), [candidate-verification.md](candidate-verification.md),
+[improvement-progress.md](improvement-progress.md), [release-readiness.md](release-readiness.md).

@@ -12,13 +12,26 @@ String _failure(Object error) => error is SupportFailure
     ? error.message
     : 'Chưa tải được yêu cầu. Kiểm tra mạng rồi tải lại.';
 
-class SupportScreen extends ConsumerWidget {
+class SupportScreen extends ConsumerStatefulWidget {
   const SupportScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SupportScreen> createState() => _SupportScreenState();
+}
+
+class _SupportScreenState extends ConsumerState<SupportScreen> {
+  final _cursors = <SupportTicketCursor?>[null];
+  String? _uid;
+  @override
+  Widget build(BuildContext context) {
     if (!TickerMode.valuesOf(context).enabled) return const SizedBox.shrink();
     final uid = ref.watch(authSessionProvider).value?.uid;
-    final tickets = ref.watch(supportTicketsProvider);
+    if (_uid != uid) {
+      _uid = uid;
+      _cursors
+        ..clear()
+        ..add(null);
+    }
+    final tickets = ref.watch(supportTicketPageProvider(_cursors.last));
     return Scaffold(
       appBar: AppBar(title: const Text('Báo lỗi & Góp ý')),
       body: SafeArea(
@@ -55,49 +68,77 @@ class SupportScreen extends ConsumerWidget {
               error: (error, _) => [
                 Text(_failure(error)),
                 TextButton(
-                  onPressed: () => ref.invalidate(supportTicketsProvider),
+                  onPressed: () =>
+                      ref.invalidate(supportTicketPageProvider(_cursors.last)),
                   child: const Text('Tải lại'),
                 ),
               ],
-              data: (items) => items.isEmpty
-                  ? [
-                      const Text(
-                        'Chưa có yêu cầu. Bạn có thể gửi báo lỗi hoặc đề xuất cải thiện tại đây.',
+              data: (page) => [
+                if (page.tickets.isEmpty)
+                  const Text(
+                    'Chưa có yêu cầu. Bạn có thể gửi báo lỗi hoặc đề xuất cải thiện tại đây.',
+                  ),
+                for (final ticket in page.tickets)
+                  Card(
+                    child: ListTile(
+                      key: ValueKey('support-${ticket.id}'),
+                      leading: Icon(
+                        ticket.type == SupportType.bug
+                            ? Icons.bug_report_outlined
+                            : Icons.lightbulb_outline,
                       ),
-                    ]
-                  : [
-                      for (final ticket in items)
-                        Card(
-                          child: ListTile(
-                            key: ValueKey('support-${ticket.id}'),
-                            leading: Icon(
-                              ticket.type == SupportType.bug
-                                  ? Icons.bug_report_outlined
-                                  : Icons.lightbulb_outline,
-                            ),
-                            title: Text(
-                              ticket.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                '${ticket.status.label}\n${_time(ticket.updatedAt)}',
-                              ),
-                            ),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    SupportThreadScreen(ticketId: ticket.id),
-                              ),
-                            ),
-                          ),
+                      title: Text(
+                        ticket.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          '${ticket.status.label}\n${_time(ticket.updatedAt)}',
                         ),
-                      if (items.length == 50)
-                        const Text('Hiển thị 50 yêu cầu cập nhật gần nhất.'),
-                    ],
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              SupportThreadScreen(ticketId: ticket.id),
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    TextButton(
+                      key: const ValueKey('support-newer'),
+                      onPressed: _cursors.length == 1
+                          ? null
+                          : () => setState(() => _cursors.removeLast()),
+                      child: const Text('Mới hơn'),
+                    ),
+                    Text('Trang ${_cursors.length}'),
+                    TextButton(
+                      key: const ValueKey('support-older'),
+                      onPressed: page.nextCursor == null
+                          ? null
+                          : () => setState(() => _cursors.add(page.nextCursor)),
+                      child: const Text('Cũ hơn'),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _cursors
+                          ..clear()
+                          ..add(null);
+                        ref.invalidate(supportTicketPageProvider(null));
+                      }),
+                      child: const Text('Về mới nhất'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),
@@ -211,6 +252,10 @@ class _NewTicketState extends ConsumerState<_NewTicket> {
                 const SizedBox(height: 12),
                 const Text(
                   'Nội dung bạn gửi sẽ được admin xem để hỗ trợ. Không gửi mật khẩu, thông tin ngân hàng hoặc hồ sơ sức khỏe nhạy cảm.',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tối đa ${SupportPolicy.dailyTicketLimit} yêu cầu mới/ngày, cách nhau ${SupportPolicy.createInterval.inSeconds} giây. Bạn vẫn có thể trả lời yêu cầu đã có.',
                 ),
                 const SizedBox(height: 16),
                 if (_error != null)

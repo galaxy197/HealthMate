@@ -54,6 +54,7 @@ ProviderContainer setup(RuntimeFake fake, {bool enabled = true}) {
     overrides: [
       adminControlsEnabledProvider.overrideWithValue(enabled),
       adminRuntimeRepositoryProvider.overrideWithValue(fake),
+      accountDeletionJobProvider.overrideWith((ref) => Stream.value(null)),
       authSessionProvider.overrideWith(
         (ref) => Stream.value(FakeAuthRepository.testUser),
       ),
@@ -63,6 +64,7 @@ ProviderContainer setup(RuntimeFake fake, {bool enabled = true}) {
     ],
   );
   container.listen(authSessionProvider, (_, _) {});
+  container.listen(accountDeletionJobProvider, (_, _) {});
   container.listen(userProfileProvider, (_, _) {});
   container.listen(appAccountAccessProvider, (_, _) {});
   container.listen(adminAppConfigProvider, (_, _) {});

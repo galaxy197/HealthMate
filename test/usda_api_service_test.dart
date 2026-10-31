@@ -147,13 +147,13 @@ void main() {
             }),
           ),
         );
-        expect(
-          await service.search(
-            query: 'PRIVATE_FOOD_QUERY',
-            firestoreCatalog: [],
-          ),
-          isEmpty,
+        final outcome = await service.search(
+          query: 'PRIVATE_FOOD_QUERY',
+          firestoreCatalog: [],
         );
+        expect(outcome.results, isEmpty);
+        expect(outcome.failure?.kind, FoodSearchFailureKind.network);
+        expect(outcome.message, isNotNull);
         expect(logs.join(), isNot(contains('PRIVATE_PROVIDER_DETAIL')));
         expect(logs.join(), isNot(contains('PRIVATE_FOOD_QUERY')));
       } finally {

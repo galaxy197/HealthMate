@@ -39,6 +39,7 @@ class WellnessBridge(private val activity: MainActivity, private val channel: Me
                 "setAccount" -> {
                     val uid = call.argument<String>("uid")
                     require(uid == null || (uid.isNotBlank() && uid.length <= 128))
+                    if (uid != null) check(!AccountDeletionBlock.isBlocked(activity, uid))
                     if (storage.activeUid() != uid) {
                         MealReminders.cancel(activity)
                         BedtimeReminders.cancel(activity)
@@ -131,12 +132,22 @@ class WellnessBridge(private val activity: MainActivity, private val channel: Me
                 "stopSteps" -> { owner(call)
                     activity.stopService(Intent(activity, StepTrackingService::class.java)); result.success(null) }
                 "clearAccount" -> {
-                    val uid = owner(call)
-                    MealReminders.cancel(activity)
-                    BedtimeReminders.cancel(activity)
-                    activity.stopService(Intent(activity, StepTrackingService::class.java))
+                    val uid = requireNotNull(call.argument<String>("uid"))
+                    require(uid.isNotBlank() && uid.length <= 128)
+                    val active = storage.activeUid()
+                    // Retry is valid after a previous clear set activeUid=null.
+                    // Never stop another signed-in account's tracking on retry.
+                    AccountDeletionBlock.mark(activity, uid)
+                    if (active == null || active == uid) {
+                        MealReminders.cancel(activity)
+                        BedtimeReminders.cancel(activity)
+                        activity.stopService(Intent(activity, StepTrackingService::class.java))
+                        storage.setActive(null)
+                    }
                     for (scope in listOf("settings", "steps", "recordedMeals", "sleepReminder")) storage.clear(uid, scope)
-                    storage.setActive(null); tappedUid = null; sleepTappedUid=null; result.success(null)
+                    if (tappedUid == uid) tappedUid = null
+                    if (sleepTappedUid == uid) sleepTappedUid = null
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }

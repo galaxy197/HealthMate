@@ -15,6 +15,7 @@ import 'package:healthmate/features/wellness/data/wellness_device.dart';
 import 'package:healthmate/features/wellness/models/wellness_models.dart';
 import 'package:healthmate/features/wellness/providers/wellness_providers.dart';
 import 'package:healthmate/features/wellness/presentation/wellness_screen.dart';
+import 'support/fake_account_data_repository.dart';
 
 const nutrientFood = FoodCatalogItem(
   id: 'fixture',
@@ -262,6 +263,12 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           authSessionProvider.overrideWith((ref) => sessions.stream),
+          // Native activation now requires the deletion repository's confirmed
+          // state. Keep that real provider dependency with a fake data source;
+          // this unit test never initializes a live Firebase backend.
+          accountDataRepositoryProvider.overrideWithValue(
+            FakeAccountDataRepository(),
+          ),
           wellnessDeviceProvider.overrideWithValue(device),
         ],
       );

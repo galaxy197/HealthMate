@@ -23,7 +23,9 @@ async function setup({member=false,pendingList=false}={}) {
     authChanges(callback){this.auth=callback;callback({uid:'admin',email:'admin@healthmate.local',emailVerified:true});},
     role(uid,data){this.roleData=data;data(!member);return()=>{};},
     async logout(){this.auth(null);},async counts(){return[67,3,0,0];},async config(){return{chatbotEnabled:true,foodScannerEnabled:true,maintenanceMode:false};},
-    async list(kind){this.listCalls++;if(pendingList)await held;if(kind==='support_tickets')return this.supportRows??[];if(kind.startsWith('demo_premium_'))return this.demoRows?.[kind] ?? [];return kind==='food_catalog'?this.rows:[{id:'member',email:'member@example.com',displayName:'Member',adminRole:null,control:null},{id:'admin',email:'admin@example.com',adminRole:{enabled:true}}];},
+    async source(kind){if(pendingList)await held;if(kind==='support_tickets')return this.supportRows??[];if(kind.startsWith('demo_premium_'))return this.demoRows?.[kind] ?? [];return kind==='food_catalog'?this.rows:[{id:'member',email:'member@example.com',displayName:'Member',adminRole:null,control:null},{id:'admin',email:'admin@example.com',adminRole:{enabled:true}}];},
+    async listPage(kind,{cursor=null}={}){this.listCalls++;const source=await this.source(kind);const offset=cursor?.offset??0,rows=source.slice(offset,offset+25);return{rows,cursor:{id:rows.at(-1)?.id,offset:offset+25},hasMore:offset+25<source.length};},
+    async exportRange(kind,{idFrom='',idTo='',isCurrent=()=>true}={}){const source=await this.source(kind);if(!isCurrent())throw Error('Phiên tải đã kết thúc.');return source.filter(row=>(!idFrom||row.id>=idFrom)&&(!idTo||row.id<=idTo));},
     async save(kind,id,payload,reason,version){this.saves.push({kind,id,payload,reason,version});if(this.failSave)throw Error('Lỗi nguồn QA');const row=this.rows.find(r=>r.id===id);if(row)Object.assign(row,payload);else this.rows.push({...payload,id});},
     release,
   };
@@ -36,7 +38,7 @@ async function setup({member=false,pendingList=false}={}) {
   await flush();
   return{window,document,api,click,button,submit,flush};
 }
-test('four admin dashboard counters, full search across pages, STT and filter pagination',async()=>{
+test('four counters, server page navigation and explicitly page-local search',async()=>{
   const t=await setup();
   assert.equal(t.document.querySelectorAll('.stat-number').length,4);
   await t.click(t.document.querySelector('[data-page="food_catalog"]'));
@@ -44,10 +46,13 @@ test('four admin dashboard counters, full search across pages, STT and filter pa
   await t.click(t.button('Sau'));
   assert.equal(t.document.querySelector('tbody td').textContent,'26');
   const search=t.document.querySelector('#list-search');search.value='com tam';search.dispatchEvent(new t.window.Event('input'));await t.flush();
+  assert.equal(t.document.querySelectorAll('tbody tr').length,0,'page two must not claim a match on unseen page three');
+  assert.match(t.document.querySelector('#list-status').textContent,/chỉ áp dụng trang này/);
+  await t.click(t.button('Sau'));
   assert.equal(t.document.querySelectorAll('tbody tr').length,1);
   assert.match(t.document.querySelector('tbody').textContent,/Cơm tấm/);
-  assert.equal(t.document.querySelector('tbody td').textContent,'1');
-  assert.equal(t.api.listCalls,1,'filtering must not refetch per keystroke');
+  assert.equal(t.document.querySelector('tbody td').textContent,'51');
+  assert.equal(t.api.listCalls,3,'each navigation fetches one page; filtering does not refetch');
 });
 test('archive requires review and reason, failure keeps draft, restore preserves row and source',async()=>{
   const t=await setup();await t.click(t.document.querySelector('[data-page="food_catalog"]'));
@@ -109,11 +114,14 @@ test('revenue page displays only simulated money, empty state and confirmed orde
   await t.click(t.button('Tải lại'));
   assert.match(t.document.querySelector('#revenue-results').textContent,/20\.000đ/);
   assert.match(t.document.querySelector('#revenue-results').textContent,/demo-1/);
+  assert.equal(t.document.querySelector('#revenue-summary .stats'),null,'no partial-period summary from display page');
+  await t.click(t.button('Tổng hợp kỳ'));
+  assert.match(t.document.querySelector('#revenue-summary').textContent,/20\.000đ/);
   assert.ok(t.button('Xuất Excel mô phỏng'));
   t.api.demoRows.demo_premium_transactions[0].mode='live';
   await t.click(t.button('Tải lại'));
   assert.match(t.document.querySelector('#revenue-results').textContent,/chưa hợp lệ/);
-  assert.equal(t.document.querySelector('#revenue-results .stats'),null);
+  assert.equal(t.document.querySelector('#revenue-summary .stats'),null);
 });
 test('support list filters and replies safely, retains failed draft/id and updates status',async()=>{
   const t=await setup();
@@ -149,6 +157,42 @@ test('late support thread after logout never restores customer content',async()=
   await t.click(t.button('Xem & trả lời'));await t.api.logout();
   release({ticket:{title:'Nội dung riêng tư'},messages:[]});await t.flush();
   assert.doesNotMatch(t.document.querySelector('#app').textContent,/Nội dung riêng tư/);
+});
+
+test('canceling a pending range export closes it and late rows never create a download',async()=>{
+  const t=await setup();await t.click(t.document.querySelector('[data-page="food_catalog"]'));
+  let release,receivedCurrent;
+  t.api.exportRange=(_kind,{isCurrent})=>{receivedCurrent=isCurrent;return new Promise(resolve=>release=resolve);};
+  let downloads=0;const original=URL.createObjectURL;URL.createObjectURL=()=>{downloads++;return'blob:qa';};
+  try{
+    await t.click(t.button('Xuất Excel theo khoảng mã'));
+    t.document.querySelector('#editor-form').dispatchEvent(new t.window.Event('submit',{cancelable:true}));await t.flush();
+    assert.equal(t.document.querySelector('#cancel-editor').disabled,false);
+    await t.click(t.document.querySelector('#cancel-editor'));
+    assert.equal(t.document.querySelector('#editor[open]'),null);assert.equal(receivedCurrent(),false);
+    release(t.api.rows);await t.flush();assert.equal(downloads,0);
+  }finally{URL.createObjectURL=original;}
+});
+
+test('revoked role while range export is pending discards all late private rows',async()=>{
+  const t=await setup();await t.click(t.document.querySelector('[data-page="user_directory"]'));
+  let release; t.api.exportRange=()=>new Promise(resolve=>release=resolve);
+  let downloads=0;const original=URL.createObjectURL;URL.createObjectURL=()=>{downloads++;return'blob:qa';};
+  try{
+    await t.click(t.button('Xuất Excel theo khoảng mã'));
+    t.document.querySelector('#editor-form').dispatchEvent(new t.window.Event('submit',{cancelable:true}));await t.flush();
+    t.api.roleData(false);await t.flush();release([{id:'private',email:'private@example.com'}]);await t.flush();
+    assert.equal(downloads,0);assert.doesNotMatch(t.document.body.textContent,/private@example/);
+  }finally{URL.createObjectURL=original;}
+});
+
+test('canceling period summary prevents late totals and Excel from appearing',async()=>{
+  const t=await setup();await t.click(t.document.querySelector('[data-page="revenue"]'));
+  let release;t.api.exportRange=()=>new Promise(resolve=>release=resolve);
+  await t.click(t.button('Tổng hợp kỳ'));await t.click(t.button('Hủy tổng hợp'));
+  release([]);await t.flush();
+  assert.match(t.document.querySelector('#revenue-summary').textContent,/Đã hủy/);
+  assert.equal(t.document.querySelector('#revenue-summary .stats'),null);assert.equal(t.button('Xuất Excel mô phỏng'),undefined);
 });
 
 test.after(()=>hooks.deregister());

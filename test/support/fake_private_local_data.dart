@@ -5,6 +5,7 @@ class FakePrivateLocalData extends PrivateLocalData {
   FakePrivateLocalData({this.available = true});
   final bool available;
   final drafts = <String, String>{};
+  final deletingUids = <String>{};
   bool failWrite = false;
   bool failClear = false;
   int picked = 0, cancelled = 0, written = 0;
@@ -16,6 +17,7 @@ class FakePrivateLocalData extends PrivateLocalData {
   Future<String?> read(String uid) async => drafts[uid];
   @override
   Future<void> write(String uid, String json) async {
+    if (deletingUids.contains(uid)) throw StateError('account deleting');
     if (failWrite) throw StateError('disk full');
     drafts[uid] = json;
   }
@@ -24,6 +26,12 @@ class FakePrivateLocalData extends PrivateLocalData {
   Future<void> clear(String uid) async {
     if (failClear) throw StateError('keystore unavailable');
     drafts.remove(uid);
+  }
+
+  @override
+  Future<void> clearForDeletion(String uid) async {
+    deletingUids.add(uid);
+    await clear(uid);
   }
 
   @override

@@ -10,7 +10,7 @@ Cập nhật 30/10: thêm **Hỗ trợ khách hàng**. Khách tạo báo lỗi/g
 admin lọc loại/trạng thái/từ khóa, mở cuộc trao đổi, Gửi phản hồi và Lưu trạng
 thái xử lý. Phản hồi hiển thị trong app, không gửi email hoặc push. Khách bổ
 sung tin nhắn sẽ mở lại yêu cầu. Không thể sửa nội dung gốc hoặc tin đã gửi.
-Tối đa 100 tin/cuộc, 2.000 ký tự/tin; bộ tải danh sách giới hạn 5.000 ticket.
+Tối đa 100 tin/cuộc, 2.000 ký tự/tin; candidate Gói 7 tải từng trang 25 ticket.
 Xóa tài khoản trong app xóa ticket/messages; admin không có quyền xóa thay.
 Chi tiết: [Hỗ trợ khách hàng](../docs/customer-support-2026-10-30.md).
 
@@ -20,16 +20,27 @@ Chi tiết: [Hỗ trợ khách hàng](../docs/customer-support-2026-10-30.md).
 - Bật/tắt quét ảnh AI, chatbot, chế độ bảo trì và thông báo.
 - Nhật ký quản trị ghi nguyên tử cùng thay đổi, không sửa/xóa từ client.
 - Dashboard có bốn số liệu thật: món, tài khoản đã đồng bộ, tài khoản tạm khóa và thao tác quản trị.
-- Tìm toàn bộ danh sách có/không dấu, lọc nhóm/trạng thái/vai trò, phân trang 25 mục và STT xuyên trang.
+- Candidate Gói 7: tìm có/không dấu và lọc nhóm/trạng thái/vai trò **trong trang đang xem**; chuyển trang đọc 25 mục tiếp từ Firestore.
 - Xem chi tiết, xác nhận xóa khỏi danh mục và khôi phục món. Không hard delete để giữ liên kết/lịch sử.
-- Xuất Excel `.xlsx` cho **toàn bộ kết quả đang lọc trên mọi trang**, gồm món/tài khoản/audit.
+- Xuất Excel `.xlsx` theo **khoảng mã đã chọn**, gồm mọi trang trong phạm vi; tối đa 5.000 mục, quá giới hạn báo lỗi và yêu cầu chia nhỏ. Bộ lọc trang không áp dụng vào tệp.
 - Quên mật khẩu gửi yêu cầu email Firebase; logout/thu hồi quyền loại dữ liệu đang hiển thị.
 
-Danh sách tải tuần tự từng 200 document từ máy chủ, tối đa 5.000 mục/collection.
-Chỉ cho tìm/xuất sau khi tải đủ; lỗi hoặc quá giới hạn không xuất danh sách thiếu.
-Gõ tìm kiếm không đọc Firestore lại. Dùng **Tải lại** để cập nhật thay đổi của người khác;
-đây không phải ảnh chụp database tại cùng một thời điểm khi có ghi đồng thời.
-Danh sách tài khoản cần thêm lượt đọc trạng thái/role theo UID đã biết.
+Candidate Gói 7 không tải toàn collection trước trang đầu: mỗi trang 25 document,
+sắp theo mã, chỉ đọc control/role của tối đa 25 UID đang xem. Gõ tìm kiếm chỉ
+lọc trang hiện tại, không đọc lại Firestore. Chưa có dịch vụ global full-text
+search; UI công khai phạm vi thay vì gọi đây là tìm toàn hệ thống. Trang hỗ trợ
+cũng dùng cursor. Revenue tải giao dịch theo khoảng ngày, 25 mục mới nhất mỗi
+trang; nút **Tổng hợp kỳ** đọc riêng đầy đủ tối đa 5.000 giao dịch của kỳ để
+tính và xuất Excel. Không cộng trang hiển thị thành tổng thiếu. Chỉ số gói còn
+hạn toàn hệ thống chưa có summary tin cậy nên không hiển thị trong candidate.
+
+Export có thể hủy, kiểm session/quyền trước và sau mỗi request. Không tự thu
+hồi tệp đã tải. Dùng **Tải lại** để cập nhật người khác thay đổi; cursor không
+phải snapshot nguyên tử của database đang được ghi. Record chèn trước cursor
+cần tải lại từ đầu mới thấy; bản ghi đổi timestamp có thể đổi trang.
+Chi tiết kiểm thử và giới hạn: [Gói 7](../docs/package7-admin-pagination.md).
+Những thay đổi Gói 7 hiện chỉ là source candidate, **chưa publish**; trạng thái
+production lịch sử dưới đây không xác nhận candidate này đã lên web.
 
 Trạng thái: **đã publish https://healthmate-admin-vn.web.app**. App Check web,
 role và Rules/Hosting đã cấu hình. Dùng **Tiếp tục với Google →

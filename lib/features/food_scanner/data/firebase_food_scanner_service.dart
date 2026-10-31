@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'dart:async';
 
 import 'package:firebase_ai/firebase_ai.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/errors/operation_diagnostics.dart';
 
@@ -26,7 +26,7 @@ abstract final class FoodScannerConfig {
 }
 
 class FirebaseFoodScannerService implements FoodScannerService {
-  FirebaseFoodScannerService({GenerativeModel? model}) : _providedModel = model;
+  FirebaseFoodScannerService();
 
   static GenerationConfig get generationConfig => GenerationConfig(
     temperature: 0.1,
@@ -112,16 +112,6 @@ class FirebaseFoodScannerService implements FoodScannerService {
     'searchTerms=[], estimatedNutritionPer100g=null, estimatedServingGrams=null.',
   );
 
-  static GenerativeModel createModel({required http.Client client}) =>
-      FirebaseAI.googleAI().generativeModel(
-        model: FoodScannerConfig.modelName,
-        httpClient: client,
-        generationConfig: generationConfig,
-        systemInstruction: systemInstruction,
-      );
-
-  final GenerativeModel? _providedModel;
-
   @override
   Future<AiFoodSuggestion> analyze({
     required Uint8List bytes,
@@ -135,74 +125,12 @@ class FirebaseFoodScannerService implements FoodScannerService {
     if (!const {'image/jpeg', 'image/png', 'image/webp'}.contains(mimeType)) {
       throw const FoodScannerFailure('Định dạng ảnh chưa được hỗ trợ.');
     }
-    final clock = Stopwatch()..start();
-    final client = FoodScannerHttpClient(clock: clock);
-    Future<AiFoodSuggestion> request() async {
-      if (_providedModel == null) {
-        operationDiagnostic('ai-scanner', 'app-check', 'start', clock);
-        final token = await FirebaseAppCheck.instance.getToken().timeout(
-          const Duration(seconds: 8),
-          onTimeout: () => throw const FoodScannerFailure(
-            'Chưa lấy được xác thực App Check. Hãy kiểm tra mạng và cấu hình bản debug.',
-            code: 'app-check-timeout',
-          ),
-        );
-        if (token == null || token.isEmpty) {
-          throw const FoodScannerFailure(
-            'Chưa xác thực được ứng dụng. Hãy chạy bản debug có App Check hợp lệ.',
-            code: 'app-check',
-          );
-        }
-        operationDiagnostic('ai-scanner', 'app-check', 'success', clock);
-      }
-      final model = _providedModel ?? createModel(client: client);
-      operationDiagnostic('ai-scanner', 'sdk-request', 'start', clock);
-      final response = await model.generateContent([
-        Content.multi([
-          TextPart(
-            'Nhận diện món trong ảnh. Trả lời bằng tiếng Việt theo JSON schema đã cung cấp.',
-          ),
-          InlineDataPart(mimeType, bytes),
-        ]),
-      ]);
-      final text = response.text;
-      if (text == null || text.trim().isEmpty) {
-        throw const FormatException('Empty model response.');
-      }
-      final result = AiFoodSuggestion.fromJsonText(text);
-      operationDiagnostic('ai-scanner', 'parse-complete', 'success', clock);
-      return result;
-    }
-
-    try {
-      return await request().timeout(FoodScannerConfig.requestTimeout);
-    } on FoodScannerFailure catch (failure) {
-      operationDiagnostic(
-        'ai-scanner',
-        'request',
-        'error',
-        clock,
-        code: failure.code,
-      );
-      rethrow;
-    } on FormatException {
-      throw const FoodScannerFailure(
-        'Kết quả nhận diện không hợp lệ. Bạn có thể thử lại hoặc nhập thủ công.',
-      );
-    } catch (error) {
-      final failure = scannerFailureFor(error);
-      operationDiagnostic(
-        'ai-scanner',
-        'sdk-request',
-        'error',
-        clock,
-        code: failure.code,
-      );
-      throw failure;
-    } finally {
-      // A timed-out request must not leave a live socket behind on retry.
-      client.close();
-    }
+    // There is no provisioned vision gateway yet. Sending to Firebase directly
+    // would bypass the server policy; changing image provider needs new consent.
+    throw const FoodScannerFailure(
+      'Quét ảnh AI đang chờ cấu hình dịch vụ bảo vệ hạn mức. Bạn vẫn có thể tìm món, quét mã vạch hoặc nhập thủ công.',
+      code: 'gateway-not-configured',
+    );
   }
 }
 

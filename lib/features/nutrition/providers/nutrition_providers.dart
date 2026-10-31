@@ -23,9 +23,11 @@ final foodLocalDatabaseProvider = Provider<FoodLocalDatabase>(
 );
 
 // USDA API service
-final usdaApiServiceProvider = Provider<UsdaApiService>(
-  (ref) => UsdaApiService(),
-);
+final usdaApiServiceProvider = Provider<UsdaApiService>((ref) {
+  final service = UsdaApiService();
+  ref.onDispose(service.dispose);
+  return service;
+});
 
 // Unified search service
 final unifiedFoodSearchProvider = Provider<UnifiedFoodSearchService>(

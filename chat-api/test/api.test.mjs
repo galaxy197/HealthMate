@@ -2,10 +2,15 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from 'jose';
 import { verifyIdentity } from '../src/auth.mjs';
-import { createHandler } from '../src/index.mjs';
+import { createHandler as createProductionHandler } from '../src/index.mjs';
+import { fixture } from './policy-fixture.mjs';
 import { MODEL, ANSWER_MODEL, validateRequest, validateDataRequest, parsePlan, planMessages, answerMessages } from '../src/protocol.mjs';
 
 const env = { FIREBASE_PROJECT_ID: 'test-project', FIREBASE_PROJECT_NUMBER: '123', FIREBASE_ANDROID_APP_ID: 'test-android' };
+function createHandler(verify) {
+  const { policy } = fixture();
+  return createProductionHandler(verify, { policyFactory: () => policy });
+}
 const body = { version: 1, phase: 'plan', question: 'Hôm nay còn bao nhiêu đạm?', history: [],
   today: '2026-10-25', selectedDate: '2026-10-25', timezoneOffsetMinutes: 420 };
 let privateKey, keys;
@@ -25,7 +30,8 @@ async function request(overrides = {}, payload = body) {
   const app = await token({ sub: 'test-android', iss: 'https://firebaseappcheck.googleapis.com/123',
     aud: ['projects/123'], iat: now - 2, exp: now + 300, ...overrides.app });
   return new Request('https://test.workers.dev/v1/chat', { method: 'POST',
-    headers: { authorization: `Bearer ${auth}`, 'x-firebase-appcheck': app, 'content-type': 'application/json' },
+    headers: { authorization: `Bearer ${auth}`, 'x-firebase-appcheck': app, 'content-type': 'application/json',
+      'x-healthmate-request-id': 'test-request-0000001' },
     body: JSON.stringify(payload) });
 }
 test('verified identity derives UID from signed token, not request data', async () => {
@@ -133,6 +139,7 @@ test('oversized body rejected before inference and response errors hide provider
 });
 test('answer streams without logging or caching payloads', async () => {
   const handle = createHandler(async () => 'user-a');
+  assert.equal((await handle(await request(), bindings())).status, 200);
   const r = await request({}, { ...body, phase: 'answer', results: [] });
   const e = bindings(async (model, input) => {
     assert.equal(model, ANSWER_MODEL);

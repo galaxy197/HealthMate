@@ -1045,3 +1045,186 @@ Không thay schema người dùng/nhật ký hoặc Rules trước đây. Proven
 là authorUid/role/server timestamp trên mỗi message; không cho sửa/xóa để làm
 lại lịch sử ngoài luồng cleanup account. Chi tiết và giới hạn:
 [customer-support-2026-10-30.md](customer-support-2026-10-30.md).
+
+## 30/10/2026 — Candidate Gói 1: kiểm tra dinh dưỡng theo khối lượng
+
+Không đổi schema hoặc index. Barcode xác nhận theo thể tích dùng schema
+ml hiện có: `quantityUnit:ml`, `quantity`, `grams:null`; không giả định mật độ.
+Nguồn OFF V2 cần người dùng xác nhận nhãn 100 g/100 ml trước khi tạo snapshot.
+
+Rules candidate giới hạn từng macro/fiber theo khối lượng gram của item và
+kcal tối đa 10 lần khối lượng đó, đồng thời giữ các trần lưu tuyệt đối hiện
+có. Các entry ml/serving/entry không bị áp giới hạn theo gram. Áp dụng cùng
+nguyên tắc cho meal schemas 2–5, recipe, template và kế hoạch dùng enriched
+item. Custom food per100g giới hạn từng macro 100 g và kcal 1.000; fiber
+per100g đã có giới hạn 100 g. Không cộng fiber vào carbohydrate để xét tổng.
+
+Snapshot cũ không được cập nhật/migrate tự động, vẫn đọc/xóa được theo quyền
+hiện tại. Cập nhật lại snapshot sai giới hạn có thể bị từ chối; khi rollout
+cần công bố và để người dùng chủ động sửa, không âm thầm thay số lịch sử.
+Candidate đã qua 95 test Emulator; **chưa triển khai production**.
+Xem [improvement-progress.md](improvement-progress.md) về hợp đồng nguồn và rollout.
+
+## 31/10/2026 — Candidate Gói 3: liên kết kế hoạch và nhật ký
+
+Không thêm collection, index, field hay schema version. Giữ hai document
+`users/{uid}/meal_plans/{dateKey}-{mealType}` và
+`users/{uid}/meal_logs/plan-{dateKey}-{mealType}`. Tiền tố ID có định dạng
+`plan-yyyy-MM-dd-breakfast|lunch|dinner|snack` dành riêng cho luồng này;
+nhật ký thủ công dùng ID thông thường và không cần đọc kế hoạch.
+
+- Xác nhận: một transaction đọc cặp document, kiểm tra phiên bản kế hoạch
+  bằng `createdAt`/`updatedAt` và items đã tải khi mở form, rồi tạo snapshot
+  nhật ký và cập nhật `loggedMealId` cùng lúc. Serializer nhật ký dùng chung
+  với nhập thủ công, giữ schema 2–5 và dưỡng chất unknown/zero.
+- Retry cùng payload trả ID cũ; payload khác bị từ chối, không ghi đè.
+  Kế hoạch đã xóa/thay đổi trước xác nhận bị báo tải lại. Phiên xác nhận cũ
+  sau khi xóa nhật ký không được tự tạo lại bữa.
+- Xóa nhật ký: transaction đọc chính xác một plan theo ID, xóa meal và gỡ
+  liên kết nếu khớp. Không query toàn bộ kế hoạch. Có thể gọi lại để dọn
+  pointer treo ngay cả khi meal đã mất.
+- Xóa kế hoạch giữ nguyên nhật ký thực tế. Không tạo kế hoạch mới chồng
+  lên ID có nhật ký cũ; người dùng chủ động sửa/xóa ở Nhật ký.
+- Phục hồi dữ liệu cũ khi kiểm tra đúng cặp: có meal thì sửa pointer, thiếu
+  meal thì gỡ pointer. Không sửa snapshot meal. Không có migration hàng loạt.
+  UI có nút “Đã ghi · Kiểm tra” để người dùng phục hồi liên kết treo.
+- Candidate Rules kiểm tra trạng thái sau transaction (`getAfter`/
+  `existsAfter`), từ chối tạo meal reserved riêng lẻ hoặc xóa meal còn được
+  plan trỏ tới. Quyền delete tổng quát loại `meal_logs` để không bỏ qua guard.
+  Cập nhật chỉ pointer/timestamp có nhánh riêng không thay nội dung plan;
+  nhánh sửa nội dung vẫn kiểm tra toàn bộ snapshot. Giữ giới hạn 5 items và
+  validator dinh dưỡng, đã kiểm trường hợp có đủ 8 dưỡng chất mở rộng/fiber.
+
+Cleanup tài khoản xóa `meal_plans` trước `meal_logs` để tương thích guard.
+Đây chỉ là đổi thứ tự cleanup cần cho Gói 3, không thay thế thiết kế tombstone,
+deletion job hay giải quyết ghi đồng thời khi xóa tài khoản của **Gói 4**.
+
+Client và Rules candidate cần kế hoạch phát hành phối hợp: client cũ ghi
+plan–meal thành hai bước sẽ bị candidate Rules từ chối; client mới không
+gỡ pointer được với Rules cũ thì transaction thất bại an toàn. Chưa deploy.
+Chi tiết kiểm thử và giới hạn ở [improvement-progress.md](improvement-progress.md).
+
+## 31/10/2026 — Candidate Gói 4: yêu cầu xóa độc lập với hồ sơ
+
+Thêm `account_deletions/{uid}` schema 1:
+
+| Field | Dữ liệu |
+| --- | --- |
+| `uid` | UID trùng document ID; không nhận UID khác làm quyền |
+| `executor` | Hằng `client`; không mạo nhận đã có server executor |
+| `state` | `requested` → `cleaning` → `auth_pending`; không có `completed` client tự ghi |
+| `checkpoint` | Số nguyên 0–5, chỉ tiến và không dùng làm bằng chứng bỏ qua cleanup |
+| `requestedAt`, `updatedAt` | Server timestamp; requestedAt bất biến |
+| `schemaVersion` | 1 |
+
+Chỉ verified owner được get/create/advance job; không list/delete/reset.
+Tạo lần đầu kiểm `auth_time` trong ID token Firebase, tối đa 5 phút, dung sai
+clock tương lai 30 giây. Reauth client refresh token; không gửi boolean tin
+cậy từ client. Resume cùng marker không yêu cầu token còn trong 5 phút ở
+Rules, nhưng UI vẫn reauth trước cleanup/Auth delete. Suspended owner có
+quyền yêu cầu/cleanup, vẫn không có quyền sản phẩm trước hoặc sau yêu cầu.
+
+`ownsWrite` kiểm trạng thái sau request (`existsAfter`), chặn mọi create/update
+sản phẩm, kể cả bootstrap hồ sơ, nhật ký/chat/quest, quota AI, Premium demo,
+directory và admin reply/status tới customer đang xóa. Cùng batch tạo marker
+và ghi sản phẩm bị từ chối. Xóa user parent/control không mở lại quyền.
+Quyền cleanup riêng cho phép đọc/xóa dữ liệu đúng UID kể cả suspended, không
+được xóa audit/role hoặc tài nguyên của UID khác.
+
+Checkpoint client: 0 bắt đầu; 1 dữ liệu riêng + chat; 2 support; 3 Premium
+demo/usage/directory/controls; 4 đã xóa parent và đọc server xác minh mọi
+nhóm đã biết rỗng; 5 dữ liệu riêng trên máy đã dọn, chuyển `auth_pending`.
+Mỗi lần retry đều duyệt lại toàn bộ nhóm và xác minh server, không tin
+checkpoint. Batch nhỏ 100; messages xóa trước parent. Support chỉ có ngoại
+lệ update `deleting:true` và metadata cần cho freeze, không reply mới.
+
+Xóa cả `demo_premium_transactions where uid`, membership và mọi usage day
+dù parent usage chưa từng tồn tại; không viện lý do chứng từ tài chính cho
+receipt mô phỏng. Directory không phụ thuộc build flag. Audit bất biến,
+quyền admin và provenance nội dung chung không bị owner cleanup thay đổi.
+
+Tombstone giữ UID/timestamps/checkpoint không có thời hạn tự purge trong
+fallback; đây vẫn là metadata cá nhân phải công khai. Auth delete thành công
+cũng không cho client ghi `completed` sau khi mất quyền, job còn
+`auth_pending`. Chưa có worker đặc quyền xác minh Auth, xử lý orphan/deeper
+subcollections, admin roles/provenance và retention/purge. Không có migration,
+TTL hay deploy production trong lượt này. Inventory, lý do lưu giữ và hợp
+đồng server tương lai: [account-deletion-adr.md](account-deletion-adr.md).
+
+## 31/10/2026 — Candidate Gói 5: metadata quota gateway đáng tin cậy
+
+Các path mới chỉ server identity create/update; client thường, kể cả owner,
+không được tự tăng/giảm/quay lại trạng thái hoặc dùng demo counter thay quyền
+gọi model. Rules cho owner đọc metadata của mình khi account hoạt động,
+hoặc đọc/xóa để cleanup sau `account_deletions/{uid}` kể cả suspended.
+
+| Path | Field/thực thi candidate |
+| --- | --- |
+| `ai_gateway_usage/{uid}` | `active`: map tối đa hai requestId → leaseUntil (milliseconds server); `updatedAt` milliseconds. Giới hạn request cùng UID qua cả biên ngày. |
+| `ai_gateway_usage/{uid}/days/{yyyy-MM-dd}` | `uid`, `dayKey` đúng ID ngày UTC+7, `chats` số nguyên 0–50, `updatedAt` milliseconds server. Scanner chưa có gateway, không giả có counter scans đã được thực thi. |
+| `ai_gateway_reservations/{uid}/requests/{requestId}` | `uid`, `feature:'chat'`, `requestId`, `dayKey`, `state`, `plan`, `answer`, `createdAt`, `updatedAt`, `leaseUntil` milliseconds server. ID 16–80 ký tự URL-safe, cùng một ID cho plan/answer. Parent có thể không tồn tại. |
+
+Reserve ghi counter + request + lease trong transaction, quota free 5 chat/ngày
+hoặc 50 nếu server bật rõ demo entitlement hợp lệ. State job
+`reserved|sent|completed|failed|unknown`; phase `pending|sent|completed|failed|unknown`.
+Một phase chỉ claim một lần trước model call; không tự replay sau mất ACK,
+không refund tự động khi timeout/failed/unknown. Timestamp metadata gateway
+là integer epoch milliseconds, khác `Timestamp` ở nhật ký/client deletion.
+Không lưu nội dung chat/health context, ảnh, model output hoặc credential tại
+những path này. Counter cũ `demo_ai_usage` không có thẩm quyền gọi gateway.
+
+Gateway đọc deletion/control/config/profile eligibility trong mỗi transaction
+reserve/claim/finish. Server dùng IAM thường bỏ qua Rules, nên check tombstone
+trong code là bắt buộc để không tái tạo metadata bằng callback tới muộn sau
+cleanup. Repository xóa account thực tế có `serverScopes` gồm usage→days,
+reservations→requests; duyệt trực tiếp children dù parent thiếu, batch100,
+kiểm rỗng rồi xóa parent và kiểm lại toàn scope trước Auth. Không xóa audit.
+
+Chưa provision identity/OAuth/IAM production, chưa deploy gateway/Rules, chưa
+có job purge retention metadata request-ID khi account còn tồn tại hoặc job
+xóa account bền vững. Không tự đặt TTL để retry ID cũ có thể tiêu thụ lại.
+Credential chỉ cấp runtime, không ở app/repo. Chi tiết trạng thái, phạm vi
+test emulator, quota demo và blocker khóa đường AI trực tiếp:
+[ai-policy-quota-adr.md](ai-policy-quota-adr.md).
+
+## 31/10/2026 — Candidate Gói 6: marker phân vùng meal query
+
+`users/{uid}/data_migrations/meal_date_key_v1` là marker/cursor migration
+đặc quyền. Client chỉ đọc; không được create/update hoặc xóa để quay lại hợp
+đồng query cũ. Delete chỉ trong cleanup sau account deletion marker.
+`partitioned` cho phép hai nhánh current/legacy rời nhau; `complete` chỉ được
+server đặt sau đối soát migration thành công để reader bỏ nhánh legacy.
+Không có marker thì client vẫn đọc tương thích, không tự tuyên bố migration
+hoàn tất hoặc âm thầm bỏ dữ liệu cũ.
+
+Meal document candidate có `queryPartition:'current'|'legacy'`. Marker không
+phải dữ liệu sức khỏe cần giữ sau account deletion: inventory hiện thêm
+`data_migrations` vào `privateCollections`, xóa sau meal logs và kiểm server
+rỗng trước Auth. Tombstone độc lập tiếp tục chặn bootstrap dù marker migration
+và user parent đã xóa. Không có migration production, metadata TTL/purge job
+hoặc server account-deletion job được triển khai trong các candidate này.
+Thiết kế migration/dry-run cụ thể và kết quả thật ghi tại báo cáo Gói 6;
+không coi trạng thái marker do client tự khai là chứng nhận bảo toàn lịch sử.
+
+## 31/10/2026 — Candidate Gói 8: hạn mức tạo support ticket
+
+Thêm `support_usage/{uid}`, schema 1. Fields: `schemaVersion`, `dayStart`
+(Timestamp bắt đầu ngày UTC+7), `count` (1–3), `lastCreatedAt`,
+`lastTicketId`, `updatedAt`. Counter không chứa nội dung ticket.
+
+Tạo ticket và thay counter phải cùng transaction, liên kết hai chiều qua
+`getAfter`. Rules dùng `request.time`: tối đa 3 lần tạo/ngày, cách nhau ít
+nhất 60 giây; client không tự reset/xóa counter. Tạo lại operation ID với
+cùng payload không tăng count. Reply/reopen/status không tiêu lượt tạo mới.
+Ticket cũ không bị tính hồi tố; không cần migration đếm ticket đang mở.
+
+Owner chỉ đọc metadata của mình và xóa counter khi đã có deletion tombstone.
+Inventory cleanup và `_verifyEmpty` đã thêm `support_usage`; marker độc lập
+vẫn chặn tái tạo sau cleanup. Không thêm TTL/purge hoặc thay chính sách audit.
+Lịch sử dùng `uid + updatedAt DESC + documentID DESC`, 25+1 lookahead, cursor
+giữ giây/nanosecond/ID. Index uid+updatedAt hiện có cần kiểm production khi
+rollout; không thêm query tải toàn bộ làm đường lui.
+
+Rules mới từ chối client cũ tạo ticket thiếu counter. Cần rollout đồng bộ;
+không deploy hoặc thay dữ liệu production trong gói local này. Chính sách,
+bootstrap, retry, pagination và rollback: [package8-support-policy.md](package8-support-policy.md).

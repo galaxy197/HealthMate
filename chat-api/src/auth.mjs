@@ -5,8 +5,8 @@ const authKeys = createRemoteJWKSet(new URL(
 ));
 const appKeys = createRemoteJWKSet(new URL('https://firebaseappcheck.googleapis.com/v1/jwks'));
 
-// Public signing keys only. No Admin SDK, service-account secret or Firestore access.
-export async function verifyIdentity(request, env, keys = { authKeys, appKeys }) {
+// Cryptographic identity is separate from the authoritative revocation lookup.
+export async function verifyIdentityClaims(request, env, keys = { authKeys, appKeys }) {
   const bearer = request.headers.get('authorization');
   const appToken = request.headers.get('x-firebase-appcheck');
   if (!bearer?.startsWith('Bearer ') || !appToken || bearer.length > 8192 || appToken.length > 8192) {
@@ -28,5 +28,9 @@ export async function verifyIdentity(request, env, keys = { authKeys, appKeys })
   if (protectedHeader.typ !== 'JWT' || app.sub !== env.FIREBASE_ANDROID_APP_ID ||
       !Array.isArray(app.aud) || !app.aud.includes(`projects/${env.FIREBASE_PROJECT_NUMBER}`) ||
       !Number.isFinite(app.iat) || app.iat > now) throw new Error('unauthorized');
-  return auth.sub;
+  return { uid: auth.sub, authTime: auth.auth_time };
+}
+
+export async function verifyIdentity(request, env, keys) {
+  return (await verifyIdentityClaims(request, env, keys)).uid;
 }

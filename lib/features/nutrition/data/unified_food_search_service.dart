@@ -1,22 +1,27 @@
 import 'package:flutter/foundation.dart';
 import '../models/nutrition_models.dart';
 import '../models/food_catalog_search.dart';
-import 'food_local_database.dart';
+import 'food_search_cache.dart';
+import 'food_search_request.dart';
 import 'usda_api_service.dart';
+export 'food_search_request.dart';
 
-/// Result with data source tracking for UI badges
 class FoodSearchResult {
-  const FoodSearchResult({required this.food, required this.source});
-
+  const FoodSearchResult({
+    required this.food,
+    required this.source,
+    this.requiresDetail = false,
+  });
   final FoodCatalogItem food;
   final FoodResultSource source;
+  final bool requiresDetail;
 }
 
 enum FoodResultSource {
-  firestore, // Original 158-item catalog from Firestore
-  cache, // SQLite cached USDA results
-  usdaApi, // Fresh USDA API results
-  user; // User-created foods
+  firestore,
+  cache,
+  usdaApi,
+  user;
 
   String get displayLabel => switch (this) {
     FoodResultSource.firestore => 'Danh mục local',
@@ -26,139 +31,220 @@ enum FoodResultSource {
   };
 }
 
-/// Unified search across Firestore catalog + SQLite cache + USDA API
-/// Priority: Firestore local catalog > SQLite cache > USDA API
+enum FoodSearchStage { cache, online, complete }
+
+class FoodSearchOutcome {
+  const FoodSearchOutcome(
+    this.results, {
+    this.stage = FoodSearchStage.complete,
+    this.failure,
+    this.cacheWarning = false,
+  });
+  final List<FoodSearchResult> results;
+  final FoodSearchStage stage;
+  final FoodSearchFailure? failure;
+  final bool cacheWarning;
+  bool get isLoading => stage != FoodSearchStage.complete;
+  bool get isPartial => results.isNotEmpty && (failure != null || cacheWarning);
+  String? get message =>
+      failure?.message ??
+      (cacheWarning
+          ? 'Bộ nhớ món trên máy chưa khả dụng. Bạn vẫn có thể dùng kết quả hiện có.'
+          : null);
+}
+
+class FoodDetailOutcome {
+  const FoodDetailOutcome(this.food, {this.cacheWarning = false});
+  final FoodCatalogItem food;
+  final bool cacheWarning;
+}
+
+/// Public metadata is searched once; nutrition detail is fetched on selection.
 class UnifiedFoodSearchService {
   UnifiedFoodSearchService({
     required this.localDatabase,
     required this.usdaService,
   });
-
-  final FoodLocalDatabase localDatabase;
+  final FoodSearchCache localDatabase;
   final UsdaApiService usdaService;
 
-  /// Search strategy:
-  /// 1. Search Firestore catalog (passed in) with Vietnamese normalization
-  /// 2. If < 10 results, search SQLite cache
-  /// 3. If still < 10 results, query USDA API and cache results
-  Future<List<FoodSearchResult>> search({
+  Future<FoodSearchOutcome> search({
     required String query,
     required List<FoodCatalogItem> firestoreCatalog,
     int limit = 25,
+    FoodSearchRequest? request,
+    void Function(FoodSearchOutcome)? onProgress,
   }) async {
-    if (query.trim().isEmpty) return [];
-
+    final work = request ?? FoodSearchRequest();
+    final count = limit.clamp(1, 50);
     final results = <FoodSearchResult>[];
-    final seenIds = <String>{};
-
-    // Step 1: Search Firestore catalog (Vietnamese-aware)
-    final firestoreResults = searchFoodCatalog(
-      firestoreCatalog,
-      query,
-    ).take(limit).toList();
-
-    for (final food in firestoreResults) {
-      if (seenIds.add(food.id)) {
+    final seen = <String>{};
+    var cacheWarning = false;
+    void add(
+      FoodCatalogItem food,
+      FoodResultSource source, {
+      bool detail = false,
+    }) {
+      if (seen.add(food.id) && results.length < count) {
         results.add(
-          FoodSearchResult(
-            food: food,
-            source: food.dataSource == FoodDataSource.user
-                ? FoodResultSource.user
-                : FoodResultSource.firestore,
-          ),
+          FoodSearchResult(food: food, source: source, requiresDetail: detail),
         );
       }
     }
 
-    // Early return if we have enough results
-    if (results.length >= 10) {
-      return results.take(limit).toList();
+    FoodSearchOutcome snapshot(
+      FoodSearchStage stage, {
+      FoodSearchFailure? failure,
+    }) => FoodSearchOutcome(
+      List.unmodifiable(results),
+      stage: stage,
+      failure: failure,
+      cacheWarning: cacheWarning,
+    );
+    void publish(FoodSearchStage stage) {
+      work.check();
+      onProgress?.call(snapshot(stage));
     }
 
-    // Step 2: Search SQLite cache
     try {
-      final cacheResults = await localDatabase.searchFoods(
+      work.check();
+      if (query.trim().isEmpty) return snapshot(FoodSearchStage.complete);
+      for (final food in searchFoodCatalog(
+        firestoreCatalog,
         query,
-        limit: limit - results.length,
-      );
-
-      for (final food in cacheResults) {
-        if (seenIds.add(food.id)) {
-          results.add(
-            FoodSearchResult(food: food, source: FoodResultSource.cache),
-          );
-        }
+      ).take(count)) {
+        add(
+          food,
+          food.dataSource == FoodDataSource.user
+              ? FoodResultSource.user
+              : FoodResultSource.firestore,
+        );
       }
-    } catch (_) {
-      // Cache failure shouldn't block search
-      if (kDebugMode) debugPrint('HM_FOOD_SEARCH cache-read failed');
-    }
-
-    // Early return if we have enough results
-    if (results.length >= 10) {
-      return results.take(limit).toList();
-    }
-
-    // Step 3: Query USDA API if still need more results
-    try {
-      final usdaResults = await usdaService.searchFoods(
+      publish(FoodSearchStage.cache);
+      if (results.length >= 10 || results.length >= count) {
+        return snapshot(FoodSearchStage.complete);
+      }
+      try {
+        final cached = await work.run(
+          () => localDatabase.searchFoods(query, limit: count - results.length),
+        );
+        for (final food in cached) {
+          add(food, FoodResultSource.cache);
+        }
+      } on FoodSearchFailure {
+        rethrow;
+      } catch (_) {
+        cacheWarning = true;
+      }
+      if (results.length >= 10 || results.length >= count) {
+        return snapshot(FoodSearchStage.complete);
+      }
+      publish(FoodSearchStage.online);
+      final rows = await usdaService.searchFoods(
         query,
-        pageSize: limit - results.length,
+        pageSize: count - results.length,
+        request: work,
       );
-
-      // Convert search results to full FoodCatalogItem and cache
-      final foodsToCache = <FoodCatalogItem>[];
-
-      for (final result in usdaResults) {
-        // Get detailed nutrition info
-        final food = await usdaService.getFoodDetail(result.fdcId);
-        if (food != null && seenIds.add(food.id)) {
-          results.add(
-            FoodSearchResult(food: food, source: FoodResultSource.usdaApi),
-          );
-          foodsToCache.add(food);
-        }
+      work.check();
+      for (final row in rows) {
+        add(
+          FoodCatalogItem(
+            id: 'usda_${row.fdcId}',
+            name: row.description,
+            category: 'USDA',
+            servingBasis: ServingBasis.per100g,
+            sourceLabel: 'USDA FoodData Central',
+            isEstimated: false,
+            hasNutritionData: false,
+            dataSource: FoodDataSource.usda,
+            fdcId: row.fdcId,
+            brand: row.brandOwner,
+          ),
+          FoodResultSource.usdaApi,
+          detail: true,
+        );
       }
-
-      // Cache USDA results for future searches
-      if (foodsToCache.isNotEmpty) {
-        await localDatabase.cacheFoodsBatch(foodsToCache);
-      }
-    } catch (_) {
-      // API failure shouldn't crash the app
-      if (kDebugMode) debugPrint('HM_FOOD_SEARCH provider failed');
+      return snapshot(FoodSearchStage.complete);
+    } on FoodSearchFailure catch (failure) {
+      if (failure.kind == FoodSearchFailureKind.cancelled) rethrow;
+      return snapshot(FoodSearchStage.complete, failure: failure);
+    } finally {
+      if (request == null) work.finish();
     }
-
-    return results.take(limit).toList();
   }
 
-  /// Get food by ID from any source
+  Future<FoodDetailOutcome> resolveResult(
+    FoodSearchResult result, {
+    FoodSearchRequest? request,
+  }) async {
+    final work = request ?? FoodSearchRequest();
+    try {
+      work.check();
+      if (!result.requiresDetail) return FoodDetailOutcome(result.food);
+      var cacheWarning = false;
+      FoodCatalogItem? cached;
+      try {
+        cached = await work.run(
+          () => localDatabase.getFoodById(result.food.id),
+        );
+      } on FoodSearchFailure {
+        rethrow;
+      } catch (_) {
+        cacheWarning = true;
+      }
+      if (cached != null && cached.hasNutritionData) {
+        return FoodDetailOutcome(cached, cacheWarning: cacheWarning);
+      }
+      work.check();
+      final id = result.food.fdcId;
+      if (id == null) {
+        throw const FoodSearchFailure(FoodSearchFailureKind.invalidData);
+      }
+      final food = await usdaService.getFoodDetail(id, request: work);
+      if (food == null || !food.hasNutritionData) {
+        throw const FoodSearchFailure(FoodSearchFailureKind.invalidData);
+      }
+      try {
+        await work.run(() => localDatabase.cacheFood(food));
+      } on FoodSearchFailure catch (failure) {
+        if (failure.kind == FoodSearchFailureKind.cancelled) rethrow;
+        // Detail is already usable. A slow cache must not turn it into no food.
+        cacheWarning = true;
+      } catch (_) {
+        cacheWarning = true;
+      }
+      return FoodDetailOutcome(food, cacheWarning: cacheWarning);
+    } finally {
+      if (request == null) work.finish();
+    }
+  }
+
   Future<FoodCatalogItem?> getFoodById(
     String id, {
     required List<FoodCatalogItem> firestoreCatalog,
   }) async {
-    // Try Firestore first
-    final firestoreFood = firestoreCatalog.where((f) => f.id == id).firstOrNull;
-    if (firestoreFood != null) return firestoreFood;
-
-    // Try SQLite cache
-    final cachedFood = await localDatabase.getFoodById(id);
-    if (cachedFood != null) return cachedFood;
-
-    // Try parsing USDA ID format: usda_{fdcId}
-    if (id.startsWith('usda_')) {
-      final fdcIdStr = id.substring(5);
-      final fdcId = int.tryParse(fdcIdStr);
-      if (fdcId != null) {
-        final usdaFood = await usdaService.getFoodDetail(fdcId);
-        if (usdaFood != null) {
-          await localDatabase.cacheFood(usdaFood);
-          return usdaFood;
-        }
-      }
+    final local = firestoreCatalog.where((f) => f.id == id).firstOrNull;
+    if (local != null) return local;
+    final fdcId = id.startsWith('usda_') ? int.tryParse(id.substring(5)) : null;
+    if (fdcId != null) {
+      return (await resolveResult(
+        FoodSearchResult(
+          source: FoodResultSource.usdaApi,
+          requiresDetail: true,
+          food: FoodCatalogItem(
+            id: id,
+            name: id,
+            category: 'USDA',
+            servingBasis: ServingBasis.per100g,
+            sourceLabel: 'USDA FoodData Central',
+            isEstimated: false,
+            hasNutritionData: false,
+            fdcId: fdcId,
+          ),
+        ),
+      )).food;
     }
-
-    return null;
+    return localDatabase.getFoodById(id);
   }
 
   /// Mark food as recently used

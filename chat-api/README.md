@@ -1,5 +1,25 @@
 # HealthMate Chat API — Cloudflare Workers Free
 
+**Candidate Gói 5, 31/10/2026:** source hiện tại đã có policy/quota server,
+nhưng chưa provision identity runtime hoặc triển khai. Wrangler để
+`AI_GATEWAY_ENABLED=false`; deploy source này khi chưa cấu hình sẽ trả 503
+trước model. Đọc [ADR hiện tại](../docs/ai-policy-quota-adr.md) trước mọi
+rollout. Các đoạn trạng thái 25/10 dưới đây là lịch sử bản đã deploy trước
+Gói 5, không phải chứng nhận candidate mới đã có quyền Firestore/revocation.
+
+Client mới gửi `X-HealthMate-Request-Id` ổn định cho hai phase. Gateway kiểm
+JWT/App Check và privileged Auth lookup, policy/deletion trong transaction,
+reserve quota5/50 demo theo ngày Việt Nam; client không tự tăng counter.
+Identity Firestore/Auth chỉ cấp qua runtime secrets theo ADR, không đưa key
+vào Flutter/repo. Không tự chạy `npm run deploy` theo hướng dẫn lịch sử khi
+chưa hoàn tất điều kiện production và quyết định rollout của chủ dự án.
+
+Kiểm tra candidate: `npm test` 48/48, `npm run check`, Wrangler dry-run qua;
+REST Firestore emulator opt-in 3/3 (OAuth/IAM mock), không gọi AI thật. Chưa
+chặn được hạ tầng Firebase AI cho APK cũ/client sửa thì vẫn chưa sẵn sàng
+release AI. Quyền server, retention, scan/knowledge gateway và hạ tầng khóa
+đường gọi trực tiếp còn là blocker; không fallback gọi Gemini né quota.
+
 Trạng thái 25/10/2026: đã đăng nhập Wrangler bằng OAuth của chủ dự án và triển khai
 Worker thật tại `https://healthmate-chat-api.healthmate-chat-api.workers.dev/v1/chat`.
 Đã build APK debug với URL này và chạy benchmark model bằng dữ liệu tổng hợp.

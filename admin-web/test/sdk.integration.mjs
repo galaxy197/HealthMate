@@ -16,6 +16,7 @@ globalThis.window={sessionStorage:{setItem:(k,v)=>sessionStore.set(k,v),getItem:
 globalThis.location={hostname:'127.0.0.1',protocol:'http:'};
 const {connect}=await import('../dist/firebase.mjs');
 const api=await connect({firebase:{apiKey:'demo-key',projectId:'demo-healthmate-admin',authDomain:'demo-healthmate-admin.firebaseapp.com'},emulators:{auth:'http://127.0.0.1:9098',firestoreHost:'127.0.0.1',firestorePort:8092}});
+const fixtureRows=kind=>api.exportRange(kind,{idFrom:'!',idTo:'\uf8ff'});
 let currentUser;
 const authStop=api.authChanges(user=>currentUser=user);
 const roleStop=()=>new Promise((resolve,reject)=>{
@@ -29,35 +30,85 @@ test.before(async()=>{
   stop=await roleStop();
 });
 test.after(async()=>{stop?.();await api.logout();authStop();hooks.deregister();const{deleteApp,getApps}=require('firebase/app');await Promise.all(getApps().map(deleteApp));});
-test('full production client lists all pages, roles and four independent counts from the server',async()=>{
-  const list=await api.list('food_catalog');assert.ok(list.length>=65);
+test('production SDK loads one25-row cursor page, separate full fixture export and four server counts',async()=>{
+  const first=await api.listPage('food_catalog');assert.equal(first.rows.length,25);assert.equal(first.hasMore,true);
+  const second=await api.listPage('food_catalog',{cursor:first.cursor});assert.equal(second.rows.length,25);
+  assert.equal(new Set([...first.rows,...second.rows].map(r=>r.id)).size,50);
+  await assert.rejects(api.listPage('user_directory',{cursor:first.cursor}),/phạm vi/);
+  const list=await fixtureRows('food_catalog');assert.ok(list.length>=65);
   assert.ok(list.some(row=>row.id==='qa-item-057'));
-  const accounts=await api.list('user_directory');assert.ok(accounts.some(row=>row.id===currentUser.uid&&row.adminRole?.enabled));
+  const accounts=await fixtureRows('user_directory');assert.ok(accounts.some(row=>row.id===currentUser.uid&&row.adminRole?.enabled));
   assert.equal((await api.counts()).length,4);
 });
+
+test('real SDK revenue timestamp cursor retains31 same-millisecond receipts across pages',async()=>{
+  const prefix=`qa-nanos-${Date.now()}`,base='http://127.0.0.1:8092/v1/projects/demo-healthmate-admin/databases/(default)/documents';
+  const ids=[];
+  async function request(id,method,fields){
+    const response=await fetch(`${base}/demo_premium_transactions/${id}`,{method,headers:{Authorization:'Bearer owner','Content-Type':'application/json'},...(fields?{body:JSON.stringify({fields})}:{})});
+    assert.ok(response.ok,`emulator fixture ${method} failed ${response.status}`);
+  }
+  try{
+    for(let i=0;i<31;i++){
+      const id=`${prefix}-${String(i).padStart(2,'0')}`;ids.push(id);
+      await request(id,'PATCH',{uid:{stringValue:'fixture-member'},mode:{stringValue:'demo'},planId:{stringValue:'premium_demo_30d'},
+        status:{stringValue:'simulated_paid'},source:{stringValue:'demo_checkout'},currency:{stringValue:'VND'},amountVnd:{integerValue:'20000'},
+        occurredAt:{timestampValue:`2030-02-01T00:00:00.${String(i+1).padStart(9,'0')}Z`}});
+    }
+    const range={start:'2030-02-01',end:'2030-02-01'};
+    const first=await api.listPage('demo_premium_transactions',range);assert.equal(first.rows.length,25);
+    const second=await api.listPage('demo_premium_transactions',{...range,cursor:first.cursor});assert.equal(second.rows.length,6);
+    const actual=[...first.rows,...second.rows].map(r=>r.id);
+    assert.deepEqual(actual,[...ids].reverse());assert.equal(new Set(actual).size,31);
+    const exported=await api.exportRange('demo_premium_transactions',range);assert.equal(exported.length,31);
+  }finally{await Promise.all(ids.map(id=>request(id,'DELETE')));}
+});
+
+test('real SDK opens and advances a25-row directory page with10,037 server records',async()=>{
+  const prefix=`zzqa-paging-${Date.now()}-`,count=10037;
+  const base='projects/demo-healthmate-admin/databases/(default)/documents';
+  const endpoint=`http://127.0.0.1:8092/v1/${base}:commit`;
+  const ids=Array.from({length:count},(_,i)=>`${prefix}${String(i).padStart(5,'0')}`);
+  async function commit(writes){
+    const response=await fetch(endpoint,{method:'POST',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify({writes})});
+    assert.ok(response.ok,`large fixture failed ${response.status}`);
+  }
+  try{
+    for(let at=0;at<ids.length;at+=400)await commit(ids.slice(at,at+400).map(id=>({update:{name:`${base}/user_directory/${id}`,fields:{displayName:{stringValue:'Synthetic cursor QA'}}}})));
+    const range={idFrom:ids[0],idTo:ids.at(-1)};
+    const first=await api.listPage('user_directory',range);assert.equal(first.rows.length,25);assert.equal(first.rows[0].id,ids[0]);
+    const second=await api.listPage('user_directory',{...range,cursor:first.cursor});assert.equal(second.rows.length,25);assert.equal(second.rows[0].id,ids[25]);
+    assert.equal(new Set([...first.rows,...second.rows].map(r=>r.id)).size,50);
+    assert.equal(first.rows.every(r=>r.adminRole===null&&r.control===null),true);
+    const tail=await api.listPage('user_directory',{idFrom:ids.at(-7),idTo:ids.at(-1)});assert.equal(tail.rows.length,7);assert.equal(tail.hasMore,false);
+    console.info(JSON.stringify({fixture:'synthetic demo directory',records:count,firstRows:first.rows.length,secondRows:second.rows.length,tailRows:tail.rows.length,directoryGetsPerFullPage:1,roleGetsPerFullPage:25,controlGetsPerFullPage:25,productionBillingMeasured:false}));
+  }finally{
+    for(let at=0;at<ids.length;at+=400)await commit(ids.slice(at,at+400).map(id=>({delete:`${base}/user_directory/${id}`})));
+  }
+});
 test('production client archive/restore is audited, confirmed and rejects stale edits',async()=>{
-  const row=(await api.list('food_catalog')).find(r=>r.id==='qa-item-057');
+  const row=(await fixtureRows('food_catalog')).find(r=>r.id==='qa-item-057');
   await api.save('food_catalog',row.id,{isActive:false},'SDK QA archive',entityVersion(row));
-  const archived=(await api.list('food_catalog')).find(r=>r.id===row.id);
+  const archived=(await fixtureRows('food_catalog')).find(r=>r.id===row.id);
   assert.equal(archived.isActive,false);assert.ok(archived.lastAdminOperationId);
   await assert.rejects(api.save('food_catalog',row.id,{name:'Stale must not replace'},'SDK QA stale',entityVersion(row)),/thay đổi/);
-  const audits=await api.list('admin_audit');assert.ok(audits.some(a=>a.id===archived.lastAdminOperationId&&a.reason==='SDK QA archive'));
+  const audits=await fixtureRows('admin_audit');assert.ok(audits.some(a=>a.id===archived.lastAdminOperationId&&a.reason==='SDK QA archive'));
   await api.save('food_catalog',row.id,{isActive:true},'SDK QA restore',entityVersion(archived));
 });
 test('new catalog food is created, edited and archived with independent audit records',async()=>{
   const id=`qa-sdk-new-${Date.now()}`;
   const payload=foodPayload({name:'SDK món mới',category:'Món chính',kcalPer100g:150,proteinGPer100g:5,carbsGPer100g:25,fatGPer100g:3,fiberGPer100g:'',sourceLabel:'Nguồn QA',sourceUrl:'https://example.com/qa',isActive:true,isEstimated:true});
   await api.save('food_catalog',id,payload,'SDK QA create',null);
-  const row=(await api.list('food_catalog')).find(r=>r.id===id);assert.equal(row.fiberGPer100g,null);
+  const row=(await fixtureRows('food_catalog')).find(r=>r.id===id);assert.equal(row.fiberGPer100g,null);
   await api.save('food_catalog',id,{name:'SDK món đã sửa'},'SDK QA edit',entityVersion(row));
-  const changed=(await api.list('food_catalog')).find(r=>r.id===id);assert.equal(changed.name,'SDK món đã sửa');
+  const changed=(await fixtureRows('food_catalog')).find(r=>r.id===id);assert.equal(changed.name,'SDK món đã sửa');
   await api.save('food_catalog',id,{isActive:false},'SDK QA archive created',entityVersion(changed));
-  const logs=(await api.list('admin_audit')).filter(a=>a.entityId===id);assert.equal(logs.length,3);
+  const logs=(await fixtureRows('admin_audit')).filter(a=>a.entityId===id);assert.equal(logs.length,3);
 });
 test('server-backed account suspension and config changes keep audit and restore original values',async()=>{
-  const member=(await api.list('user_directory')).find(r=>r.email==='member@healthmate.local');
+  const member=(await fixtureRows('user_directory')).find(r=>r.email==='member@healthmate.local');
   await api.save('account_controls',member.id,{status:'suspended',reason:'SDK QA suspend'},'SDK QA suspend',entityVersion(member.control));
-  const locked=(await api.list('user_directory')).find(r=>r.id===member.id);assert.equal(locked.control.status,'suspended');
+  const locked=(await fixtureRows('user_directory')).find(r=>r.id===member.id);assert.equal(locked.control.status,'suspended');
   await api.save('account_controls',member.id,{status:'active',reason:'SDK QA reopen'},'SDK QA reopen',entityVersion(locked.control));
   const config=await api.config();
   const payload={chatbotEnabled:config.chatbotEnabled,foodScannerEnabled:config.foodScannerEnabled,maintenanceMode:true,maintenanceMessage:'SDK QA maintenance'};
@@ -67,11 +118,24 @@ test('server-backed account suspension and config changes keep audit and restore
 });
 
 test('support SDK sends a single idempotent admin reply, changes status and reads customer follow-up',async()=>{
-  const {getFirestore,collection,doc,setDoc,serverTimestamp,runTransaction,updateDoc,deleteDoc}=require('firebase/firestore');
+  const {getFirestore,collection,doc,Timestamp,serverTimestamp,runTransaction,updateDoc,deleteDoc}=require('firebase/firestore');
   const {getApp}=require('firebase/app');const db=getFirestore(getApp());
   const ref=doc(collection(db,'support_tickets')),uid=currentUser.uid;
-  await setDoc(ref,{uid,type:'bug',title:'SDK lỗi lưu bữa',description:'Nội dung QA trên emulator.',status:'open',
-    messageCount:0,lastMessageId:'',updatedBy:uid,deleting:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  // Reset only this synthetic fixture's allowance on the fixed isolated admin
+  // emulator so rerunning the suite does not depend on cooldown or daily quota.
+  // Ticket creation itself still uses the client SDK and production Rules.
+  const reset=await fetch(`http://127.0.0.1:8092/v1/projects/demo-healthmate-admin/databases/(default)/documents/support_usage/${uid}`,
+    {method:'DELETE',headers:{Authorization:'Bearer owner'}});
+  assert.ok(reset.ok,`support allowance fixture reset failed ${reset.status}`);
+  const usage=doc(db,'support_usage',uid);
+  await runTransaction(db,async t=>{
+    const before=await t.get(usage);assert.equal(before.exists(),false);
+    const local=new Date(Date.now()+7*3600000);
+    const dayStart=Timestamp.fromMillis(Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate())-7*3600000);
+    t.set(usage,{schemaVersion:1,dayStart,count:1,lastTicketId:ref.id,lastCreatedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    t.set(ref,{uid,type:'bug',title:'SDK lỗi lưu bữa',description:'Nội dung QA trên emulator.',status:'open',
+      messageCount:0,lastMessageId:'',updatedBy:uid,deleting:false,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+  });
   try {
     const initial=await api.supportThread(ref.id);assert.equal(initial.messages.length,0);
     const messageId=api.newSupportMessageId();

@@ -42,7 +42,13 @@ class WellnessStorage(private val context: Context) {
         cipher.updateAAD((scope + ":" + uid).toByteArray())
         return JSONObject(String(cipher.doFinal(bytes.copyOfRange(13, bytes.size)), Charsets.UTF_8))
     }
-    @Synchronized fun write(uid: String, scope: String, value: JSONObject) {
+    fun write(uid: String, scope: String, value: JSONObject) {
+        if (uid == "device" && scope == "active") { writeRaw(uid, scope, value); return }
+        AccountDeletionBlock.writeAllowed(context, uid) {
+            writeRaw(uid, scope, value)
+        }
+    }
+    private fun writeRaw(uid: String, scope: String, value: JSONObject) {
         val plain = value.toString().toByteArray(Charsets.UTF_8)
         require(plain.size <= 500000)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -54,9 +60,19 @@ class WellnessStorage(private val context: Context) {
         catch (e: Exception) { file.failWrite(stream); throw e }
     }
     @Synchronized fun clear(uid: String, scope: String) {
-        target(uid, scope).delete(); store().deleteEntry(alias(uid, scope))
+        val file = target(uid, scope)
+        file.delete(); store().deleteEntry(alias(uid, scope))
+        check(!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()
+            && !File(file.baseFile.path + ".new").exists())
+        check(!store().containsAlias(alias(uid, scope)))
     }
-    fun activeUid(): String? = read("device", "active").optString("uid").takeIf { it.isNotBlank() }
-    fun setActive(uid: String?) = write("device", "active",
-        JSONObject().apply { if (uid != null) put("uid", uid) })
+    fun activeUid(): String? = read("device", "active").optString("uid").takeIf {
+        it.isNotBlank() && !AccountDeletionBlock.isBlocked(context, it)
+    }
+    fun setActive(uid: String?) {
+        if (uid == null) write("device", "active", JSONObject())
+        else AccountDeletionBlock.writeAllowed(context, uid) {
+            write("device", "active", JSONObject().put("uid", uid))
+        }
+    }
 }

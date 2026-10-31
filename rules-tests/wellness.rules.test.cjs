@@ -1,7 +1,7 @@
 const {test,before,after,beforeEach}=require('node:test');
 const fs=require('node:fs');
 const {initializeTestEnvironment,assertSucceeds,assertFails}=require('@firebase/rules-unit-testing');
-const {doc,setDoc,getDoc,updateDoc,deleteDoc,serverTimestamp,Timestamp}=require('firebase/firestore');
+const {doc,setDoc,getDoc,updateDoc,deleteDoc,writeBatch,serverTimestamp,Timestamp}=require('firebase/firestore');
 let env;
 const time=()=>Timestamp.now();
 const date=()=>new Date().toISOString().slice(0,10);
@@ -67,8 +67,11 @@ test('planned meals remain private; cannot claim journal conversion without the 
   await assertSucceeds(updateDoc(doc(a,path),{items:maximumItems,updatedAt:serverTimestamp()}));
   await assertFails(getDoc(doc(db('bob'),path)));
   await assertFails(updateDoc(doc(a,path),{loggedMealId:'plan-'+id,updatedAt:serverTimestamp()}));
-  await assertSucceeds(setDoc(doc(a,'users/alice/meal_logs/plan-'+id),meal([item()])));
-  await assertSucceeds(updateDoc(doc(a,path),{loggedMealId:'plan-'+id,updatedAt:serverTimestamp()}));
+  await assertFails(setDoc(doc(a,'users/alice/meal_logs/plan-'+id),meal([item()])));
+  const batch=writeBatch(a);
+  batch.set(doc(a,'users/alice/meal_logs/plan-'+id),meal([item()]));
+  batch.update(doc(a,path),{loggedMealId:'plan-'+id,updatedAt:serverTimestamp()});
+  await assertSucceeds(batch.commit());
   await assertFails(updateDoc(doc(a,path),{loggedMealId:null,updatedAt:serverTimestamp()}));
   await assertFails(updateDoc(doc(a,path),{items:[{...item(),kcal:999}],updatedAt:serverTimestamp()}));
   await assertSucceeds(deleteDoc(doc(a,path)));

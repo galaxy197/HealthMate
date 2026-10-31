@@ -34,6 +34,23 @@ class FakeSupport implements SupportRepository {
   final created = <String>[], replied = <String>[];
   int ids = 0;
   int ticketWatches = 0;
+  List<SupportTicketPage>? pages;
+  final pageRequests = <SupportTicketCursor?>[];
+  @override
+  Stream<SupportTicketPage> watchTicketPage(
+    String uid, {
+    SupportTicketCursor? after,
+  }) {
+    pageRequests.add(after);
+    ticketWatches++;
+    return listError
+        ? Stream.error(const SupportFailure('Mất kết nối thử nghiệm'))
+        : Stream.value(
+            pages?[after == null ? 0 : 1] ??
+                const SupportTicketPage(tickets: []),
+          );
+  }
+
   @override
   String newId() => '${++ids}'.padLeft(20, 'A');
   @override
@@ -135,6 +152,79 @@ Future<void> fillTicket(WidgetTester tester) async {
 }
 
 void main() {
+  test('same-day quota preserves count from SDK local DateTime timestamps', () {
+    final instant = DateTime.utc(2026, 10, 31, 5);
+    final utcStart = SupportPolicy.dayStart(instant);
+    final localStart = utcStart.toLocal();
+    expect(localStart.isUtc, isFalse);
+    expect(
+      SupportPolicy.usedToday(
+        instant: instant,
+        previousDayStart: localStart,
+        previousCount: 2,
+      ),
+      2,
+    );
+    expect(
+      SupportPolicy.usedToday(
+        instant: instant.add(const Duration(days: 1)),
+        previousDayStart: localStart,
+        previousCount: 3,
+      ),
+      0,
+    );
+  });
+  test(
+    'support new-ticket policy resets at Vietnam midnight without limiting replies',
+    () {
+      expect(SupportPolicy.dailyTicketLimit, 3);
+      expect(SupportPolicy.createInterval, const Duration(seconds: 60));
+      expect(SupportPolicy.pageSize, 25);
+      expect(
+        SupportPolicy.dayStart(DateTime.utc(2026, 10, 30, 16, 59)),
+        DateTime.utc(2026, 10, 29, 17),
+      );
+      expect(
+        SupportPolicy.dayStart(DateTime.utc(2026, 10, 30, 17)),
+        DateTime.utc(2026, 10, 30, 17),
+      );
+    },
+  );
+  testWidgets(
+    'ticket history advances by cursor and returns to newest without losing old threads',
+    (tester) async {
+      const cursor = SupportTicketCursor(
+        seconds: 1793336400,
+        nanoseconds: 123456789,
+        id: 'boundary',
+      );
+      SupportTicket row(String id) => SupportTicket(
+        id: id,
+        uid: 'alice',
+        type: SupportType.bug,
+        title: 'Yêu cầu $id',
+        description: 'Fixture',
+        status: SupportStatus.open,
+        createdAt: now,
+        updatedAt: now,
+        messageCount: 0,
+      );
+      final repository = FakeSupport()
+        ..pages = [
+          SupportTicketPage(tickets: [row('mới')], nextCursor: cursor),
+          SupportTicketPage(tickets: [row('cũ hơn 50')]),
+        ];
+      await open(tester, repository);
+      expect(find.text('Yêu cầu mới'), findsOneWidget);
+      await tapKey(tester, 'support-older');
+      expect(repository.pageRequests.last, same(cursor));
+      expect(find.text('Trang 2'), findsOneWidget);
+      expect(find.text('Yêu cầu cũ hơn 50'), findsOneWidget);
+      await tapKey(tester, 'support-newer');
+      expect(find.text('Trang 1'), findsOneWidget);
+      expect(find.text('Yêu cầu mới'), findsOneWidget);
+    },
+  );
   testWidgets(
     'hidden navigation branch releases support listeners and reconnects on return',
     (tester) async {

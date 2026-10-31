@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:healthmate/features/auth/models/auth_user.dart';
+import 'package:healthmate/features/auth/providers/auth_providers.dart';
 import 'package:healthmate/features/food_library/presentation/food_portion_dialog.dart';
 import 'package:healthmate/features/nutrition/data/bundled_vietnamese_foods.dart';
 import 'package:healthmate/features/nutrition/models/food_avoidance.dart';
@@ -55,7 +57,22 @@ final foods = [
   ),
 ];
 
-Widget host(Widget child) => ProviderScope(
+Widget host(Widget child, {Stream<AuthUser?>? session}) => ProviderScope(
+  overrides: [
+    // MealFormDialog owns a session-bound draft; widget fixtures must provide
+    // that dependency rather than constructing FirebaseAuth without Firebase.
+    authSessionProvider.overrideWith(
+      (ref) =>
+          session ??
+          Stream.value(
+            const AuthUser(
+              uid: 'personalization-fixture',
+              email: 'fixture@example.com',
+              emailVerified: true,
+            ),
+          ),
+    ),
+  ],
   child: MaterialApp(
     locale: const Locale('vi'),
     supportedLocales: const [Locale('vi')],
@@ -381,6 +398,35 @@ void main() {
     await tester.tap(find.text('Vẫn ghi nhật ký'));
     await tester.pumpAndSettle();
     expect(saved, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unresolved authentication error cannot submit a meal draft', (
+    tester,
+  ) async {
+    var saved = 0;
+    await tester.pumpWidget(
+      host(
+        MealFormDialog(
+          catalog: foods,
+          initialItems: [MealItemSnapshot.fromCatalog(foods.first, 100)],
+          sourcesBuilder: (a, b, c, d, e) => const SizedBox.shrink(),
+          onSave: (_) async {
+            saved++;
+            return true;
+          },
+        ),
+        session: Stream<AuthUser?>.error(StateError('Auth unavailable')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('save-meal')));
+    await tester.pumpAndSettle();
+    expect(saved, 0);
+    expect(
+      find.textContaining('Thông tin vẫn được giữ trong form'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

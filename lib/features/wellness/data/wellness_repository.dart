@@ -3,7 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/utils/subscription_stream.dart';
 import '../../../core/utils/local_date_key.dart';
 import '../../nutrition/models/nutrition_models.dart';
+import '../../nutrition/data/meal_document.dart';
 import '../models/wellness_models.dart';
+
+enum _PlanRecordStatus { saved, deleted, changed, conflict }
 
 class WellnessRepository {
   WellnessRepository(this.db);
@@ -178,25 +181,33 @@ class WellnessRepository {
           .where('dateKey', isLessThan: localDateKey(end))
           .orderBy('dateKey')
           .snapshots()
-          .map(
-            (s) => [
-              for (final d in s.docs)
-                PlannedMeal(
-                  id: d.id,
-                  date: DateTime.parse(d['dateKey'] as String),
-                  type: MealType.values.byName(d['mealType'] as String),
-                  items: (d['items'] as List)
-                      .map(
-                        (v) => MealItemSnapshot.fromCompactData(
-                          Map<String, dynamic>.from(v as Map),
-                        ),
-                      )
-                      .toList(),
-                  loggedMealId: d.data()['loggedMealId'] as String?,
-                ),
-            ],
-          ),
+          .map((s) => [for (final d in s.docs) _plan(d.id, d.data())]),
     );
+  }
+
+  PlannedMeal _plan(String id, Map<String, dynamic> data) => PlannedMeal(
+    id: id,
+    date: DateTime.parse(data['dateKey'] as String),
+    type: MealType.values.byName(data['mealType'] as String),
+    items: (data['items'] as List)
+        .map(
+          (v) => MealItemSnapshot.fromCompactData(
+            Map<String, dynamic>.from(v as Map),
+          ),
+        )
+        .toList(),
+    loggedMealId: data['loggedMealId'] as String?,
+    createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+    updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+  );
+
+  Future<PlannedMeal?> loadPlan(String uid, String id) async {
+    final result = await _collection(
+      uid,
+      'meal_plans',
+    ).doc(id).get(const GetOptions(source: Source.server));
+    _requireOwner(uid);
+    return result.exists ? _plan(result.id, result.data()!) : null;
   }
 
   Future<void> savePlan(String uid, MealDraft draft) async {
@@ -205,9 +216,18 @@ class WellnessRepository {
     }
     final id = '${draft.dateKey}-${draft.type.name}';
     final target = _collection(uid, 'meal_plans').doc(id);
+    final meal = _collection(uid, 'meal_logs').doc('plan-$id');
     final saved = await db.runTransaction<bool>((t) async {
       final previous = await t.get(target);
-      if (previous.data()?['loggedMealId'] != null) {
+      final recorded = await t.get(meal);
+      _requireOwner(uid);
+      if (recorded.exists) {
+        if (previous.exists && previous.data()?['loggedMealId'] != meal.id) {
+          t.update(target, {
+            'loggedMealId': meal.id,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
         return false;
       }
       t.set(target, {
@@ -232,17 +252,130 @@ class WellnessRepository {
   Future<void> deletePlan(String uid, String id) =>
       _collection(uid, 'meal_plans').doc(id).delete();
 
-  Future<bool> existingPlanMeal(String uid, String id) async =>
-      (await _collection(
-        uid,
-        'meal_logs',
-      ).doc('plan-$id').get(const GetOptions(source: Source.server))).exists;
+  /// Reconcile only this deterministic pair, including legacy split writes.
+  /// A missing meal clears a dangling marker; an existing meal is never changed.
+  Future<bool> existingPlanMeal(String uid, String id) async {
+    final plan = _collection(uid, 'meal_plans').doc(id);
+    final meal = _collection(uid, 'meal_logs').doc('plan-$id');
+    return db.runTransaction<bool>((t) async {
+      final planned = await t.get(plan);
+      final recorded = await t.get(meal);
+      _requireOwner(uid);
+      if (planned.exists) {
+        final link = planned.data()?['loggedMealId'];
+        if (recorded.exists && link != meal.id) {
+          t.update(plan, {
+            'loggedMealId': meal.id,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } else if (!recorded.exists && link != null) {
+          t.update(plan, {
+            'loggedMealId': FieldValue.delete(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      return recorded.exists;
+    });
+  }
 
-  Future<void> markPlanLogged(String uid, String id) =>
-      _collection(uid, 'meal_plans').doc(id).update({
-        'loggedMealId': 'plan-$id',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+  Future<void> markPlanLogged(String uid, String id) async {
+    if (!await existingPlanMeal(uid, id)) {
+      throw const FormatException('Chưa có bữa nhật ký để liên kết.');
+    }
+  }
+
+  /// One transaction records the confirmed snapshot and links its plan.
+  /// Replaying the same payload is safe; a different payload never overwrites it.
+  Future<String> recordPlanMeal(
+    String uid,
+    PlannedMeal plan,
+    MealDraft draft,
+  ) async {
+    if (plan.id != '${localDateKey(plan.date)}-${plan.type.name}' ||
+        plan.createdAt == null ||
+        plan.updatedAt == null) {
+      throw const FormatException('Kế hoạch chưa được xác nhận. Hãy tải lại.');
+    }
+    final target = _collection(uid, 'meal_plans').doc(plan.id);
+    final meal = _collection(uid, 'meal_logs').doc('plan-${plan.id}');
+    final data = mealDocumentData(draft);
+    Future<_PlanRecordStatus> record() => db.runTransaction<_PlanRecordStatus>((
+      t,
+    ) async {
+      final planned = await t.get(target);
+      final recorded = await t.get(meal);
+      _requireOwner(uid);
+      if (!planned.exists) {
+        return _PlanRecordStatus.deleted;
+      }
+      final current = planned.data()!;
+      if (recorded.exists) {
+        if (!sameMealPayload(data, recorded.data())) {
+          return _PlanRecordStatus.conflict;
+        }
+      } else {
+        if ((current['createdAt'] as Timestamp?)?.toDate() != plan.createdAt ||
+            (current['updatedAt'] as Timestamp?)?.toDate() != plan.updatedAt ||
+            !sameDocumentValue(
+              current['items'],
+              plan.items.map((i) => i.toCompactData()).toList(),
+            )) {
+          return _PlanRecordStatus.changed;
+        }
+        t.set(meal, {
+          ...data,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      if (current['loggedMealId'] != meal.id) {
+        t.update(target, {
+          'loggedMealId': meal.id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      return _PlanRecordStatus.saved;
+    });
+    late final _PlanRecordStatus status;
+    try {
+      status = await record();
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied') rethrow;
+      _requireOwner(uid);
+      // A competing create can win before the emulator evaluates the losing
+      // transaction's Rules, producing permission-denied before ABORTED. Only
+      // retry when the server confirms the deterministic pair already exists.
+      // The fresh transaction still checks ownership and the complete payload;
+      // it never treats an authorization error itself as a successful save.
+      const server = GetOptions(source: Source.server);
+      final winner = await meal.get(server);
+      final linked = await target.get(server);
+      _requireOwner(uid);
+      if (!winner.exists ||
+          !linked.exists ||
+          linked.data()?['loggedMealId'] != meal.id) {
+        rethrow;
+      }
+      status = await record();
+    }
+    _requireOwner(uid);
+    switch (status) {
+      case _PlanRecordStatus.deleted:
+        throw const FormatException('Kế hoạch đã bị xóa. Hãy tải lại.');
+      case _PlanRecordStatus.changed:
+        throw const FormatException(
+          'Kế hoạch đã thay đổi. Hãy đóng form và tải lại.',
+        );
+      case _PlanRecordStatus.conflict:
+        throw const FormatException(
+          'Bữa đã có nội dung khác. Hãy xem hoặc sửa tại Nhật ký.',
+        );
+      case _PlanRecordStatus.saved:
+        break;
+    }
+    return meal.id;
+  }
 
   Stream<List<StepDay>> watchStepDays(String uid) => _owned(
     uid,

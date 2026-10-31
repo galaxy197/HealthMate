@@ -1009,8 +1009,15 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
     await act((_) async {
       final repo = ref.read(wellnessRepositoryProvider);
       if (await repo.existingPlanMeal(uid, plan.id)) {
-        await repo.markPlanLogged(uid, plan.id);
+        if (mounted && ref.read(authSessionProvider).value?.uid == uid) {
+          setState(() => message = 'Bữa đã có trong Nhật ký.');
+        }
         return;
+      }
+      // Reconciliation may have cleared a legacy marker and changed its version.
+      final refreshed = await repo.loadPlan(uid, plan.id);
+      if (refreshed == null) {
+        throw const FormatException('Kế hoạch đã bị xóa. Hãy tải lại.');
       }
       final catalog = await ref.read(foodCatalogProvider.future);
       final profile = await ref
@@ -1022,6 +1029,7 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
         );
       }
       if (!mounted || ref.read(authSessionProvider).value?.uid != uid) return;
+      String? saveError;
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
@@ -1034,7 +1042,7 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
             avoidance: FoodAvoidance.fromText(
               profile.personalization?['avoidFoods'],
             ),
-            initialItems: plan.items,
+            initialItems: refreshed.items,
             initialType: plan.type,
             initialConsumedAt: plan.date == localDateOnly(now)
                 ? now
@@ -1042,24 +1050,17 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
             onSave: (draft) async {
               if (ref.read(authSessionProvider).value?.uid != uid) return false;
               try {
-                await ref
-                    .read(nutritionRepositoryProvider)
-                    .addMeal(
-                      uid: uid,
-                      draft: draft,
-                      operationId: 'plan-${plan.id}',
-                    );
+                await repo.recordPlanMeal(uid, refreshed, draft);
                 if (ref.read(authSessionProvider).value?.uid != uid) {
                   return false;
                 }
-                await repo.markPlanLogged(uid, plan.id);
                 return true;
-              } catch (_) {
+              } catch (error) {
+                saveError = _failure(error);
                 return false;
               }
             },
-            saveErrorMessage: () =>
-                'Chưa xác nhận xong. Đóng form rồi tải lại trước khi thử tiếp; cùng kế hoạch dùng một mã ghi để tránh trùng.',
+            saveErrorMessage: () => saveError ?? 'Chưa lưu được. Hãy thử lại.',
           ),
         ),
       );
@@ -1351,15 +1352,12 @@ class _MealPlannerPanelState extends WellnessPanelState<MealPlannerPanel> {
                                           children: [
                                             if (!date.isAfter(now))
                                               TextButton(
-                                                onPressed:
-                                                    busy ||
-                                                        plan.loggedMealId !=
-                                                            null
+                                                onPressed: busy
                                                     ? null
                                                     : () => log(plan),
                                                 child: Text(
                                                   plan.loggedMealId != null
-                                                      ? 'Đã ghi nhật ký'
+                                                      ? 'Đã ghi · Kiểm tra'
                                                       : 'Xác nhận đã ăn',
                                                 ),
                                               ),

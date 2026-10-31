@@ -76,12 +76,15 @@ class PlannedMeal {
     required this.type,
     required this.items,
     this.loggedMealId,
+    this.createdAt,
+    this.updatedAt,
   });
   final String id;
   final DateTime date;
   final MealType type;
   final List<MealItemSnapshot> items;
   final String? loggedMealId;
+  final DateTime? createdAt, updatedAt;
   NutritionTotals get totals =>
       sumNutritionTotals(items.map((i) => i.nutrition));
 }

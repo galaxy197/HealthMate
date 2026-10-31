@@ -14,6 +14,10 @@ class PrivateLocalData {
       channel.invokeMethod<void>('writeDrafts', {'uid': uid, 'json': json});
   Future<void> clear(String uid) =>
       channel.invokeMethod<void>('clearDrafts', {'uid': uid});
+
+  /// Permanently blocks late draft writes for this UID on this installation.
+  Future<void> clearForDeletion(String uid) =>
+      channel.invokeMethod<void>('clearDraftsForDeletion', {'uid': uid});
   Future<String?> chooseCsv(String filename) =>
       channel.invokeMethod<String>('chooseCsv', {'filename': filename});
   Future<int?> writeCsv(String ticket, Uint8List bytes) =>

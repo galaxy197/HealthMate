@@ -54,10 +54,15 @@ class PrivateLocalData(private val activity: Activity) : MethodChannel.MethodCal
                         require(json.toByteArray(Charsets.UTF_8).size <= 512 * 1024)
                         write(uid, json); null
                     }
-                    "clearDrafts" -> {
+                    "clearDrafts", "clearDraftsForDeletion" -> {
                         val uid = uid(call)
-                        file(uid).delete()
+                        if (call.method == "clearDraftsForDeletion") AccountDeletionBlock.mark(activity, uid)
+                        val target = file(uid)
+                        target.delete()
                         keyStore().deleteEntry(alias(uid))
+                        check(!target.baseFile.exists() && !File(target.baseFile.path + ".bak").exists()
+                            && !File(target.baseFile.path + ".new").exists())
+                        check(!keyStore().containsAlias(alias(uid)))
                         null
                     }
                     "writeCsv" -> {
@@ -132,6 +137,7 @@ class PrivateLocalData(private val activity: Activity) : MethodChannel.MethodCal
         }.generateKey()
     }
     private fun read(uid: String): String? {
+        if (AccountDeletionBlock.isBlocked(activity, uid)) return null
         val target = file(uid)
         if (!target.baseFile.exists() && !File(target.baseFile.path + ".bak").exists()) return null
         val bytes = target.openRead().use { it.readBytesLimited(513 * 1024) }
@@ -142,6 +148,7 @@ class PrivateLocalData(private val activity: Activity) : MethodChannel.MethodCal
         return String(cipher.doFinal(bytes.copyOfRange(13, bytes.size)), Charsets.UTF_8)
     }
     private fun write(uid: String, json: String) {
+        AccountDeletionBlock.writeAllowed(activity, uid) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key(uid, true))
         cipher.updateAAD(uid.toByteArray(Charsets.UTF_8))
@@ -151,6 +158,7 @@ class PrivateLocalData(private val activity: Activity) : MethodChannel.MethodCal
         val stream = target.startWrite()
         try { stream.write(bytes); target.finishWrite(stream) }
         catch (e: Exception) { target.failWrite(stream); throw e }
+        }
     }
     private fun java.io.InputStream.readBytesLimited(limit: Int): ByteArray {
         val buffer = java.io.ByteArrayOutputStream()

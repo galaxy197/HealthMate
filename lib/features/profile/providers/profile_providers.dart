@@ -20,6 +20,10 @@ final healthProfileRepositoryProvider = Provider<HealthProfileRepository>(
 final profileBootstrapProvider = FutureProvider<void>((ref) async {
   final user = ref.watch(authSessionProvider).value;
   if (user == null || !user.emailVerified) return;
+  if (await ref.watch(accountDeletionJobProvider.future) != null ||
+      !ref.mounted) {
+    return;
+  }
   await ref
       .watch(healthProfileRepositoryProvider)
       .ensureProfile(uid: user.uid, email: user.email ?? '')
@@ -71,6 +75,32 @@ final latestBodyMetricProvider = StreamProvider.autoDispose
         ref
             .watch(healthProfileRepositoryProvider)
             .watchLatestBodyMetric(uid, day),
+      );
+    }, retry: (_, _) => null);
+
+final firstBodyMetricProvider = StreamProvider.autoDispose<List<BodyMetric>>((
+  ref,
+) {
+  final uid = ref.watch(authSessionProvider.select((s) => s.value?.uid));
+  if (uid == null) return Stream.value(const []);
+  return subscriptionStream(
+    ref.watch(healthProfileRepositoryProvider).watchFirstBodyMetric(uid),
+  );
+}, retry: (_, _) => null);
+
+final bodyMetricPageProvider = StreamProvider.autoDispose
+    .family<BodyMetricPage, BodyMetricCursor?>((ref, after) async* {
+      final user = ref.watch(authSessionProvider).value;
+      if (user?.emailVerified != true) {
+        yield const BodyMetricPage(metrics: [], hasMore: false);
+        return;
+      }
+      await ref.watch(profileBootstrapProvider.future);
+      if (!ref.mounted) return;
+      yield* subscriptionStream(
+        ref
+            .watch(healthProfileRepositoryProvider)
+            .watchBodyMetricPage(user!.uid, after: after),
       );
     }, retry: (_, _) => null);
 

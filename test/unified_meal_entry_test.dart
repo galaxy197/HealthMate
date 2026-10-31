@@ -199,7 +199,7 @@ void main() {
               source: 'Open Food Facts',
               nutrition: NutritionTotals(kcal: 500),
             ),
-            grams: 30,
+            quantity: 30,
           );
         },
       );

@@ -9,6 +9,7 @@ import '../data/firebase_auth_repository.dart';
 import '../models/account_action_failure.dart';
 import '../models/auth_failure.dart';
 import '../models/auth_user.dart';
+import '../models/account_deletion_job.dart';
 import '../../meal_drafts/data/meal_draft_store.dart';
 import 'package:flutter/services.dart';
 import '../../wellness/providers/wellness_providers.dart';
@@ -27,6 +28,14 @@ final authSessionProvider = StreamProvider<AuthUser?>(
   (ref) => ref.watch(authRepositoryProvider).authStateChanges(),
   retry: (retryCount, error) => null,
 );
+
+/// Independent of profile/admin runtime so deletion can resume after users/{uid}
+/// is gone and suspended owners retain access to their deletion request.
+final accountDeletionJobProvider = StreamProvider<AccountDeletionJob?>((ref) {
+  final user = ref.watch(authSessionProvider).value;
+  if (user?.emailVerified != true) return Stream.value(null);
+  return ref.watch(accountDataRepositoryProvider).watchDeletion(user!.uid);
+}, retry: (_, _) => null);
 
 final authControllerProvider =
     NotifierProvider<AuthController, AsyncValue<void>>(AuthController.new);
@@ -197,51 +206,56 @@ class AccountSecurityController extends Notifier<AsyncValue<void>> {
     try {
       await _reauthenticate(repository, currentPassword, user.uid);
       if (!current()) return false;
+      final data = ref.read(accountDataRepositoryProvider);
       try {
-        await ref
-            .read(accountDataRepositoryProvider)
-            .deleteAllUserData(user.uid);
+        // Confirmed on the server BEFORE deleting data or local state.
+        await data.requestDeletion(user.uid);
       } on AccountDataFailure {
         throw const AccountActionFailure(
-          'Chưa thể xóa hết dữ liệu. Một phần dữ liệu có thể đã được xóa; tài khoản vẫn được giữ để bạn thử lại an toàn.',
+          'Chưa xác nhận được yêu cầu xóa trên máy chủ. Hãy kết nối mạng và thử lại; chưa báo hoàn tất.',
+        );
+      }
+      if (!current()) return false;
+      // Stop local writers first. Both operations are idempotent and persist a
+      // per-UID block on supported native storage, including across restarts.
+      try {
+        final device = ref.read(wellnessDeviceProvider);
+        final local = ref.read(privateLocalDataProvider);
+        await Future.wait<void>([
+          if (device.supported) device.clearAccount(user.uid),
+          if (local.supported)
+            ref.read(mealDraftStoreProvider).clearForAccountDeletion(user.uid),
+        ]);
+      } catch (_) {
+        throw const AccountActionFailure(
+          'Yêu cầu xóa đã khóa ghi dữ liệu, nhưng chưa dừng hoặc dọn xong dữ liệu trên máy. Hãy thử lại để tiếp tục.',
           dataMayBeDeleted: true,
         );
       }
       if (!current()) return false;
-      final local = ref.read(privateLocalDataProvider);
-      if (local.supported) {
-        try {
-          await ref
-              .read(mealDraftStoreProvider)
-              .clearForAccountDeletion(user.uid);
-        } catch (_) {
-          throw const AccountActionFailure(
-            'Dữ liệu trên máy chủ đã xóa nhưng chưa xóa được nháp trên thiết bị. Tài khoản được giữ để thử lại.',
-            dataMayBeDeleted: true,
-          );
-        }
+      try {
+        await data.deleteAllUserData(user.uid);
+      } on AccountDataFailure {
+        throw const AccountActionFailure(
+          'Chưa thể xóa hết dữ liệu. Tài khoản đã khóa ghi mới; một phần dữ liệu có thể đã xóa. Giữ kết nối và thử lại để tiếp tục.',
+          dataMayBeDeleted: true,
+        );
       }
       if (!current()) return false;
       try {
+        await data.markLocalDataDeleted(user.uid);
         // Repository also checks the SDK's current UID, even before the auth
         // stream has delivered a changed session to Riverpod.
-        final device = ref.read(wellnessDeviceProvider);
-        if (device.supported) {
-          try {
-            await device.clearAccount(user.uid);
-          } on MissingPluginException {
-            /* No native state. */
-          } catch (_) {
-            throw const AccountActionFailure(
-              'Dữ liệu máy chủ đã xóa nhưng chưa dọn xong dữ liệu theo dõi trên máy. Tài khoản được giữ để thử lại.',
-              dataMayBeDeleted: true,
-            );
-          }
-        }
+        if (!current()) return false;
         await repository.deleteCurrentUser(expectedUid: user.uid);
+      } on AccountDataFailure {
+        throw const AccountActionFailure(
+          'Chưa xác minh xong phần dữ liệu cần dọn. Tài khoản đăng nhập vẫn được giữ để thử lại.',
+          dataMayBeDeleted: true,
+        );
       } on AuthFailure {
         throw const AccountActionFailure(
-          'Dữ liệu HealthMate đã được xóa nhưng tài khoản đăng nhập chưa thể xóa. Hãy thử lại để hoàn tất.',
+          'Dữ liệu ứng dụng đã dọn nhưng tài khoản đăng nhập chưa thể xóa. Yêu cầu xóa vẫn được giữ; hãy thử lại để hoàn tất.',
           dataMayBeDeleted: true,
         );
       }

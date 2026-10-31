@@ -95,15 +95,17 @@ class DietPendingSearch extends FakeFoodSearchService {
   final pending = <Completer<List<FoodSearchResult>>>[];
   final catalogs = <List<FoodCatalogItem>>[];
   @override
-  Future<List<FoodSearchResult>> search({
+  Future<FoodSearchOutcome> search({
     required String query,
     required List<FoodCatalogItem> firestoreCatalog,
     int limit = 25,
+    FoodSearchRequest? request,
+    void Function(FoodSearchOutcome)? onProgress,
   }) {
     catalogs.add(firestoreCatalog);
     final gate = Completer<List<FoodSearchResult>>();
     pending.add(gate);
-    return gate.future;
+    return gate.future.then(FoodSearchOutcome.new);
   }
 }
 
@@ -131,7 +133,20 @@ Future<void> openDietJournal(
   await tester.pumpAndSettle();
 }
 
-Future<void> selectDiet(WidgetTester tester, String label) async {
+Future<void> selectDiet(
+  WidgetTester tester,
+  String label, {
+  bool settle = true,
+}) async {
+  Future<void> pumpTransition() async {
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      // The online search intentionally remains pending with an animated spinner.
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+  }
+
   final filter = find.byKey(const ValueKey('food-diet-filter'));
   final form = find.byType(MealFormDialog);
   final scrollable = form.evaluate().isNotEmpty
@@ -139,11 +154,11 @@ Future<void> selectDiet(WidgetTester tester, String label) async {
       : find.byType(Scrollable).first;
   await tester.scrollUntilVisible(filter, -150, scrollable: scrollable);
   await Scrollable.ensureVisible(tester.element(filter), alignment: .5);
-  await tester.pumpAndSettle();
+  await pumpTransition();
   await tester.tap(filter);
-  await tester.pumpAndSettle();
+  await pumpTransition();
   await tester.tap(find.text(label).last);
-  await tester.pumpAndSettle();
+  await pumpTransition();
 }
 
 void main() {
@@ -261,7 +276,7 @@ void main() {
       await tester.enterText(field, 'Món');
       await tester.pump(const Duration(milliseconds: 350));
       expect(search.pending, hasLength(1));
-      await selectDiet(tester, 'Thuần chay');
+      await selectDiet(tester, 'Thuần chay', settle: false);
       await tester.pump(const Duration(milliseconds: 350));
       expect(search.pending, hasLength(2));
       expect(

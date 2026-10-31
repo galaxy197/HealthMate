@@ -1,5 +1,7 @@
 # Giai đoạn 10 — Báo cáo kiểm thử và rà soát MVP
 
+Bản kiểm chứng mới nhất: Gói 8–10 ngày 31/10/2026 ở cuối tài liệu; Flutter803/803, Rules127/127, SDK52/52. Gói10 chưa nghiệm thu signed release/native. Các mục dưới đây giữ lịch sử theo ngày.
+
 ## 27/10/2026 — Polish UI dinh dưỡng (Giai đoạn tùy chọn 11)
 
 - Format 22 file Dart: 0 lệch; analyze **0 issues** (23,3 giây).
@@ -2153,3 +2155,427 @@ Chưa có ảnh đính kèm, email/push, chống spam riêng hoặc trang lưu t
 50 yêu cầu gần nhất trên app. Mỗi cuộc trao đổi tối đa 100 tin sau nội dung
 gốc. Xóa tài khoản trong app có cleanup; xóa Auth trực tiếp ngoài app không
 tự cleanup. Chi tiết tính năng: `docs/customer-support-2026-10-30.md`.
+
+## 30/10/2026 — Gói cải thiện 1: barcode và dữ liệu trên 100 g
+
+- Baseline `main@0e897eca3cbdb7907012197830b9d365763e4faf`. Flutter 3.44.1,
+  Dart 3.12.1, Node 24.18.0; QA hash-sync 441 source/config/assets.
+- Trước sửa: barcode **5 qua / 11 thất bại**; Rules regression **1 qua /
+  3 thất bại**. Lỗi gồm 500 g protein/100 g vẫn tạo snapshot và ghi Firestore,
+  constructor trực tiếp không chặn và layout tràn 9 tổ hợp kích thước/cỡ chữ.
+- `dart format` 7 file thay đổi: qua. `flutter analyze --no-pub`: exit 0,
+  **No issues found**, **104,2s**.
+- `flutter test --no-pub --reporter expanded`: exit 0, **726/726 qua**,
+  khoảng **126s**; barcode có 24 test, tăng 19 test so với baseline.
+- `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm --prefix rules-tests test`:
+  exit 0, **95/95 qua**, **12,65s**, tăng 4 test. Emulator chỉ project demo.
+- Kiểm mass/volume/serving/entry, partial/zero, invalid float, sodium/iron
+  g→mg, quy đổi khẩu phần đúng một lần, snapshot cũ không bị sửa. Widget
+  dùng AppTheme và font thật BeVietnamPro: 320/360/412 px, chữ 1/1,5/2;
+  xác nhận g/ml và thêm từ sheet ở 320 px chữ 2 vẫn hoạt động.
+- Candidate Rules chặn ghi trực tiếp ở meal schemas 2–5, custom foods,
+  recipes/templates và fiber compact; test sẵn có vẫn xác nhận bữa 5 món,
+  công thức 6 nguyên liệu, phân quyền UID và trạng thái unknown.
+- Các vòng đầu chạm Rules expression budget; đã thay cách tổ chức biểu
+  thức, giữ assertion cũ. Một lệnh focused chạy sai cwd đã được chạy lại từ
+  `rules-tests`; kết quả thất bại đó không tính là kiểm thử sản phẩm. Widget
+  confirm ban đầu cần `ensureVisible` + settle để test tap đúng vị trí sau
+  bàn phím/scroll; không dùng `warnIfMissed:false` để bỏ qua lỗi.
+- Log: `build/improvement-package1/{flutter-red,rules-red,flutter-all,analyze,
+  rules-all}.log`. Hash source và Rules tại `verification.json` cùng thư mục.
+- Không deploy, sửa dữ liệu production, gọi AI thật, chạy lại luồng Android
+  hoặc build APK. Đây là bằng chứng local, chưa phải nghiệm thu production.
+
+Chi tiết quyết định đơn vị OFF, tương thích và rollout:
+[improvement-progress.md](improvement-progress.md).
+
+## 31/10/2026 — Gói cải thiện 2: USDA request/deadline/lỗi
+
+- Baseline vẫn `main@0e897eca3cbdb7907012197830b9d365763e4faf`, giữ chỉnh sửa
+  Gói 1 chưa commit. Flutter 3.44.1 / Dart 3.12.1. QA sync **445** file
+  source/config/assets có kiểm SHA-256 tại `D:/HealthMateMaintenanceQA/c6-workspace`.
+- Test tái hiện trước sửa: **0 qua / 1 thất bại**, fixture 50 kết quả phát
+  1 search + 50 detail. Sau sửa cùng bất biến: chỉ 1 search, 0 detail chưa
+  chọn; chọn ID 8 thêm đúng 1 detail; chọn lại dùng cache không thêm request.
+  Không suy số request fixture thành benchmark latency/quota mạng thật.
+- Focused: `flutter test --no-pub test/food_search_request_test.dart
+  test/usda_api_service_test.dart test/mfp_search_test.dart
+  test/catalog_expansion_test.dart test/food_search_lifecycle_test.dart
+  --reporter expanded`: exit 0, **49/49**, khoảng **12s**.
+- Full: `flutter test --no-pub --reporter expanded`: exit 0,
+  **753/753**, khoảng **116s**. Tăng **27 test** so với Gói 1: 18 service và
+  9 widget. Giữ test nhãn/validator USDA, diet/avoidance, query mới nhất,
+  nhật ký và các suite chức năng sẵn có.
+- `flutter analyze --no-pub`: exit 0, **No issues found**, **6,6s**.
+  `dart format` các Dart file thay đổi và `git diff --check`: qua.
+- Fake clock chứng minh 5s cache + 3s HTTP chạm deadline chung **8s**;
+  không thêm 8s cho mỗi bước. Test detail có deadline và cờ abort tại
+  `http.AbortableRequest` client thực nhận. Transport giả cố tình trả muộn
+  sau abort để chứng minh không publish/cache tiếp. Không gọi USDA/model thật.
+- Kiểm rỗng hợp lệ khác 429/503/network/JSON/schema sai; lỗi đọc/ghi cache
+  được báo mà không mất local/detail hợp lệ. Timeout ghi cache giữ detail
+  với warning; cancel ghi cache chặn continuation, không tuyên bố rollback.
+- Hai UI kiểm local chọn được lúc pending và sau quota lỗi; metadata không
+  hiện 0 kcal, chặn favorite trước detail; bấm lặp chỉ gọi detail một lần.
+  Đổi query/UID/dispose/nguồn món hủy request; dữ liệu cũ không hiện lại.
+- Vòng đầu sửa lint, helper test `pumpAndSettle` khi progress cố ý pending,
+  và finder tooltip Flutter mới (`RawTooltip`); giữ assertion và kiểm thao
+  tác chọn món thật trong widget harness, không tắt loading để né test.
+- Log `build/improvement-package2/{flutter-red,flutter-focused,flutter-all,
+  analyze}.log`; `verification.json` ghi source hash, môi trường và phạm vi.
+  USDA guide chính thức lưu cùng thư mục; DEMO_KEY ghi 30 request/IP/giờ,
+  50 request/IP/ngày tại thời điểm đọc, không phải quota bảo đảm theo user.
+- Không đổi/deploy Rules hoặc schema, không build APK, không chạy lại
+  Android/native hay nghiệm thu production. Gói 2 không sửa web admin/chat
+  nên không chạy lại Node/Rules suites vốn đã qua ở Gói 1. Chưa xác minh
+  mạng USDA thật và hành vi abort của thiết bị thật.
+
+## 31/10/2026 — Gói cải thiện 3: plan–meal nguyên tử và retry
+
+Mã source/config/assets đã sync và đối chiếu SHA-256 **449 file** với bản
+QA `D:/HealthMateMaintenanceQA/c6-workspace`. Flutter 3.44.1/Dart 3.12.1,
+Chrome headless dùng Firebase SDK thật; Auth/Firestore Emulator chỉ loopback
+9099/8080 và project demo. Không nghiệm thu Android/native theo yêu cầu.
+
+| Lệnh / suite | Kết quả |
+| --- | --- |
+| SDK tái hiện trước sửa `test/plan_meal_repository_integration.dart` | Exit 1: 0 qua, 3 lỗi đúng hành vi liên kết cũ |
+| SDK cùng file sau sửa (opt-in Chrome + `HEALTHMATE_EMULATOR_TESTS=true`) | Exit 0: 13/13, khoảng 4s chạy test |
+| `flutter test --no-pub test/plan_meal_ui_test.dart --reporter expanded` | Exit 0: 4/4, khoảng 2s |
+| Node `--test plan-meal.rules.test.cjs wellness.rules.test.cjs` | Exit 0: 17/17 |
+| Node `--test` toàn bộ `*.rules.test.cjs` trong `rules-tests` | Exit 0: 100/100, khoảng 16s |
+| SDK `test/firebase_repository_integration.dart` (opt-in Chrome) | Exit 0: 23/23, khoảng 29s |
+| `flutter test --no-pub --reporter expanded` | Exit 0: 757/757, khoảng 93s |
+| `flutter analyze --no-pub` | Exit 0: No issues found, lần cuối 7,2s |
+| `dart format --output=none --set-exit-if-changed` 29 Dart đang thay đổi | Exit 0: 0 thay đổi |
+| `git -c core.safecrlf=false diff --check` | Exit 0 |
+
+SDK focused kiểm chuỗi plan → journal → xóa meal → gỡ pointer → ghi lại đúng
+một meal; retry payload khác; hai Firebase app độc lập xác nhận cùng/khác
+payload; phiên bản plan cũ, xóa/tạo lại plan, retry cũ sau xóa meal; legacy
+dangling/unlinked; xóa meal thủ công không ảnh hưởng plan khác; cleanup tài
+khoản có cặp đang liên kết. Mất ACK mô phỏng bằng bỏ giá trị trả về sau commit,
+không cắt ACK transport thật. Hai app SDK không thay thế hai thiết bị thật.
+
+Widget kiểm marker cũ vẫn bấm kiểm tra được, preflight/save chống bấm lặp,
+meal đã có không mở form/ghi lại, lưu lỗi giữ nháp + thông báo xung đột để
+retry, đổi UID khi đang đối soát không mở form tài khoản cũ. Rules kiểm
+guard atomic, UID khác/guest/unverified, legacy và cặp đủ 5 món với fiber
+và cả 8 dưỡng chất mở rộng; không giảm validator/giới hạn để tránh budget.
+
+Vòng đầu Rules gặp trần 1.000 biểu thức; đã tối ưu cách đánh giá và giữ test
+đủ 5 món. Exception trong callback web được chuyển sang kết quả enum rồi
+báo lỗi nghiệp vụ sau transaction. Widget ban đầu `pumpAndSettle` timeout
+vì parent busy khi dialog mở; sửa harness chờ hữu hạn, giữ loading.
+
+SDK rộng lần đầu 22 qua/1 lỗi thiếu fixture H1; chạy lại trên database chưa
+reset có 22 qua/1 lỗi C3 do catalog đã bị test trước sửa kcal. Reset riêng
+`demo-healthmate-rules`, seed lại bằng helper có loopback guard: 162 creates,
+retry 0 create/update/conflict; suite sau đó 23/23. Helper từng từ chối vì
+thiếu biến host, không gửi request khi guard fail. Chưa thay kỳ vọng/sửa
+source sản phẩm để che lỗi fixture.
+
+Kiểm format toàn `lib test` với output=none báo 5 file cũ ngoài phạm vi:
+`app_spacing.dart`, `main.dart`, `core_acceptance_regression_test.dart`,
+`food_library_test.dart`, `h2_templates_test.dart`. Giữ nguyên những file này;
+không tuyên bố toàn repo format sạch. Lệnh scoped 29 Dart thay đổi qua.
+
+Logs + hash/manifest: `build/improvement-package3/verification.json` và các
+log trong cùng thư mục. Source chính và giới hạn rollout được ghi tại
+[improvement-progress.md](improvement-progress.md). Client cũ ghi hai bước
+không tương thích Rules candidate; cần phối hợp phát hành. Chưa deploy,
+build APK, push GitHub hoặc triển khai Gói 4. Chưa xác minh production.
+
+Emulator còn cảnh báo helper Rules `knownNumber` không được sử dụng; đây là
+cảnh báo, không phải lỗi test. Không loại validator để xử lý cảnh báo.
+Đã dừng các emulator của lượt kiểm thử, xác nhận không còn listener 8080/9099.
+
+## 31/10/2026 — Gói cải thiện 4: vòng đời xóa tài khoản
+
+HEAD giữ nguyên `main@0e897eca3cbdb7907012197830b9d365763e4faf`; bảo toàn
+working tree Gói 1–3. Flutter 3.44.1/Dart 3.12.1, Node 24.18.0, Java Android
+Studio. Flutter/compile dùng QA `D:/HealthMateMaintenanceQA/c6-workspace`,
+sync/hash 458 source/config/assets từ root, không copy dữ liệu private/secret.
+SDK chạy Chrome headless thật với Auth/Firestore emulator loopback 9099/8080,
+project `demo-healthmate-rules`; Rules dùng project demo riêng. Không gọi AI.
+
+| Lệnh / suite | Kết quả cuối |
+| --- | --- |
+| `flutter test --no-pub --platform chrome --dart-define=HEALTHMATE_EMULATOR_TESTS=true test/account_deletion_repository_integration.dart --reporter expanded` | Exit 0, 8/8, 12s |
+| SDK cùng lệnh với `test/firebase_repository_integration.dart` | Exit 0, 23/23, 29s |
+| Node `--test account-deletion.rules.test.cjs` | Exit 0, 9/9 |
+| Node `--test` toàn bộ `*.rules.test.cjs` | Exit 0, 109/109, 17,75s |
+| Node `--test plan-meal.rules.test.cjs` hồi quy budget | Exit 0, 5/5 |
+| Flutter focused controller/gate/security/private/auth/core/admin | Exit 0, 75/75 |
+| Flutter `test/account_deletion_export_test.dart` | Exit 0, 4/4 |
+| Flutter `test/wellness_expansion_test.dart` | Exit 0, 11/11 |
+| `flutter test --no-pub --reporter expanded` cuối | Exit 0, 772/772, 89s |
+| `flutter analyze --no-pub` cuối | Exit 0, No issues found, 8,6s |
+| `dart format --output=none --set-exit-if-changed` 54 Dart đang thay đổi | Exit 0, 0 thay đổi |
+| `git -c core.safecrlf=false diff --check` | Exit 0 |
+| `tool/test_account_deletion_native.ps1` | Exit 0, 5/5 host contract |
+| `:app:compileDebugKotlin --offline '-Pkotlin.incremental=false' '-Pkotlin.incremental.useClasspathSnapshot=false'` | Exit 0, BUILD SUCCESSFUL 41s, 142 tasks |
+
+SDK kiểm hơn 100 body records qua batch100, toàn bộ inventory health/library/
+wellness, messages chat/support, Premium demo transactions/membership/usage
+(kể cả subcollection không parent), directory/controls; giữ tombstone/audit.
+Hai app SDK cùng UID thử write hợp lệ trước marker và bị chặn sau marker,
+cả trước cleanup và khi dữ liệu/parent đã mất. Ca offline chứng minh write
+đang pending trước yêu cầu; sau reconnect write bị từ chối và bootstrap
+không tạo lại hồ sơ. Kiểm suspended owner, UID khác, checkpoint dở và resume
+bằng repository mới; finalize sớm bị từ chối, Auth chưa xóa retry an toàn;
+ca cuối xóa Auth emulator thật và marker vẫn `auth_pending`.
+
+Unit/widget kiểm thứ tự reauth → marker ACK → dừng native/drafts → cleanup →
+xác minh → Auth, lỗi từng bước, không chạy Auth nếu dọn lỗi, UID đổi giữa
+chừng. Gate nhận marker độc lập admin flag, fail closed khi chưa xác nhận,
+cho suspended delete/resume; cleanup local quan sát thử cả hai bộ dọn dù
+một bộ lỗi. Export đang đợi OS picker bị vô hiệu khi marker cùng UID xuất
+hiện; lỗi/loading trạng thái xóa cũng không bắt đầu xuất. Host test dùng
+source `AccountDeletionBlock.kt` thật với Context/AtomicFile adapters:
+idempotence, restart, interrupted marker, UID isolation và ghi đang chạy.
+Không thay thế Android Keystore/sensor/alarm/acceptance E2E.
+
+Các lỗi trong vòng kiểm chứng và cách xử lý:
+
+- Full Flutter ban đầu 771 qua/1 lỗi wellness do thiếu fake repository cho
+  dependency mới, vô tình gọi Firebase chưa khởi tạo. Bổ sung fake, giữ guard
+  và assertion; focused 11/11, full cuối 772/772. Riverpod standalone harness
+  khác cần active listener để stream không bị pause, không sửa sản phẩm né test.
+- SDK helper email action cần project trùng emulator đã cấu hình. Ca offline
+  riêng qua nhưng tái dùng app qua nhiều UID từng chờ trong suite; đổi thành
+  hai app mới mỗi test, teardown reconnect/signout/terminate/delete. Giữ đủ
+  assertions pending/offline và timeout, không quy kết lỗi Firebase SDK.
+- Rules marker guard ban đầu vượt budget với payload 5 món; tối ưu cấu trúc
+  đánh giá, giữ đủ validator/dưỡng chất và test 5 món. Toàn Rules cuối qua.
+- Compile incremental vướng đường dẫn C PubCache/D QA; quoting Gradle args
+  được sửa và compile nonincremental qua. Không tuyên bố APK build thành công.
+- Lệnh Dart format sandbox đầu chờ không kết quả và bị dừng; chạy lại bằng
+  SDK cùng chế độ chỉ kiểm với quyền runtime phù hợp qua 54 file. Không nói
+  toàn repo đã format sạch; các lệch ngoài phạm vi từng báo ở Gói 3 giữ nguyên.
+
+Trước SDK rộng đã reset **chỉ** database `demo-healthmate-rules` tại endpoint
+emulator localhost, seed 162 món H1; retry 0 create/update/conflict. Không
+reset Auth/Firestore production. Log không chứa credential tài khoản thật.
+
+Bằng chứng cuối tại `build/improvement-package4/verification.json` và các
+log cùng thư mục. Candidate mới chưa deploy, không build APK/push GitHub,
+không chạy lại luồng Android hoặc xóa account thật. Thiếu server deletion
+job đặc quyền, tìm orphan/unknown collections và retention/purge/role revoke
+nên chưa nghiệm thu job server/production. Client phải mở/có mạng để tiếp
+tục; `auth_pending` không chứng nhận completed. Chi tiết giữ UID/audit/cache/
+export/provider data trong [account-deletion-adr.md](account-deletion-adr.md).
+
+Kiểm tra cuối không còn listener emulator 8080/9099. Manifest xác minh
+458 hash source khớp QA và lưu 16 log/hash. Không có tiến trình kiểm thử
+hoặc emulator của gói này cần người dùng tiếp tục chờ.
+
+## 31/10/2026 — Gói cải thiện 5–7
+
+Branch/HEAD vẫn `main@0e897eca3cbdb7907012197830b9d365763e4faf`;
+working tree bao gồm Gói 1–7 chưa commit. Source Flutter chạy ở QA workspace
+`D:/HealthMateMaintenanceQA/c6-workspace`, sync đối chiếu SHA256 **466**
+source/config/assets. Flutter3.44.1/Dart3.12.1, Node24.18.0, Java JBR Android
+Studio. Không model call, credential/IAM, billing, production deploy/migration,
+APK hoặc native acceptance. Mọi dữ liệu ghi là fixture demo ở loopback.
+
+| Lệnh / lớp | Kết quả thật | Log |
+| --- | --- | --- |
+| `node --test chat-api/test/*.test.mjs` | 48/48, exit0 | `build/package5-chat-tests.log` |
+| `npm --prefix chat-api run check` | exit0 | `build/package5-chat-check.log` |
+| Chat adapter REST opt-in emulator | 3/3, exit0, 16,03s | `build/package5-rest-sdk.log` |
+| Wrangler deploy `--dry-run` | exit0; không deploy | `build/package5-worker-dryrun.log` |
+| `node --test admin-web/test/*.test.mjs` | 42/42, exit0 | `build/package7-admin-tests.log` |
+| `npm --prefix admin-web run check` | exit0 | `build/package7-admin-check.log` |
+| `node --test admin-web/test/sdk.integration.mjs` cuối | 7/7, exit0, 8,45s | `build/package7-sdk-final.log` |
+| `node --test tool/meal_query_migration.test.cjs tool/meal_query_migration.integration.cjs` | 6/6, exit0, 10,30s | `build/package6-migration-final.log` |
+| `node --test rules-tests/*.rules.test.cjs` trên emulator | 119/119, exit0, 13,65s | `build/package567-rules-final.log` |
+| Flutter full trước sửa race | 780/780, exit0, 95s | `D:/HealthMateMaintenanceQA/package567-flutter-all.log` |
+| `flutter test --no-pub --concurrency=2 --reporter expanded` sau sửa race | 780/780, exit0, 210s | `D:/HealthMateMaintenanceQA/package567-flutter-handoff.log` |
+| Flutter SDK opt-in cuối: deletion8 + broad23 + plan13 + query4 | 48/48, exit0, 61s | `D:/HealthMateMaintenanceQA/package567-sdk-handoff.log` |
+| `flutter analyze --no-pub` sau sửa race | No issues found, exit0, 8,1s | `D:/HealthMateMaintenanceQA/package567-analyze-handoff.log` |
+| `dart format --output=none --set-exit-if-changed` Dart thay đổi | 79 files, 0 thay đổi, exit0 | `build/package567-format.log` |
+| `git -c core.safecrlf=false diff --check` | exit0 | `build/package567-diff-check.log` |
+
+Rules cuối SHA256
+`D43FC4EFDFA4A1D559433103BC288D79E3BD2339AD64E209963B820F0132ABFC`.
+Admin SDK dùng bản copy Rules đúng hash này, emulators8092/9098. SDK Flutter
+dùng demo-healthmate-rules8080/9099; không chạy reset/seed cùng lúc một suite
+khác dùng chung project. Rules Node full hoàn tất trước SDK Flutter cuối.
+
+### Các lớp bằng chứng
+
+- AI mock tests kiểm signature/AppCheck/revocation/disabled/deleted,
+  fail-closed config/policy/deletion, contention quota/idempotency, mất ACK,
+  timeout/429, stream thiếu DONE và lỗi kết thúc. REST suite dùng adapter
+  beginTransaction/batchGet/commit/rollback thực với Firestore emulator;
+  OAuth/IAM/provider vẫn mock, không chứng nhận production identity.
+- Query SDK đo compatibility5 downloads cho3 meals, partitioned3, complete3;
+  marker đọc riêng. Kiểm timezone, 130 lịch sử cân trùng timestamp, page26
+  lookahead, latest/baseline1, báo cáo60 không bị cắt bởi page và UID isolation.
+  Migration thực205 records chứng minh resume/idempotency/preserve nutrition.
+- Admin SDK thật chạy source sản phẩm với Firebase13.0.0 local package thay
+  CDN import, fixture10.037 tài khoản: trang25/25/tail7, enrich25 role+25 control
+  cho trang đầy. 31 receipts cùng millisecond khác nanos:25+6, export31.
+  Giữ archive/restore/audit/stale-edit/account-control/config/support reply.
+- Rules kiểm cả old13-field và current14-field meals, marker partitioned/
+  complete/migrating; five distinct rows, đủ8 dưỡng chất, fiberIncomplete
+  true trên cả5 và khẩu phần xác nhận khác plan. Kiểu/rỗng/field lạ, fiber
+  âm/sai metadata, vector sai bị chặn. Không bớt món hoặc bỏ validator để
+  vượt ngân sách 1.000 expressions; nhánh5 gọi trực tiếp đủ5 validator.
+- Deletion SDK mở rộng inventory migration và hai cây gateway: nested dữ
+  liệu vẫn được dọn khi parent thiếu; giữ tombstone/audit. Legacy counter
+  direct write được chứng minh hợp lệ trước marker và bị Rules từ chối sau
+  marker; client `consume` luôn bị từ chối theo hợp đồng quota server mới.
+
+### Lỗi trung gian đã xử lý và giới hạn
+
+- SDK deletion precheck cũ gọi `consume` như một thao tác hợp lệ. Đã sửa
+  harness để assert client không cấp quota, đồng thời direct-write legacy
+  fixture trước/sau marker để vẫn kiểm Rules thật, không bỏ assertion.
+- Rules thêm migration guard từng vượt1.000 expressions ở bữa5 món. Đã
+  dùng count trực tiếp, cache data/route, boolean validators và nhánh5;
+  giữ phạm vi số/kiểu/nguồn/ngày và mọi item. Chứng minh bằng119 Rules tests.
+- SDK contender có thể nhận permission-denied trước conflict retry. Thêm
+  bounded retry1 sau khi server xác nhận cặp liên kết đã tồn tại, transaction
+  mới kiểm lại payload/UID. Hai trường hợp cùng/khác portions từng thất bại,
+  sau sửa suite plan riêng **13/13 qua**, exit0, khoảng5s:
+  `D:/HealthMateMaintenanceQA/package567-plan-sdk-final.log`.
+- Một lượt compiler Chrome không tạo được DartWorker/thread trên Windows;
+  dừng tác vụ coverage diagnostic riêng rồi chạy lại thành công. Không sửa
+  assertion hoặc tăng timeout để che lỗi sản phẩm. Một fixture response dùng
+  Latin1 đã đổi UTF8, probe integration cũ cập nhật để không gọi direct model.
+- REST migration emulator không hỗ trợ list pageToken kèm orderBy; tool dùng
+  thứ tự tên mặc định của REST, planner tự sort. Ca205 records sau sửa qua.
+
+Các log cũ có failure được giữ làm bằng chứng chẩn đoán, không trình bày là
+kết quả cuối. Widget/default tests không thay Android acceptance. Không đo
+hóa đơn Firestore, concurrent-user capacity, IAM thật hoặc model chất lượng.
+Gói5 chưa production-ready; gateway mặc định tắt và scanner ảnh chưa có
+gateway. Gói6 cần migration/Rules/index rollout; admin chưa publish. Tình
+trạng server deletion job/retention từ Gói4 vẫn còn, không tự giải quyết ở gói này.
+
+Manifest và bản sao log: `build/improvement-packages5-7/verification.json`.
+Gói tiếp theo đề xuất8; chưa thực hiện. Sau khi kiểm tra, lưu báo cáo và dừng
+emulator của task, laptop được hẹn tắt theo yêu cầu, không dùng forced close.
+
+Đã dừng hai emulator của task; kiểm tra không còn listener trên
+8080/9099/8092/9098. Manifest lưu466 hash khớp QA,211 hash admin/chat/docs
+và21 log; các hash nguồn tài liệu được cập nhật sau khi chốt báo cáo.
+Lệnh tắt dùng helper chờ60 giây rồi `shutdown.exe /s /t 0`, không `/f`;
+ứng dụng chưa lưu có thể chặn tắt máy. Trạng thái thực thi được lưu riêng
+ở `build/improvement-packages5-7/shutdown-status.json`.
+
+## 31/10/2026 — Gói cải thiện 8, 9, 10: kiểm chứng candidate local
+
+Phạm vi theo yêu cầu trực tiếp của chủ dự án: ba gói cuối trong improvement
+plan, giữ toàn bộ Gói 1–7 chưa commit. Branch/HEAD bắt đầu và kết thúc vẫn
+`main@0e897eca3cbdb7907012197830b9d365763e4faf`. Không build APK, nghiệm thu
+native Android, commit/push/deploy, migration production, gọi AI hoặc xóa
+tài khoản thật. Chủ dự án giữ package/version demo và tự test Android.
+
+### Kết quả cuối đã chạy
+
+| Lệnh/nhóm kiểm tra | Kết quả thực tế | Exit |
+| --- | --- | --- |
+| `flutter test --no-pub --concurrency=2 --reporter expanded` | **803/803 qua**, 2 phút 49 giây test | 0 |
+| `flutter analyze --no-pub` | **No issues found**, 5,8 giây | 0 |
+| Changed Dart format checker | **92 files, 0 changed** | 0 |
+| `node --test *.rules.test.cjs` từ rules-tests, emulator 8080 | **127/127 qua**, 20,97 giây | 0 |
+| Flutter web SDK support | **4/4 qua** | 0 |
+| Flutter web SDK deletion (có support_usage inventory) | **8/8 qua** | 0 |
+| Flutter web SDK repository rộng | **23/23 qua** | 0 |
+| Flutter web SDK plan–meal | **13/13 qua** | 0 |
+| Flutter web SDK query/history | **4/4 qua** | 0 |
+| Admin Node/DOM tests + syntax checks | **42/42 qua**, check qua | 0 |
+| Admin real SDK với Rules mới, emulator 8092/9098 | **7/7 qua**, 8,4 giây | 0 |
+| Chat Node + syntax checks | **48/48 qua**, check qua | 0 |
+| Gateway REST transaction emulator | **3/3 qua**, OAuth/IAM adapter mock | 0 |
+| Migration REST emulator | **1/1 qua**, 205 records, resume/idempotent/snapshot | 0 |
+| `node --test tool/*.test.cjs` | **28/28 qua**, gồm preflight/load/CI guard/migration/catalog | 0 |
+| Load probe local | **100/100 queries**, concurrency 10, 1.000 docs, 0 lỗi | 0 |
+| Workflow YAML + PowerShell release helper syntax | Parse qua; helper không execute | 0 |
+| Source secret audit + diff check | Không phát hiện secret theo patterns; whitespace qua | 0 |
+| `node tool/release_preflight.cjs` | Chặn đúng `release-signing-missing`; APK/hash null, accepted=false | **1, expected blocker** |
+
+Flutter SDK tổng **52/52** trên Auth9099/Firestore8080, chạy từng process
+với reset/seed demo riêng trước suite. Flag duy nhất cho SDK là
+`HEALTHMATE_EMULATOR_TESTS=true`; Chrome thực qua adapter. Một số suite plan
+cũ tự clear database nên không chạy song song hay gộp file mà giả định thứ tự.
+Rules hoàn tất trước SDK. Admin dùng cặp emulator và project demo riêng.
+QA sync cuối đối chiếu **481** source/config/assets với source thực.
+
+Môi trường thực: Windows; Flutter 3.44.1/Dart 3.12.1; Node 24.18.0;
+Firebase CLI 15.22.4; JBR OpenJDK 21.0.8; Google Chrome. Tool versions và
+log cuối ở `build/improvement-packages8-10/`; manifest liệt kê hashes/file,
+lệnh, exit và giới hạn tại `verification.json`. GitHub Actions hosted chưa
+chạy; YAML parse và local suites không được mô tả là hosted CI pass.
+
+### Những hành vi đã có bằng chứng
+
+- Rules chặn ticket không counter, counter riêng/reset, multi-ticket một
+  debit, quá 3/ngày, cooldown, hai request tranh lượt cuối và UID khác.
+  Repository thật dùng cùng ID idempotent, payload khác bị từ chối; hai SDK
+  chỉ một request thắng lượt cuối. Lịch sử 70 ticket qua 25/25/20, giữ nanos
+  và đi tiếp khi anchor mất. Reply/reopen vẫn chạy khi hết quota tạo mới.
+- Admin SDK giữ reply idempotent/status/audit/customer follow-up với hợp
+  đồng tạo ticket mới. Fixture 10.037 directory records vẫn chỉ tải trang
+  25 và enrich 25 role/control; đây là document/request fixture, không phải
+  số người dùng đồng thời hay hóa đơn production.
+- Controller form/search test độc lập giữ nháp revision/ACK, single-flight,
+  retry, UID/dispose, query/detail cancellation, progress cũ và source guard.
+  Widget tests giữ lưu bản sao/5 món, xác nhận thực phẩm cần tránh và paging
+  catalog chữ lớn; Auth error không gọi persistence và giữ nháp.
+- Load probe admin REST: p50 **17.604 ms**, p95 **58.452 ms**, max **66.382 ms**,
+  total **296.778 ms** gồm setup/cleanup; dọn đúng 100 fixture paths. Không
+  đo billing reads/quota/Auth/Rules/App Check/AI/native hoặc capacity thật.
+
+### Lỗi trung gian và cách xử lý
+
+- Lượt full Flutter đầu: 797 qua/4 lỗi. Capture owner khi Auth còn loading
+  khiến lưu không gọi callback; bọc catalog rows trong một Column làm mất
+  lazy reveal/paging. Sửa first-resolved ownership và direct ListView children,
+  giữ assertions. Lượt tiếp 801 qua/1 lỗi vì personalization host thiếu Auth
+  fixture khi form mới phụ thuộc Auth; inject fake đúng scope, giữ xác nhận
+  món chưa rõ và thêm test Auth error fail-closed. Lượt cuối **803/803**.
+- SDK support đầu 2/4 lỗi: DateTime local từ Timestamp khác biểu diễn UTC
+  khi so sánh `==`, làm count cùng ngày thành 0; dùng `isAtSameMomentAs` và
+  unit test local timestamp. Exception Dart trong callback web transaction
+  bị NativeError bọc; callback trả business failure, throw SupportFailure
+  bên ngoài, giữ typed error/race/retry assertions. Lượt cuối **4/4**.
+- Admin SDK đầu 6/7: fixture tạo ticket đơn lẻ bị Rules mới chặn đúng.
+  Sửa fixture client ghi ticket+counter atomic; chỉ reset metadata synthetic
+  của chính fixture ở emulator admin. Không nới Rules, giữ toàn bộ assertions.
+  Lượt cuối **7/7**.
+- Analyzer đầu có 4 style infos thiếu braces; đã sửa, cuối sạch. Rules thử
+  trước khi emulator ready bị ECONNREFUSED; sau ready suite **127/127**.
+  Admin emulator config tham chiếu Rules ngoài project directory bị CLI từ
+  chối; dùng bản copy trong thư mục config, kiểm SHA khớp source rồi chạy.
+
+Các log lỗi Flutter/admin/startup còn lưu riêng để đối chiếu, không trình
+bày như kết quả cuối. Support SDK log canonical là lượt cuối sau sửa; lỗi
+trung gian được ghi ở phần này, không giả vờ mọi lượt đều xanh.
+
+### Giới hạn và bước cần chủ dự án thực hiện
+
+Gói 8/9 đã xác minh candidate local, chưa deploy/push. Rules support mới cần
+client mới và rollout phối hợp; ticket cũ không có counter không bị sửa nội
+dung. Gói 10 mới hoàn tất phần chuẩn bị/kiểm tra local: **chưa nghiệm thu bản
+release ký thật**, chưa có APK/certificate/hash hay bằng chứng điện thoại.
+Preflight fail đúng vì không có keystore; không tạo/ghi đè khóa để vượt gate.
+
+Chủ dự án cần cung cấp khóa ký theo cơ chế private, cấu hình certificate/
+App Check rồi tự nghiệm thu ma trận native; trước production còn phải giải
+quyết R1 server deletion/retention và Gói 5 IAM/revoke/direct-route/scan
+gateway, duyệt migration/backup/rollout và chi phí. Không tự dùng quyền
+production hoặc bật billing. Không gọi client cleanup là job server bền vững.
+
+[Truy vết hashes/config](candidate-verification.md) ·
+[Trạng thái từng gói](improvement-progress.md) ·
+[Ma trận release và rollback](release-readiness.md).
+
+Đã lưu kết quả cuối và dừng đúng hai emulator do task tạo. Kiểm tra không còn
+listener trên 8080/9099/8092/9098. Không hẹn tắt laptop ở lượt này vì điều kiện
+“hoàn thành xong” còn chưa đạt ở nghiệm thu signed release/native Gói 10;
+trạng thái được lưu tại `build/improvement-packages8-10/shutdown-status.json`.
+Không ép đóng ứng dụng hoặc tạo khóa ký để vượt blocker.

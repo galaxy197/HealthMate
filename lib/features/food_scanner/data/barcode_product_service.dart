@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../nutrition/models/nutrition_models.dart';
-import '../../nutrition/models/extra_nutrients.dart';
 import '../models/barcode_product_models.dart';
 export '../models/barcode_product_models.dart' show BarcodeProduct;
 
@@ -28,6 +27,10 @@ class BarcodeProductService {
       if (product != null) return product;
     } on BarcodeLookupFailure {
       rethrow;
+    } on FormatException {
+      throw const BarcodeLookupFailure(
+        'Dữ liệu dinh dưỡng không hợp lệ. Hãy kiểm tra và nhập theo nhãn sản phẩm.',
+      );
     } catch (_) {
       throw const BarcodeLookupFailure(
         'Chưa tra cứu được sản phẩm. Kiểm tra mạng rồi thử lại hoặc nhập thủ công.',
@@ -80,24 +83,25 @@ class BarcodeProductService {
     final brand = product['brands'] as String?;
     final imageUrl = product['image_url'] as String?;
 
-    // Parse nutrition (per 100g)
+    // OFF v2 uses `_100g` for both 100 g and 100 ml. The user confirms
+    // the label basis; package/serving units do not prove the nutrition basis.
     final nutriments = product['nutriments'] as Map<String, dynamic>?;
     NutritionTotals? nutrition;
 
     if (nutriments != null) {
       // Try energy-kcal first, then convert from kJ if needed
-      double? kcal = _parseDouble(nutriments['energy-kcal_100g']);
+      double? kcal = _nutrient(nutriments['energy-kcal_100g'], 10000);
       if (kcal == null) {
-        final kj = _parseDouble(nutriments['energy_100g']);
+        final kj = _nutrient(nutriments['energy_100g'], 41840);
         if (kj != null) {
           kcal = kj / 4.184; // Convert kJ to kcal
         }
       }
 
-      final protein = _parseDouble(nutriments['proteins_100g']);
-      final carbs = _parseDouble(nutriments['carbohydrates_100g']);
-      final fat = _parseDouble(nutriments['fat_100g']);
-      final fiber = _parseDouble(nutriments['fiber_100g']);
+      final protein = _nutrient(nutriments['proteins_100g'], 1000);
+      final carbs = _nutrient(nutriments['carbohydrates_100g'], 1000);
+      final fat = _nutrient(nutriments['fat_100g'], 1000);
+      final fiber = _nutrient(nutriments['fiber_100g'], 1000);
 
       if (kcal != null) {
         const fields = {
@@ -112,17 +116,17 @@ class BarcodeProductService {
         };
         final extras = <String, double>{};
         for (final field in fields.entries) {
-          final value = _parseDouble(nutriments['${field.value}_100g']);
+          final value = _nutrient(nutriments['${field.value}_100g'], 1000);
           // OFF normalizes these nutrient masses to grams, including minerals.
-          if (value != null && value >= 0) {
+          if (value != null) {
             final normalized =
                 value *
                 (['sugar', 'saturatedFat'].contains(field.key) ? 1 : 1000);
-            if (normalized <= 100000) extras[field.key] = normalized;
+            extras[field.key] = normalized;
           }
         }
         nutrition = NutritionTotals(
-          extraNutrients: readExtraNutrients(extras),
+          extraNutrients: extras,
           kcal: kcal,
           proteinG: protein ?? 0,
           carbsG: carbs ?? 0,
@@ -140,10 +144,7 @@ class BarcodeProductService {
     final serving = _parseDouble(product['serving_quantity']);
     final unit = product['serving_quantity_unit'];
     final servingSizeG =
-        (unit == null || unit == 'g') &&
-            serving != null &&
-            serving > 0 &&
-            serving <= 2000
+        unit == 'g' && serving != null && serving > 0 && serving <= 2000
         ? serving
         : null;
 
@@ -154,6 +155,11 @@ class BarcodeProductService {
       imageUrl: imageUrl?.isNotEmpty == true ? imageUrl : null,
       nutrition: nutrition,
       servingSizeG: servingSizeG,
+      servingSizeMl:
+          unit == 'ml' && serving != null && serving > 0 && serving <= 2000
+          ? serving
+          : null,
+      basis: BarcodeNutritionBasis.unconfirmed,
       source: 'Open Food Facts',
     );
   }
@@ -165,7 +171,15 @@ class BarcodeProductService {
         : value is String
         ? double.tryParse(value)
         : null;
-    if (number == null || !number.isFinite || number < 0 || number > 10000) {
+    if (number == null || !number.isFinite) {
+      throw const FormatException('Invalid product nutrition.');
+    }
+    return number;
+  }
+
+  double? _nutrient(dynamic value, double maximum) {
+    final number = _parseDouble(value);
+    if (number != null && (number < 0 || number > maximum)) {
       throw const FormatException('Invalid product nutrition.');
     }
     return number;

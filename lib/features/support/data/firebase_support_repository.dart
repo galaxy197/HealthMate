@@ -4,8 +4,10 @@ import '../models/support_models.dart';
 import 'support_repository.dart';
 
 class FirebaseSupportRepository implements SupportRepository {
-  FirebaseSupportRepository(this.db);
+  FirebaseSupportRepository(this.db, {DateTime Function()? now})
+    : now = now ?? DateTime.now;
   final FirebaseFirestore db;
+  final DateTime Function() now;
   CollectionReference<Map<String, dynamic>> get _tickets =>
       db.collection('support_tickets');
   @override
@@ -24,18 +26,52 @@ class FirebaseSupportRepository implements SupportRepository {
   );
 
   @override
-  Stream<List<SupportTicket>> watchTickets(String uid) => _tickets
-      .where('uid', isEqualTo: uid)
-      .orderBy('updatedAt', descending: true)
-      .limit(50)
-      .snapshots(includeMetadataChanges: true)
-      .where((s) => !s.metadata.isFromCache && !s.metadata.hasPendingWrites)
-      .map(
-        (s) => s.docs
-            .where((d) => d.data()['deleting'] != true)
-            .map((d) => _ticket(d.id, d.data()))
-            .toList(),
-      );
+  Stream<List<SupportTicket>> watchTickets(String uid) =>
+      watchTicketPage(uid).map((page) => page.tickets);
+
+  @override
+  Stream<SupportTicketPage> watchTicketPage(
+    String uid, {
+    SupportTicketCursor? after,
+  }) {
+    Query<Map<String, dynamic>> query = _tickets
+        .where('uid', isEqualTo: uid)
+        .orderBy('updatedAt', descending: true)
+        .orderBy(FieldPath.documentId, descending: true);
+    if (after != null) {
+      query = query.startAfter([
+        Timestamp(after.seconds, after.nanoseconds),
+        after.id,
+      ]);
+    }
+    return query
+        .limit(SupportPolicy.pageSize + 1)
+        .snapshots(includeMetadataChanges: true)
+        .where((s) => !s.metadata.isFromCache && !s.metadata.hasPendingWrites)
+        .map((s) {
+          // Keep the cursor in the raw query scope even if a deletion is in
+          // progress; otherwise a hidden row can trap the page boundary.
+          final visible = s.docs.take(SupportPolicy.pageSize).toList();
+          final last = visible.lastOrNull;
+          final time = last?.data()['updatedAt'] as Timestamp?;
+          return SupportTicketPage(
+            tickets: visible
+                .where((d) => d.data()['deleting'] != true)
+                .map((d) => _ticket(d.id, d.data()))
+                .toList(),
+            nextCursor:
+                s.docs.length > SupportPolicy.pageSize &&
+                    last != null &&
+                    time != null
+                ? SupportTicketCursor(
+                    seconds: time.seconds,
+                    nanoseconds: time.nanoseconds,
+                    id: last.id,
+                  )
+                : null,
+          );
+        });
+  }
 
   @override
   Stream<SupportTicket?> watchTicket(String uid, String ticketId) => _tickets
@@ -85,19 +121,58 @@ class FirebaseSupportRepository implements SupportRepository {
     final cleanBody = supportText(description, 2000, 'Nội dung');
     final ticket = _tickets.doc(id);
     try {
-      await db.runTransaction((t) async {
+      // Return business failures across the web SDK boundary. Throwing a Dart
+      // exception inside a JS transaction callback wraps it in NativeError and
+      // loses the SupportFailure type needed by callers (including retries).
+      final failure = await db.runTransaction<String?>((t) async {
         final old = await t.get(ticket);
         if (old.exists) {
           if (old.data()?['uid'] != uid ||
               old.data()?['title'] != cleanTitle ||
               old.data()?['description'] != cleanBody ||
               old.data()?['type'] != type.name) {
-            throw const SupportFailure(
-              'Mã yêu cầu đã được dùng. Đóng form rồi gửi yêu cầu mới.',
-            );
+            return 'Mã yêu cầu đã được dùng. Đóng form rồi gửi yêu cầu mới.';
           }
-          return;
+          return null;
         }
+        final usage = db.collection('support_usage').doc(uid);
+        final allowance = (await t.get(usage)).data();
+        final at = now();
+        final dayStart = SupportPolicy.dayStart(at);
+        var count = 0;
+        if (allowance != null) {
+          final previousDay = allowance['dayStart'];
+          final previousCount = allowance['count'];
+          final lastCreated = allowance['lastCreatedAt'];
+          if (allowance['schemaVersion'] != 1 ||
+              previousDay is! Timestamp ||
+              previousCount is! int ||
+              previousCount < 1 ||
+              previousCount > SupportPolicy.dailyTicketLimit ||
+              lastCreated is! Timestamp) {
+            return 'Chưa xác nhận được hạn mức hỗ trợ. Hãy tải lại.';
+          }
+          count = SupportPolicy.usedToday(
+            instant: at,
+            previousDayStart: previousDay.toDate(),
+            previousCount: previousCount,
+          );
+          if (count >= SupportPolicy.dailyTicketLimit) {
+            return 'Bạn đã gửi đủ ${SupportPolicy.dailyTicketLimit} yêu cầu mới hôm nay. Bạn vẫn có thể trả lời yêu cầu đã có.';
+          }
+          if (at.toUtc().difference(lastCreated.toDate()) <
+              SupportPolicy.createInterval) {
+            return 'Hãy chờ ${SupportPolicy.createInterval.inSeconds} giây giữa hai yêu cầu mới. Bạn vẫn có thể bổ sung vào yêu cầu đã có.';
+          }
+        }
+        t.set(usage, {
+          'schemaVersion': 1,
+          'dayStart': Timestamp.fromDate(dayStart),
+          'count': count + 1,
+          'lastCreatedAt': FieldValue.serverTimestamp(),
+          'lastTicketId': id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
         t.set(ticket, {
           'uid': uid,
           'type': type.name,
@@ -111,7 +186,9 @@ class FirebaseSupportRepository implements SupportRepository {
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        return null;
       });
+      if (failure != null) throw SupportFailure(failure);
       await ticket.get(const GetOptions(source: Source.server));
     } on FirebaseException {
       throw const SupportFailure(
@@ -131,25 +208,21 @@ class FirebaseSupportRepository implements SupportRepository {
     final ticket = _tickets.doc(ticketId),
         message = _tickets.doc(ticketId).collection('messages').doc(messageId);
     try {
-      await db.runTransaction((t) async {
+      final failure = await db.runTransaction<String?>((t) async {
         final old = await t.get(message);
         final parent = await t.get(ticket);
         if (!parent.exists || parent.data()?['uid'] != uid) {
-          throw const SupportFailure('Yêu cầu không còn khả dụng.');
+          return 'Yêu cầu không còn khả dụng.';
         }
         if (old.exists) {
           if (old.data()?['authorUid'] != uid || old.data()?['text'] != clean) {
-            throw const SupportFailure(
-              'Tin nhắn đã gửi. Tải lại cuộc trao đổi.',
-            );
+            return 'Tin nhắn đã gửi. Tải lại cuộc trao đổi.';
           }
-          return;
+          return null;
         }
         final count = parent.data()!['messageCount'] as int;
         if (count >= 100) {
-          throw const SupportFailure(
-            'Cuộc trao đổi đã đủ 100 tin nhắn. Hãy tạo yêu cầu mới.',
-          );
+          return 'Cuộc trao đổi đã đủ 100 tin nhắn. Hãy tạo yêu cầu mới.';
         }
         t.set(message, {
           'authorUid': uid,
@@ -165,7 +238,9 @@ class FirebaseSupportRepository implements SupportRepository {
           'status': 'open',
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        return null;
       });
+      if (failure != null) throw SupportFailure(failure);
       await message.get(const GetOptions(source: Source.server));
     } on FirebaseException {
       throw const SupportFailure(

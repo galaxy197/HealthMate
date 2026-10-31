@@ -7,10 +7,11 @@ import 'package:sqflite/sqflite.dart';
 import '../models/nutrition_models.dart';
 import '../models/extra_nutrients.dart';
 import '../models/food_catalog_search.dart';
+import 'food_search_cache.dart';
 
 /// Local SQLite database for food catalog caching
 /// Public catalogue cache only. Private foods remain in UID-scoped Firestore.
-class FoodLocalDatabase {
+class FoodLocalDatabase implements FoodSearchCache {
   static final FoodLocalDatabase instance = FoodLocalDatabase._init();
   static Database? _database;
 
@@ -113,6 +114,7 @@ class FoodLocalDatabase {
   }
 
   /// Insert or update food in cache
+  @override
   Future<void> cacheFood(FoodCatalogItem food) async {
     _requirePublic(food);
     if (!_cacheable(food)) return;
@@ -181,6 +183,7 @@ class FoodLocalDatabase {
   }
 
   /// Search foods in local cache
+  @override
   Future<List<FoodCatalogItem>> searchFoods(
     String query, {
     int limit = 25,
@@ -213,6 +216,7 @@ class FoodLocalDatabase {
   }
 
   /// Get food by ID
+  @override
   Future<FoodCatalogItem?> getFoodById(String id) async {
     final db = await database;
 
@@ -243,6 +247,7 @@ class FoodLocalDatabase {
   }
 
   /// Get recently used foods
+  @override
   Future<List<FoodCatalogItem>> getRecentFoods({int limit = 20}) async {
     final db = await database;
 
@@ -262,6 +267,7 @@ class FoodLocalDatabase {
   }
 
   /// Mark food as used (for recent list)
+  @override
   Future<void> markFoodUsed(String foodId) async {
     final db = await database;
 
@@ -273,6 +279,7 @@ class FoodLocalDatabase {
   }
 
   /// Clean old cache entries (older than 7 days)
+  @override
   Future<void> cleanOldCache() async {
     final db = await database;
     final weekAgo = DateTime.now()
@@ -287,6 +294,7 @@ class FoodLocalDatabase {
   }
 
   /// Get cache statistics
+  @override
   Future<Map<String, int>> getCacheStats() async {
     final db = await database;
 

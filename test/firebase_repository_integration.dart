@@ -1872,17 +1872,9 @@ void main() {
       await repo.savePlan(alice, actual);
       final id = '${actual.dateKey}-lunch';
       expect(await repo.existingPlanMeal(alice, id), false);
-      await nutrition.addMeal(
-        uid: alice,
-        draft: actual,
-        operationId: 'plan-$id',
-      );
-      await nutrition.addMeal(
-        uid: alice,
-        draft: actual,
-        operationId: 'plan-$id',
-      );
-      await repo.markPlanLogged(alice, id);
+      final confirmation = (await repo.loadPlan(alice, id))!;
+      await repo.recordPlanMeal(alice, confirmation, actual);
+      await repo.recordPlanMeal(alice, confirmation, actual);
       final meals = await nutrition.loadRange(
         alice,
         localDateOnly(now),

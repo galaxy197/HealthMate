@@ -154,7 +154,7 @@ class MealDraftStore {
       uid,
     ); // Prevent queued/late form writes from recreating deleted data.
     return _serial(() async {
-      await local.clear(uid);
+      await local.clearForDeletion(uid);
       // Keep this UID blocked for the lifetime of this store, including late
       // callbacks from a disposed form. A failed Auth deletion can retry clear.
     });

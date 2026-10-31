@@ -22,14 +22,23 @@ final journalExportServiceProvider = Provider<JournalExportService>((ref) {
   ref.listen(authSessionProvider.select((s) => s.value?.uid), (before, after) {
     if (before != after) session++;
   });
+  ref.listen(accountDeletionJobProvider, (before, after) {
+    if (after.isLoading || after.hasError || after.value != null) session++;
+  });
   return JournalExportService(
     local: ref.watch(privateLocalDataProvider),
     nutrition: ref.watch(nutritionRepositoryProvider),
     water: ref.watch(waterRepositoryProvider),
     activity: ref.watch(activityRepositoryProvider),
     profile: ref.watch(healthProfileRepositoryProvider),
-    currentUid: () =>
-        ref.mounted ? ref.read(authRepositoryProvider).currentUid : null,
+    currentUid: () {
+      if (!ref.mounted) return null;
+      final deletion = ref.read(accountDeletionJobProvider);
+      if (deletion.isLoading || deletion.hasError || deletion.value != null) {
+        return null;
+      }
+      return ref.read(authRepositoryProvider).currentUid;
+    },
     sessionVersion: () => session,
   );
 });

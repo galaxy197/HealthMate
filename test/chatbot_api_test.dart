@@ -271,6 +271,14 @@ void main() {
           .join();
       expect(reads, 1);
       expect(requests.length, 2);
+      expect(
+        requests.map((r) => r.headers['x-healthmate-request-id']).toSet(),
+        hasLength(1),
+      );
+      expect(
+        requests.first.headers['x-healthmate-request-id'],
+        matches(RegExp(r'^[A-Za-z0-9_-]{16,80}$')),
+      );
       expect(result, contains('250 ml'));
       for (final r in requests) {
         expect(r.headers['authorization'], 'Bearer private-auth');

@@ -30,3 +30,10 @@ test('export keeps demo label, complete filtered transactions and numeric VND',(
   const data=revenueExport(r);assert.match(data.name,/mô phỏng/);
   assert.equal(data.rows[0][5],20000);assert.equal(data.rows[0][7],'DEMO - KHÔNG THU TIỀN');
 });
+
+test('Firestore fractional milliseconds remain valid and are not rounded at Vietnam day boundary',()=>{
+  const before={...order('a','2026-10-30T00:00:00Z'),occurredAt:{toMillis:()=>Date.parse('2026-10-30T17:00:00Z')-.25}};
+  const after={...order('b','2026-10-30T00:00:00Z'),occurredAt:{toMillis:()=>Date.parse('2026-10-30T17:00:00Z')+.25}};
+  const r=demoRevenue([before,after],[],{start:'2026-10-30',end:'2026-10-30'});
+  assert.equal(r.count,1);assert.equal(r.transactions[0].id,'a');
+});
